@@ -1,0 +1,290 @@
+// fastmatch.com.au — Prisma schema
+// Matches fastmatch-com-au-spec.md. MySQL, following the same stack as FastmatchLive.
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum EventVisibility {
+  PUBLIC
+  NOT_PUBLIC
+}
+
+enum EventStatus {
+  UPCOMING
+  CLOSED
+  CANCELLED
+}
+
+enum Choice {
+  NO
+  FRIEND
+  DATE
+}
+
+enum MatchResult {
+  FRIEND
+  DATE
+}
+
+enum DiscountType {
+  PERCENT_OFF
+  FIXED_REDUCTION
+  FREE
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  REFUNDED
+}
+
+model Member {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  passwordHash   String
+  emailVerified  Boolean   @default(false)
+  mobileVerified Boolean   @default(false)
+  mobileVerificationCode    String?
+  mobileVerificationExpires DateTime?
+  name           String
+  gender         Gender
+  dateOfBirth    DateTime
+  mobile         String
+  city           City      @relation(fields: [cityId], references: [id])
+  cityId         String
+  agreedTerms    Boolean   @default(false)
+  agreedTermsAt  DateTime?
+  marketingOptIn Boolean   @default(true)
+  contactMethod  ContactMethod @default(EMAIL_AND_SMS)
+  emailBounced   Boolean   @default(false)
+  bounceReason   String?
+  isAdmin        Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  bookings       Booking[]
+  ratingsGiven   Rating[]  @relation("RatingsGiven")
+  ratingsReceived Rating[] @relation("RatingsReceived")
+  matchesAsA     Match[]   @relation("MatchAsMemberA")
+  matchesAsB     Match[]   @relation("MatchAsMemberB")
+
+  // Never store raw card data — Stripe customer/payment method references only
+  stripeCustomerId String?
+}
+
+model City {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  events Event[]
+  members Member[]
+}
+
+model EventTheme {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  active Boolean @default(true)
+  events Event[]
+}
+
+model EventSeries {
+  id        String   @id @default(cuid())
+  frequency String   // DAILY | WEEKLY | MONTHLY
+  interval  Int      @default(1)
+  createdAt DateTime @default(now())
+  events    Event[]
+}
+
+model Event {
+  id            String          @id @default(cuid())
+  number        Int             @unique @default(autoincrement())
+  name          String          // e.g. "Ages 28-40, Sydney CBD"
+  theme         EventTheme      @relation(fields: [themeId], references: [id])
+  themeId       String
+  city          City            @relation(fields: [cityId], references: [id])
+  cityId        String
+  venue         String
+  startsAt      DateTime
+  ageMin        Int
+  ageMax        Int
+  maxMen        Int             @default(12)
+  maxWomen      Int             @default(12)
+  cost          Decimal         @db.Decimal(10, 2)
+  expenses      Decimal?        @db.Decimal(10, 2)
+  visibility    EventVisibility @default(PUBLIC)
+  status        EventStatus     @default(UPCOMING)
+  series        EventSeries?    @relation(fields: [seriesId], references: [id])
+  seriesId      String?
+
+  matchesCalculated Boolean @default(false)
+  matchesCalculatedAt DateTime?
+  matchEmailsSent   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings Booking[]
+  ratings  Rating[]
+  matches  Match[]
+
+  @@index([startsAt])
+  @@index([themeId])
+  @@index([cityId])
+}
+
+model Booking {
+  id             String        @id @default(cuid())
+  event          Event         @relation(fields: [eventId], references: [id])
+  eventId        String
+  member         Member        @relation(fields: [memberId], references: [id])
+  memberId       String
+  badge          Int           // the number assigned for the night, sequential per event
+  status         BookingStatus @default(PENDING)
+  paidAmount     Decimal       @db.Decimal(10, 2)
+  discountCode   DiscountCode? @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
+  discountCodeId String?
+  stripePaymentIntentId String?
+  checkedIn      Boolean       @default(false)
+  checkedInAt    DateTime?
+  createdAt      DateTime      @default(now())
+
+  @@unique([eventId, memberId])
+  @@unique([eventId, badge])
+}
+
+// One row per rating a person gives another attendee at an event — replaces the old
+// comma-separated dateList/friendsList text fields with proper relational rows.
+model Rating {
+  id           String   @id @default(cuid())
+  event        Event    @relation(fields: [eventId], references: [id])
+  eventId      String
+  rater        Member   @relation("RatingsGiven", fields: [raterId], references: [id])
+  raterId      String
+  ratedMember  Member   @relation("RatingsReceived", fields: [ratedMemberId], references: [id])
+  ratedMemberId String
+  choice       Choice
+  createdAt    DateTime @default(now())
+
+  @@unique([eventId, raterId, ratedMemberId])
+}
+
+// One row per mutual match, computed when the event closes (midnight auto or host override).
+model Match {
+  id         String      @id @default(cuid())
+  event      Event       @relation(fields: [eventId], references: [id])
+  eventId    String
+  memberA    Member      @relation("MatchAsMemberA", fields: [memberAId], references: [id])
+  memberAId  String
+  memberB    Member      @relation("MatchAsMemberB", fields: [memberBId], references: [id])
+  memberBId  String
+  result     MatchResult
+  emailSent  Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+
+  @@unique([eventId, memberAId, memberBId])
+}
+
+model DiscountCode {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  type        DiscountType
+  amount      Decimal?     @db.Decimal(10, 2) // percent or fixed $ depending on type
+  scopeThemeId String?     // null = applies to all events
+  validFrom   DateTime
+  validTo     DateTime
+  usedCount   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  bookings Booking[]
+}
+
+enum ContactMethod {
+  EMAIL_AND_SMS
+  EMAIL
+  SMS
+  DO_NOT_CONTACT
+}
+
+enum CampaignSendStatus {
+  PENDING
+  SENDING
+  PAUSED
+  SENT
+  CANCELLED
+}
+
+// Reusable templates for the "Blast Template" dropdown on Create Blast.
+model CampaignTemplate {
+  id        String   @id @default(cuid())
+  title     String
+  subject   String?
+  emailBody String?  @db.Text
+  smsBody   String?  @db.Text
+  createdAt DateTime @default(now())
+
+  campaigns Campaign[]
+}
+
+// A Blast is a REUSABLE definition — matches the real system exactly:
+// content/filter can be sent multiple times (each a separate CampaignSend),
+// not a one-shot draft-then-sent record. "Unused" means it has zero sends.
+model Campaign {
+  id       String  @id @default(cuid())
+  title    String
+  template CampaignTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateId String?
+
+  automated        Boolean @default(false) // sends automatically to unconfirmed members
+  ignorePreference Boolean @default(false) // overrides marketingOptIn/contactMethod when true
+  reusable         Boolean @default(true)  // "Stop re-using blast" sets this false
+
+  sendEmail     Boolean @default(true)
+  fromName      String  @default("FastMatch")
+  fromEmail     String  @default("donotreply@fastmatch.com.au")
+  subject       String?
+  emailBody     String? @db.Text
+
+  sendSms       Boolean @default(false)
+  smsFromNumber String?
+  smsBody       String? @db.Text
+
+  // The "working" filter shown on the Send tab — can be adjusted before each
+  // send; every actual send snapshots it into CampaignSend.filterSnapshot so
+  // history shows exactly what was used for that particular send.
+  filter Json
+
+  testSentAt DateTime?
+  testSentTo String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sends CampaignSend[]
+}
+
+// One row per actual send of a Campaign — this is what the "History" tab
+// lists, and what the play/pause/cancel controls on Current Blasts operate on.
+model CampaignSend {
+  id              String             @id @default(cuid())
+  campaign        Campaign           @relation(fields: [campaignId], references: [id])
+  campaignId      String
+  filterSnapshot  Json               // the filter as it was at the moment this send started
+  status          CampaignSendStatus @default(PENDING)
+  totalRecipients Int                @default(0)
+  sentCount       Int                @default(0)
+  recipientIds    Json?              // locked in once sending starts — pause/resume continue against this exact list
+  startedAt       DateTime           @default(now())
+  completedAt     DateTime?
+}

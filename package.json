@@ -1,0 +1,40 @@
+{
+  "name": "fastmatch-com-au",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "calculate-matches": "tsx src/scripts/calculateMatches.ts",
+    "process-campaign-sends": "tsx src/scripts/processCampaignSends.ts",
+    "import-members": "tsx src/scripts/importMembers.ts"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@prisma/client": "^5.20.0",
+    "stripe": "^17.0.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.23.0",
+    "resend": "^4.0.0",
+    "qrcode": "^1.5.4",
+    "csv-parse": "^5.5.6"
+  },
+  "devDependencies": {
+    "prisma": "^5.20.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/qrcode": "^1.5.5",
+    "tsx": "^4.19.0",
+    "tailwindcss": "^3.4.0"
+  }
+}

@@ -1,0 +1,107 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { z } from 'zod';
+import { signSession } from '@/lib/auth';
+import { sendEmail } from '@/lib/emails/send';
+import { welcomeVerificationEmail } from '@/lib/emails/welcomeEmail';
+import { sendSms } from '@/lib/sms/send';
+import { verificationCodeSms } from '@/lib/sms/verificationSms';
+
+const JWT_SECRET = process.env.JWT_SECRET as string;
+
+const bodySchema = z.object({
+  name: z.string().min(1),
+  gender: z.enum(['MALE', 'FEMALE']),
+  email: z.string().email(),
+  password: z.string().min(8),
+  cityId: z.string(),
+  dateOfBirth: z.string(), // ISO date
+  mobile: z.string().min(1),
+  agreedTerms: z.literal(true, {
+    errorMap: () => ({ message: 'You must agree to the Terms & Conditions and Privacy Policy' }),
+  }),
+  marketingOptIn: z.boolean().default(true),
+});
+
+export async function POST(req: NextRequest) {
+  const parsed = bodySchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+  const data = parsed.data;
+
+  // Enforce 18+ per the Terms & Conditions — "you must be at least 18 years old"
+  const dob = new Date(data.dateOfBirth);
+  const age = calculateAge(dob);
+  if (age < 18) {
+    return NextResponse.json(
+      { error: 'You must be at least 18 years old to register with FastMatch.' },
+      { status: 403 }
+    );
+  }
+
+  const existing = await prisma.member.findUnique({ where: { email: data.email } });
+  if (existing) {
+    return NextResponse.json({ error: 'An account with this email already exists.' }, { status: 409 });
+  }
+
+  const passwordHash = await bcrypt.hash(data.password, 12);
+
+  const member = await prisma.member.create({
+    data: {
+      name: data.name,
+      gender: data.gender,
+      email: data.email,
+      passwordHash,
+      cityId: data.cityId,
+      dateOfBirth: dob,
+      mobile: data.mobile,
+      agreedTerms: true,
+      agreedTermsAt: new Date(),
+      marketingOptIn: data.marketingOptIn,
+      // emailVerified starts false — see /api/auth/verify (TODO) for the
+      // confirmation-email step already planned in the spec
+    },
+  });
+
+  // Verification is required via BOTH email and SMS — emailVerified and
+  // mobileVerified are tracked separately; nothing in this app should treat
+  // the member as "verified" until both are true.
+  const verifyToken = jwt.sign({ memberId: member.id, purpose: 'verify_email' }, JWT_SECRET, {
+    expiresIn: '7d',
+  });
+  const verifyUrl = `${process.env.APP_URL}/verify-email?token=${verifyToken}`;
+  const { subject, html } = welcomeVerificationEmail({ memberName: member.name, verifyUrl });
+  await sendEmail({ to: member.email, subject, html });
+
+  const smsCode = String(Math.floor(100000 + Math.random() * 900000)); // 6 digits
+  await prisma.member.update({
+    where: { id: member.id },
+    data: {
+      mobileVerificationCode: smsCode,
+      mobileVerificationExpires: new Date(Date.now() + 15 * 60 * 1000), // 15 min
+    },
+  });
+  await sendSms({ to: member.mobile, body: verificationCodeSms(smsCode) });
+
+  const token = signSession(member.id);
+
+  const res = NextResponse.json({ id: member.id, name: member.name });
+  res.cookies.set('fm_session', token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 30,
+  });
+  return res;
+}
+
+function calculateAge(dob: Date): number {
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+  return age;
+}

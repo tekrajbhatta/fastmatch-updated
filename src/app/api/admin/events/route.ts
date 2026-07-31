@@ -1,0 +1,97 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { z } from 'zod';
+import { requireAdmin } from '@/lib/auth';
+
+const baseEventSchema = z.object({
+  name: z.string().min(1),
+  themeId: z.string(),
+  cityId: z.string(),
+  venue: z.string().min(1),
+  startsAt: z.string(), // ISO datetime of the first occurrence
+  ageMin: z.number().int().positive(),
+  ageMax: z.number().int().positive(),
+  maxMen: z.number().int().positive().default(12),
+  maxWomen: z.number().int().positive().default(12),
+  cost: z.number().nonnegative(),
+  expenses: z.number().nonnegative().optional(),
+  visibility: z.enum(['PUBLIC', 'NOT_PUBLIC']).default('PUBLIC'),
+  repeat: z
+    .object({
+      frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY']),
+      interval: z.number().int().positive().default(1),
+      occurrences: z.number().int().positive().max(52), // sanity cap
+    })
+    .optional(),
+});
+
+// GET /api/admin/events — list, newest first
+export async function GET(req: NextRequest) {
+  const admin = await requireAdmin(req);
+  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+
+  const events = await prisma.event.findMany({
+    orderBy: { startsAt: 'asc' },
+    include: { theme: true, city: true, _count: { select: { bookings: true } } },
+  });
+  return NextResponse.json(events);
+}
+
+// POST /api/admin/events — create one event, or a whole repeat series
+export async function POST(req: NextRequest) {
+  const admin = await requireAdmin(req);
+  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+
+  const parsed = baseEventSchema.safeParse(await req.json());
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  const data = parsed.data;
+
+  const startDates = buildOccurrenceDates(new Date(data.startsAt), data.repeat);
+
+  const series = data.repeat
+    ? await prisma.eventSeries.create({
+        data: { frequency: data.repeat.frequency, interval: data.repeat.interval },
+      })
+    : null;
+
+  const events = await prisma.$transaction(
+    startDates.map((startsAt) =>
+      prisma.event.create({
+        data: {
+          name: data.name,
+          themeId: data.themeId,
+          cityId: data.cityId,
+          venue: data.venue,
+          startsAt,
+          ageMin: data.ageMin,
+          ageMax: data.ageMax,
+          maxMen: data.maxMen,
+          maxWomen: data.maxWomen,
+          cost: data.cost,
+          expenses: data.expenses,
+          visibility: data.visibility,
+          seriesId: series?.id,
+        },
+      })
+    )
+  );
+
+  return NextResponse.json({ events, seriesId: series?.id ?? null });
+}
+
+function buildOccurrenceDates(
+  first: Date,
+  repeat?: { frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY'; interval: number; occurrences: number }
+): Date[] {
+  if (!repeat) return [first];
+
+  const dates: Date[] = [first];
+  for (let i = 1; i < repeat.occurrences; i++) {
+    const d = new Date(dates[i - 1]);
+    if (repeat.frequency === 'DAILY') d.setDate(d.getDate() + repeat.interval);
+    if (repeat.frequency === 'WEEKLY') d.setDate(d.getDate() + 7 * repeat.interval);
+    if (repeat.frequency === 'MONTHLY') d.setMonth(d.getMonth() + repeat.interval);
+    dates.push(d);
+  }
+  return dates;
+}
