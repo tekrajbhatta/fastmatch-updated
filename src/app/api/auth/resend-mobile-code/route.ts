@@ -3,8 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { getSessionMember } from '@/lib/auth';
 import { sendSms } from '@/lib/sms/send';
 import { verificationCodeSms } from '@/lib/sms/verificationSms';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const member = await getSessionMember(req);
   if (!member) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
@@ -20,4 +21,4 @@ export async function POST(req: NextRequest) {
   await sendSms({ to: member.mobile, body: verificationCodeSms(code) });
 
   return NextResponse.json({ ok: true });
-}
+});

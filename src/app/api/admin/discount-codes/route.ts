@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const codeSchema = z.object({
   code: z.string().min(1).toUpperCase(),
@@ -12,15 +13,15 @@ const codeSchema = z.object({
   validTo: z.string(),
 });
 
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
   const codes = await prisma.discountCode.findMany({ orderBy: { validFrom: 'desc' } });
   return NextResponse.json(codes);
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
@@ -47,4 +48,4 @@ export async function POST(req: NextRequest) {
     },
   });
   return NextResponse.json(created);
-}
+});

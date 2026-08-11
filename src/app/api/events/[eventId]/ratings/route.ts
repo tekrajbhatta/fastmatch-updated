@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { getSessionMember } from '@/lib/auth';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const bodySchema = z.object({
   ratings: z.array(
@@ -15,7 +16,7 @@ const bodySchema = z.object({
 // POST /api/events/:eventId/ratings — "Submit Matches"
 // Choices are stored immediately but never calculated here — calculation only
 // happens via the midnight job or the host's manual "close event now" action.
-export async function POST(req: NextRequest, ctx: { params: Promise<{ eventId: string }> }) {
+export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ eventId: string }> }) => {
   const params = await ctx.params;
   const member = await getSessionMember(req);
   if (!member) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -54,4 +55,4 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ eventId: s
   );
 
   return NextResponse.json({ ok: true });
-}
+});

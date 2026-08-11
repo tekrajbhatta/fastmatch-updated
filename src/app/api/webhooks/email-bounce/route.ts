@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 /**
  * Email provider webhook for bounces (Resend, or whichever provider is
@@ -12,7 +13,7 @@ import { prisma } from '@/lib/prisma';
  * TODO: verify the webhook signature once the provider is chosen (Resend
  * signs webhook payloads — don't process unverified requests in production).
  */
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const payload = await req.json();
 
   // Shape varies by provider — adjust once Resend (or chosen provider) is
@@ -27,4 +28,4 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ ok: true });
-}
+});

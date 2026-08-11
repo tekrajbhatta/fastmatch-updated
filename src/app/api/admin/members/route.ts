@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { buildMemberWhere, MemberFilter } from '@/lib/memberFilter';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const PAGE_SIZE = 50;
 
@@ -14,7 +15,7 @@ const PAGE_SIZE = 50;
 // split, total matches) are computed over the FULL filtered set via
 // database-level aggregates, not just the current page — matches the
 // mockup's requirement without loading thousands of rows to do it.
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
@@ -45,14 +46,18 @@ export async function GET(req: NextRequest) {
     prisma.match.count({ where: { OR: [{ memberA: where }, { memberB: where }] } }),
   ]);
 
+  // Strip credential/secret fields before they leave the server — the member
+  // detail route already does this; the list must too.
+  const safeMembers = members.map(({ passwordHash, mobileVerificationCode, ...safe }) => safe);
+
   return NextResponse.json({
-    members,
+    members: safeMembers,
     page,
     pageSize: PAGE_SIZE,
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
     totals: { count: total, male: maleCount, female: femaleCount, totalMatches },
   });
-}
+});
 
 const walkInSchema = z.object({
   name: z.string().min(1),
@@ -68,7 +73,7 @@ const walkInSchema = z.object({
 // email/SMS verification entirely — the host is vouching for them in
 // person, and they can set a real password via "Forgot password" if they
 // ever want to log in online later. Still enforces 18+.
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
@@ -104,4 +109,4 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json(member);
-}
+});

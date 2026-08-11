@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { sendEmail } from '@/lib/emails/send';
 import { sendSms } from '@/lib/sms/send';
-import { campaignEmail } from '@/lib/emails/campaignEmail';
+import { resolveCampaignEmailHtml } from '@/lib/emails/campaignEmail';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const bodySchema = z.object({
   testTo: z.string().min(1), // matches the real "Send Test" free-text field — email or mobile depending on channel
@@ -12,8 +13,9 @@ const bodySchema = z.object({
 
 // POST /api/admin/campaigns/:id/test-send — "Send Test Email" on the real
 // Details tab. Sends to whatever address/number the admin typed in, not a
-// fixed one.
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+// fixed one. Uses the same structured-field rendering as a real send, so
+// what's tested is exactly what would go out.
+export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
@@ -24,12 +26,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const campaign = await prisma.campaign.findUniqueOrThrow({ where: { id: params.id } });
 
   if (campaign.sendEmail) {
-    const { subject, html } = campaignEmail({
-      subject: `[TEST] ${campaign.subject ?? ''}`,
-      bodyHtml: campaign.emailBody ?? '',
-      unsubscribeUrl: `${process.env.APP_URL}/unsubscribe?token=test`,
-    });
-    await sendEmail({ to: parsed.data.testTo, subject, html });
+    const html = resolveCampaignEmailHtml(
+      {
+        emailBody: campaign.emailBody,
+        heading: campaign.heading,
+        freeText: campaign.freeText,
+        eventDetailsText: campaign.eventDetailsText,
+        bookingLink: campaign.bookingLink,
+        photoUrl: campaign.photoUrl,
+        bannerImageUrl: campaign.bannerImageUrl,
+      },
+      `${process.env.APP_URL}/unsubscribe?token=test`
+    );
+    await sendEmail({ to: parsed.data.testTo, subject: `[TEST] ${campaign.subject ?? ''}`, html });
   }
   if (campaign.sendSms) {
     await sendSms({ to: parsed.data.testTo, body: `[TEST] ${campaign.smsBody ?? ''}` });
@@ -41,4 +50,4 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   });
 
   return NextResponse.json({ ok: true });
-}
+});

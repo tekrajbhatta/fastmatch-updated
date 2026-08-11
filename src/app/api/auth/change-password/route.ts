@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { getSessionMember } from '@/lib/auth';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const bodySchema = z.object({
   currentPassword: z.string().min(1),
@@ -12,7 +13,7 @@ const bodySchema = z.object({
 // POST /api/auth/change-password — for a logged-in member changing their
 // password from Account, as opposed to /reset-password which is for someone
 // who's forgotten it and is using an emailed token instead.
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const member = await getSessionMember(req);
   if (!member) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
@@ -26,4 +27,4 @@ export async function POST(req: NextRequest) {
   await prisma.member.update({ where: { id: member.id }, data: { passwordHash } });
 
   return NextResponse.json({ ok: true });
-}
+});

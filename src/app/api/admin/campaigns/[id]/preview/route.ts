@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { buildMemberWhere, MemberFilter } from '@/lib/memberFilter';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 // POST /api/admin/campaigns/:id/preview — the "Filter" button on the Send
 // tab. Accepts the filter currently being edited in the UI (not necessarily
 // saved yet) so the admin can try different filters before committing —
 // falls back to the campaign's stored filter if none is passed.
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
@@ -38,4 +39,4 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   ]);
 
   return NextResponse.json({ count, members });
-}
+});

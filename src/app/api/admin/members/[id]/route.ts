@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 // GET /api/admin/members/:id — "click a member to view their details" on
 // the real Members screen. Includes their booking and match history.
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
@@ -25,4 +26,4 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { passwordHash, ...safeMember } = member;
 
   return NextResponse.json({ ...safeMember, matches });
-}
+});

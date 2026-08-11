@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { processCampaignSendBatch } from '@/lib/campaigns/runSend';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 // POST .../sends/:sendId/resume — the (▶) button. Sets status back to
 // SENDING and processes one batch immediately; the scheduled job picks up
 // the rest, continuing from the same locked-in recipient list.
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string; sendId: string }> }) {
+export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string; sendId: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
@@ -19,4 +20,4 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   await prisma.campaignSend.update({ where: { id: params.sendId }, data: { status: 'SENDING' } });
   const result = await processCampaignSendBatch(params.sendId);
   return NextResponse.json(result);
-}
+});

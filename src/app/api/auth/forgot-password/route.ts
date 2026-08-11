@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
 const bodySchema = z.object({ email: z.string().email() });
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
 
@@ -26,4 +27,4 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true });
-}
+});

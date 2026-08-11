@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 // GET /api/admin/campaigns/:id — the "Details" tab
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
@@ -18,11 +19,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     hasBeenSent: campaign.sends.length > 0,
     blastStatus: campaign.sends[0]?.status ?? 'UNUSED',
   });
-}
+});
 
 // PATCH /api/admin/campaigns/:id — "Edit Blast", only allowed while Unused
 // (matches the real system: once sent, use Duplicate instead of editing).
-export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
@@ -38,10 +39,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const updates = await req.json();
   const campaign = await prisma.campaign.update({ where: { id: params.id }, data: updates });
   return NextResponse.json(campaign);
-}
+});
 
 // DELETE /api/admin/campaigns/:id — "Delete Blast", only allowed while Unused
-export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export const DELETE = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
@@ -56,4 +57,4 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
 
   await prisma.campaign.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
-}
+});

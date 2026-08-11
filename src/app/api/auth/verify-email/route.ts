@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
   const token = req.nextUrl.searchParams.get('token');
   if (!token) return NextResponse.json({ error: 'Missing token' }, { status: 400 });
 
@@ -21,4 +22,4 @@ export async function GET(req: NextRequest) {
 
   await prisma.member.update({ where: { id: payload.memberId }, data: { emailVerified: true } });
   return NextResponse.json({ ok: true });
-}
+});

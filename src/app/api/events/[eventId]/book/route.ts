@@ -4,13 +4,14 @@ import Stripe from 'stripe';
 import { z } from 'zod';
 import { getSessionMember } from '@/lib/auth';
 import { sendBookingConfirmation } from '@/lib/sendBookingConfirmation';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 const bodySchema = z.object({ discountCode: z.string().optional() });
 
 // POST /api/events/:eventId/book
-export async function POST(req: NextRequest, ctx: { params: Promise<{ eventId: string }> }) {
+export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ eventId: string }> }) => {
   const params = await ctx.params;
   const member = await getSessionMember(req);
   if (!member) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -120,4 +121,4 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ eventId: s
   await prisma.booking.update({ where: { id: booking.id }, data: { stripePaymentIntentId: session.id } });
 
   return NextResponse.json({ booking, checkoutUrl: session.url });
-}
+});

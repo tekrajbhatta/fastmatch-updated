@@ -13,6 +13,7 @@
  * Run with: npm run db:seed
  */
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -66,6 +67,57 @@ async function main() {
     await prisma.eventTheme.upsert({ where: { name }, update: {}, create: { name } });
   }
   console.log(`Event themes seeded: ${EVENT_THEMES.length}`);
+
+  await seedAdmin();
+}
+
+// Admin bootstrap. Admins are ordinary Members with isAdmin=true and there is
+// no in-app way to create the first one, so without this the admin panel is
+// unreachable on a fresh database. Driven by env vars so each environment
+// chooses its own credentials (nothing hard-coded here):
+//   SEED_ADMIN_EMAIL + SEED_ADMIN_PASSWORD  (both required to activate)
+// If the member already exists it's promoted to admin and its password is
+// left alone — so this never clobbers a real account's password on re-run.
+async function seedAdmin() {
+  const email = process.env.SEED_ADMIN_EMAIL;
+  const password = process.env.SEED_ADMIN_PASSWORD;
+  if (!email || !password) {
+    console.log('Admin bootstrap skipped (set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD to enable).');
+    return;
+  }
+
+  const existing = await prisma.member.findUnique({ where: { email } });
+  if (existing) {
+    if (!existing.isAdmin) {
+      await prisma.member.update({ where: { id: existing.id }, data: { isAdmin: true } });
+      console.log(`Admin bootstrap: promoted existing member ${email} to admin.`);
+    } else {
+      console.log(`Admin bootstrap: ${email} is already an admin.`);
+    }
+    return;
+  }
+
+  const sydney = await prisma.city.findUnique({ where: { name: 'Sydney' } });
+  if (!sydney) throw new Error('Admin bootstrap needs the City seed to have run first.');
+
+  await prisma.member.create({
+    data: {
+      email,
+      passwordHash: await bcrypt.hash(password, 12),
+      name: process.env.SEED_ADMIN_NAME ?? 'FastMatch Admin',
+      gender: 'FEMALE', // required field; irrelevant for an admin account
+      dateOfBirth: new Date('1980-01-01'),
+      mobile: '0400000000',
+      cityId: sydney.id,
+      isAdmin: true,
+      emailVerified: true,
+      mobileVerified: true,
+      agreedTerms: true,
+      agreedTermsAt: new Date(),
+      marketingOptIn: false,
+    },
+  });
+  console.log(`Admin bootstrap: created admin account ${email}.`);
 }
 
 main()

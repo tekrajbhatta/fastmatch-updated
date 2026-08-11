@@ -230,6 +230,16 @@ model CampaignTemplate {
   id        String   @id @default(cuid())
   title     String
   subject   String?
+  // Structured fields (preferred path — renders into the branded layout via
+  // renderCampaignEmailHtml) and emailBody (a raw-HTML override, for anyone
+  // who wants to bypass the structured fields entirely) can both be set;
+  // emailBody wins if present. Matches FastmatchLive's template model.
+  heading          String?
+  freeText         String? @db.Text // multi-paragraph body copy
+  eventDetailsText String? @db.Text // free-form (When/Where/Cost/Age etc, admin's own wording)
+  bookingLink      String?
+  photoUrl         String?
+  bannerImageUrl   String? // optional full-width custom header banner, replacing the default plain banner — e.g. a themed frame. The uploaded image must carry any needed branding/text itself, since text-over-image CSS overlays aren't reliable across email clients.
   emailBody String?  @db.Text
   smsBody   String?  @db.Text
   createdAt DateTime @default(now())
@@ -254,6 +264,20 @@ model Campaign {
   fromName      String  @default("FastMatch")
   fromEmail     String  @default("donotreply@fastmatch.com.au")
   subject       String?
+  // Structured fields — selecting a template on Create Blast COPIES these
+  // into this specific blast's own row, not a reference back to the shared
+  // template. So the photo (or any other field) can be swapped for this one
+  // blast without touching the template or any other blast built from it —
+  // the original problem this was built to solve was photos going stale
+  // when every blast shared one rendered copy. emailBody is a raw-HTML
+  // override for anyone who wants to bypass structured rendering entirely;
+  // if set, it wins — see resolveCampaignEmailHtml in campaignEmail.ts.
+  heading          String?
+  freeText         String? @db.Text
+  eventDetailsText String? @db.Text
+  bookingLink      String?
+  photoUrl         String?
+  bannerImageUrl   String?
   emailBody     String? @db.Text
 
   sendSms       Boolean @default(false)

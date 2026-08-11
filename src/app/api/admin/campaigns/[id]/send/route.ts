@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { startCampaignSend } from '@/lib/campaigns/runSend';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 // POST /api/admin/campaigns/:id/send — "Send Blast Now". Starts a new
 // CampaignSend (a reusable blast can have many of these over its lifetime).
 // Processes the first batch immediately; the scheduled job
 // (processCampaignSends.ts) continues it to completion for larger lists.
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
@@ -22,4 +23,4 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const result = await startCampaignSend(params.id);
   return NextResponse.json(result);
-}
+});

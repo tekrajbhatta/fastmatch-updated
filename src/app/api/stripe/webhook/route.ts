@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import Stripe from 'stripe';
 import { sendBookingConfirmation } from '@/lib/sendBookingConfirmation';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
@@ -10,7 +11,7 @@ const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
 // your place at one of our events is confirmed." Booking status only flips
 // to CONFIRMED here, once Stripe confirms the charge actually succeeded —
 // never optimistically on the client side.
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const body = await req.text();
   const signature = req.headers.get('stripe-signature') as string;
 
@@ -41,4 +42,4 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ received: true });
-}
+});

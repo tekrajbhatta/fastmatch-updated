@@ -3,6 +3,13 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { sendBookingConfirmation } from '@/lib/sendBookingConfirmation';
+import { withErrorHandling } from '@/lib/withErrorHandling';
+
+// NOTE ON THE SLUG NAME: this lives under [id], not [eventId] as in the client
+// delivery. Next.js rejects two different slug names at the same path level,
+// and this folder's siblings ([id]/route.ts, [id]/close/route.ts) already use
+// [id]. The URL is unchanged — /api/admin/events/<eventId>/bookings still
+// resolves here, so the admin screens need no adjustment.
 
 const bodySchema = z.object({
   memberId: z.string(),
@@ -11,7 +18,7 @@ const bodySchema = z.object({
 
 // GET /api/admin/events/:id/bookings — the attendee list on the admin
 // Event Bookings screen (badge, name, email/mobile, paid status).
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
@@ -23,7 +30,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   });
 
   return NextResponse.json(bookings);
-}
+});
 
 // POST /api/admin/events/:id/bookings — "Add booking" on the walk-in
 // flow. Distinct from the member self-service /book route: no Stripe (cash
@@ -31,7 +38,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 // standing there with them), and auto-checked-in immediately since they've
 // physically arrived — they shouldn't have to separately scan the venue QR
 // right after the host just booked them in.
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
@@ -77,4 +84,4 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   return NextResponse.json(booking);
-}
+});

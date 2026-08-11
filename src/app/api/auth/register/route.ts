@@ -8,6 +8,7 @@ import { sendEmail } from '@/lib/emails/send';
 import { welcomeVerificationEmail } from '@/lib/emails/welcomeEmail';
 import { sendSms } from '@/lib/sms/send';
 import { verificationCodeSms } from '@/lib/sms/verificationSms';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
@@ -25,7 +26,7 @@ const bodySchema = z.object({
   marketingOptIn: z.boolean().default(true),
 });
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
     maxAge: 60 * 60 * 24 * 30,
   });
   return res;
-}
+});
 
 function calculateAge(dob: Date): number {
   const today = new Date();

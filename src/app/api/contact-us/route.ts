@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sendEmail } from '@/lib/emails/send';
 import { emailLayout } from '@/lib/emails/layout';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const bodySchema = z.object({
   name: z.string().min(1),
@@ -10,7 +11,7 @@ const bodySchema = z.object({
 });
 
 // POST /api/contact-us — no auth required, anyone on the site can use this
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   const data = parsed.data;
@@ -24,4 +25,4 @@ export async function POST(req: NextRequest) {
   await sendEmail({ to: 'gil@fastmatch.com.au', subject: `Contact Us: ${data.name}`, html });
 
   return NextResponse.json({ ok: true });
-}
+});

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 // POST .../sends/:sendId/cancel — the (X) button. Cannot be resumed after.
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string; sendId: string }> }) {
+export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string; sendId: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
@@ -15,4 +16,4 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const updated = await prisma.campaignSend.update({ where: { id: params.sendId }, data: { status: 'CANCELLED' } });
   return NextResponse.json(updated);
-}
+});

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const baseEventSchema = z.object({
   name: z.string().min(1),
@@ -20,13 +21,13 @@ const baseEventSchema = z.object({
     .object({
       frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY']),
       interval: z.number().int().positive().default(1),
-      occurrences: z.number().int().positive().max(52), // sanity cap
+      endDate: z.string(), // generates occurrences up to and including this date, not a fixed count
     })
     .optional(),
 });
 
 // GET /api/admin/events — list, newest first
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
@@ -35,10 +36,10 @@ export async function GET(req: NextRequest) {
     include: { theme: true, city: true, _count: { select: { bookings: true } } },
   });
   return NextResponse.json(events);
-}
+});
 
 // POST /api/admin/events — create one event, or a whole repeat series
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
@@ -77,20 +78,24 @@ export async function POST(req: NextRequest) {
   );
 
   return NextResponse.json({ events, seriesId: series?.id ?? null });
-}
+});
 
 function buildOccurrenceDates(
   first: Date,
-  repeat?: { frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY'; interval: number; occurrences: number }
+  repeat?: { frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY'; interval: number; endDate: string }
 ): Date[] {
   if (!repeat) return [first];
 
+  const end = new Date(repeat.endDate);
   const dates: Date[] = [first];
-  for (let i = 1; i < repeat.occurrences; i++) {
-    const d = new Date(dates[i - 1]);
+  const SANITY_CAP = 200; // guards against a runaway loop from a bad/far-future end date
+
+  while (dates.length < SANITY_CAP) {
+    const d = new Date(dates[dates.length - 1]);
     if (repeat.frequency === 'DAILY') d.setDate(d.getDate() + repeat.interval);
     if (repeat.frequency === 'WEEKLY') d.setDate(d.getDate() + 7 * repeat.interval);
     if (repeat.frequency === 'MONTHLY') d.setMonth(d.getMonth() + repeat.interval);
+    if (d > end) break;
     dates.push(d);
   }
   return dates;

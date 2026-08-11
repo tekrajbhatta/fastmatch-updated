@@ -3,13 +3,14 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { signSession } from '@/lib/auth';
+import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const bodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 400 });
@@ -34,4 +35,4 @@ export async function POST(req: NextRequest) {
     maxAge: 60 * 60 * 24 * 30,
   });
   return res;
-}
+});

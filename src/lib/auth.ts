@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
 import { prisma } from './prisma';
 
@@ -41,4 +42,21 @@ export async function requireAdmin(req: NextRequest) {
   const member = await getSessionMember(req);
   if (!member || !member.isAdmin) return null;
   return member;
+}
+
+// Server-component-friendly variant — RSCs don't have a NextRequest, they
+// read cookies via next/headers instead. Same session-cookie logic as
+// getSessionMember, just a different way of getting the token.
+export async function getCurrentMember() {
+  // Next 15 made cookies() async (it returns a Promise); in Next 14 it was
+  // synchronous. This must stay awaited while the project is on Next 15.
+  const token = (await cookies()).get('fm_session')?.value;
+  if (!token) return null;
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { memberId: string };
+    return await prisma.member.findUnique({ where: { id: payload.memberId } });
+  } catch {
+    return null;
+  }
 }

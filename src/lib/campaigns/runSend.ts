@@ -2,7 +2,7 @@ import { prisma } from '../prisma';
 import { buildMemberWhere, MemberFilter } from '../memberFilter';
 import { sendEmail } from '../emails/send';
 import { sendSms } from '../sms/send';
-import { campaignEmail } from '../emails/campaignEmail';
+import { resolveCampaignEmailHtml } from '../emails/campaignEmail';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
@@ -77,12 +77,20 @@ export async function processCampaignSendBatch(sendId: string) {
       ) {
         try {
           const unsubscribeToken = jwt.sign({ memberId: recipient.id, purpose: 'unsubscribe' }, JWT_SECRET);
-          const { subject, html } = campaignEmail({
-            subject: campaign.subject ?? '',
-            bodyHtml: campaign.emailBody ?? '',
-            unsubscribeUrl: `${process.env.APP_URL}/unsubscribe?token=${unsubscribeToken}`,
-          });
-          await sendEmail({ to: recipient.email, subject, html });
+          const unsubscribeUrl = `${process.env.APP_URL}/unsubscribe?token=${unsubscribeToken}`;
+          const html = resolveCampaignEmailHtml(
+            {
+              emailBody: campaign.emailBody,
+              heading: campaign.heading,
+              freeText: campaign.freeText,
+              eventDetailsText: campaign.eventDetailsText,
+              bookingLink: campaign.bookingLink,
+              photoUrl: campaign.photoUrl,
+              bannerImageUrl: campaign.bannerImageUrl,
+            },
+            unsubscribeUrl
+          );
+          await sendEmail({ to: recipient.email, subject: campaign.subject ?? '', html });
         } catch {
           await prisma.member.update({
             where: { id: recipient.id },
