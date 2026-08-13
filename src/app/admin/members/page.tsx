@@ -30,6 +30,15 @@ export default function AdminMembersPage() {
 
   useEffect(() => { loadMembers(1); }, []);
 
+  function handleExport() {
+    const params = new URLSearchParams();
+    if (filters.search) params.set('search', filters.search);
+    if (filters.gender) params.set('gender', filters.gender);
+    if (filters.ageMin) params.set('ageMin', filters.ageMin);
+    if (filters.ageMax) params.set('ageMax', filters.ageMax);
+    window.open(`/api/admin/members/export?${params}`, '_blank');
+  }
+
   return (
     <div>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Members</h1>
@@ -47,6 +56,7 @@ export default function AdminMembersPage() {
           <Field label="Age to"><Input type="number" value={filters.ageMax} onChange={(e) => setFilters({ ...filters, ageMax: e.target.value })} /></Field>
         </div>
         <Button onClick={() => loadMembers(1)} className="mt-2">Apply filters</Button>
+        <Button variant="ghost" className="mt-2 ml-2" onClick={handleExport}>Export CSV</Button>
       </Card>
 
       {totals && (

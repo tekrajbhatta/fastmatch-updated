@@ -9,6 +9,7 @@ interface Campaign {
   fromName: string; fromEmail: string; reusable: boolean;
 }
 interface Send { id: string; status: string; sentCount: number; totalRecipients: number; startedAt: string; }
+interface City { id: string; name: string; }
 
 export default function ViewBlastPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,23 +19,41 @@ export default function ViewBlastPage() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [sends, setSends] = useState<Send[]>([]);
   const [testTo, setTestTo] = useState('');
-  const [filter, setFilter] = useState({ ageMin: '', ageMax: '', gender: '' });
+  const [cities, setCities] = useState<City[]>([]);
+  const [filter, setFilter] = useState({ ageMin: '', ageMax: '', gender: '', cityId: '', contactMethod: '' });
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [activeSend, setActiveSend] = useState<Send | null>(null);
+  const [smsCredits, setSmsCredits] = useState<number | null>(null);
 
   function loadCampaign() {
     fetch(`/api/admin/campaigns/${id}`).then((r) => r.json()).then(setCampaign);
   }
   function loadHistory() {
-    fetch(`/api/admin/campaigns/${id}/sends`).then((r) => r.json()).then(setSends);
+    fetch(`/api/admin/campaigns/${id}/sends`).then((r) => r.json()).then((data) => {
+      setSends(data);
+      const inProgress = data.find((s: Send) => s.status === 'SENDING' || s.status === 'PAUSED');
+      setActiveSend(inProgress ?? null);
+    });
   }
 
-  useEffect(() => { loadCampaign(); loadHistory(); }, [id]);
+  useEffect(() => {
+    loadCampaign(); loadHistory();
+    fetch('/api/cities').then((r) => r.json()).then(setCities);
+    fetch('/api/admin/sms-credits').then((r) => r.json()).then((d) => setSmsCredits(d.credits));
+  }, [id]);
 
   async function handlePreview() {
     const res = await fetch(`/api/admin/campaigns/${id}/preview`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filter: { ageMin: filter.ageMin ? Number(filter.ageMin) : undefined, ageMax: filter.ageMax ? Number(filter.ageMax) : undefined, gender: filter.gender || undefined } }),
+      body: JSON.stringify({
+        filter: {
+          ageMin: filter.ageMin ? Number(filter.ageMin) : undefined,
+          ageMax: filter.ageMax ? Number(filter.ageMax) : undefined,
+          gender: filter.gender || undefined,
+          cityId: filter.cityId || undefined,
+          contactMethods: filter.contactMethod ? [filter.contactMethod] : undefined,
+        },
+      }),
     });
     const data = await res.json();
     setPreviewCount(data.count);
@@ -48,8 +67,15 @@ export default function ViewBlastPage() {
   }
 
   async function handleSendNow() {
+    const savedFilter = {
+      ageMin: filter.ageMin ? Number(filter.ageMin) : undefined,
+      ageMax: filter.ageMax ? Number(filter.ageMax) : undefined,
+      gender: filter.gender || undefined,
+      cityId: filter.cityId || undefined,
+      contactMethods: filter.contactMethod ? [filter.contactMethod] : undefined,
+    };
     await fetch(`/api/admin/campaigns/${id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filter }),
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filter: savedFilter }),
     });
     const res = await fetch(`/api/admin/campaigns/${id}/send`, { method: 'POST' });
     const data = await res.json();
@@ -76,6 +102,23 @@ export default function ViewBlastPage() {
   async function handleStopReusing() {
     await fetch(`/api/admin/campaigns/${id}/stop-reusing`, { method: 'POST' });
     loadCampaign();
+  }
+
+  async function handlePause() {
+    if (!activeSend) return;
+    await fetch(`/api/admin/campaigns/${id}/sends/${activeSend.id}/pause`, { method: 'POST' });
+    loadHistory();
+  }
+  async function handleResume() {
+    if (!activeSend) return;
+    await fetch(`/api/admin/campaigns/${id}/sends/${activeSend.id}/resume`, { method: 'POST' });
+    pollSend(activeSend.id);
+  }
+  async function handleCancel() {
+    if (!activeSend) return;
+    if (!confirm('Cancel this send? It cannot be resumed once cancelled.')) return;
+    await fetch(`/api/admin/campaigns/${id}/sends/${activeSend.id}/cancel`, { method: 'POST' });
+    loadHistory();
   }
 
   if (!campaign) return <p className="text-sm text-ink/50">Loading…</p>;
@@ -114,6 +157,12 @@ export default function ViewBlastPage() {
         </Card>
       )}
 
+      {smsCredits !== null && (
+        <div className="mb-4 rounded-lg bg-amber/10 p-3 text-center text-sm text-amber">
+          SMS provider indicates {smsCredits.toLocaleString()} credits remaining (not a dollar value).
+        </div>
+      )}
+
       {tab === 'send' && (
         <Card>
           <div className="mb-2 text-sm font-extrabold text-ink">Select members</div>
@@ -121,23 +170,43 @@ export default function ViewBlastPage() {
           <div className="grid grid-cols-2 gap-3">
             <Field label="Age from"><Input type="number" value={filter.ageMin} onChange={(e) => setFilter({ ...filter, ageMin: e.target.value })} /></Field>
             <Field label="Age to"><Input type="number" value={filter.ageMax} onChange={(e) => setFilter({ ...filter, ageMax: e.target.value })} /></Field>
+            <Field label="Gender">
+              <Select value={filter.gender} onChange={(e) => setFilter({ ...filter, gender: e.target.value })}>
+                <option value="">Any</option><option value="MALE">Male</option><option value="FEMALE">Female</option>
+              </Select>
+            </Field>
+            <Field label="City">
+              <Select value={filter.cityId} onChange={(e) => setFilter({ ...filter, cityId: e.target.value })}>
+                <option value="">All</option>{cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Contact method">
+              <Select value={filter.contactMethod} onChange={(e) => setFilter({ ...filter, contactMethod: e.target.value })}>
+                <option value="">Any</option>
+                <option value="EMAIL_AND_SMS">Email and SMS</option>
+                <option value="EMAIL">Email</option>
+                <option value="SMS">SMS</option>
+              </Select>
+            </Field>
           </div>
-          <Field label="Gender">
-            <Select value={filter.gender} onChange={(e) => setFilter({ ...filter, gender: e.target.value })}>
-              <option value="">Any</option><option value="MALE">Male</option><option value="FEMALE">Female</option>
-            </Select>
-          </Field>
           <Button variant="ghost" onClick={handlePreview} className="mb-4 w-full">Filter</Button>
           {previewCount !== null && (
             <div className="mb-4 rounded-lg bg-plum/10 p-3 text-center font-extrabold text-plum">{previewCount.toLocaleString()} members filtered</div>
           )}
-          {activeSend && activeSend.status === 'SENDING' && (
+
+          {activeSend ? (
             <div className="mb-4 rounded-lg bg-cream/50 p-3 text-center text-sm">
               <div className="text-xl font-extrabold text-plum">{activeSend.sentCount} / {activeSend.totalRecipients}</div>
-              <div className="text-ink/50">sending…</div>
+              <div className="mb-3 text-ink/50">{activeSend.status === 'PAUSED' ? 'paused' : 'sending…'}</div>
+              <div className="flex justify-center gap-2">
+                {activeSend.status === 'SENDING' && <Button variant="ghost" onClick={handlePause}>Pause</Button>}
+                {activeSend.status === 'PAUSED' && <Button onClick={handleResume}>Resume</Button>}
+                <Button variant="danger" onClick={handleCancel}>Cancel</Button>
+              </div>
             </div>
+          ) : (
+            <Button onClick={handleSendNow} className="w-full">Send Blast Now</Button>
           )}
-          <Button onClick={handleSendNow} className="w-full">Send Blast Now</Button>
         </Card>
       )}
 

@@ -1,30 +1,103 @@
 'use client';
 
-import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import { Card } from '@/components/ui';
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { Field, Input, Select, Button, Card } from '@/components/ui';
 
-// PLACEHOLDER — the event detail screen links here, but the edit form isn't
-// built yet. The backend is ready (PATCH /api/admin/events/:id updates any
-// field and automatically emails+SMSes every confirmed booking if the start
-// time changes; DELETE removes-or-cancels). Replace this page with the real
-// form — mirror the create form in ../new/page.tsx.
+interface City { id: string; name: string; }
+interface Theme { id: string; name: string; }
 
-export default function AdminEventEditPage() {
+export default function EditEventPage() {
   const { eventId } = useParams<{ eventId: string }>();
+  const router = useRouter();
+  const [cities, setCities] = useState<City[]>([]);
+  const [themes, setThemes] = useState<Theme[]>([]);
+  const [form, setForm] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/cities').then((r) => r.json()).then(setCities);
+    fetch('/api/event-themes').then((r) => r.json()).then(setThemes);
+    fetch('/api/admin/events').then((r) => r.json()).then((events: any[]) => {
+      const e = events.find((ev) => ev.id === eventId);
+      if (e) {
+        setForm({
+          name: e.name, themeId: e.themeId, cityId: e.cityId, venue: e.venue,
+          startsAt: e.startsAt.slice(0, 16), ageMin: e.ageMin, ageMax: e.ageMax,
+          maxMen: e.maxMen, maxWomen: e.maxWomen, cost: e.cost,
+          expenses: e.expenses ?? '', visibility: e.visibility,
+        });
+      }
+    });
+  }, [eventId]);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSaving(true);
+    const res = await fetch(`/api/admin/events/${eventId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...form,
+        ageMin: Number(form.ageMin), ageMax: Number(form.ageMax),
+        maxMen: Number(form.maxMen), maxWomen: Number(form.maxWomen),
+        cost: Number(form.cost), expenses: form.expenses ? Number(form.expenses) : undefined,
+        startsAt: new Date(form.startsAt).toISOString(),
+      }),
+    });
+    const data = await res.json();
+    setSaving(false);
+    if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Please check your details.'); return; }
+    router.push(`/admin/events/${eventId}`);
+  }
+
+  if (!form) return <p className="text-sm text-ink/50">Loading…</p>;
+
   return (
-    <div className="mx-auto max-w-md">
-      <h1 className="mb-1 text-2xl font-extrabold text-ink">Edit event</h1>
-      <p className="mb-6 text-sm text-ink/60">Not built yet.</p>
+    <div className="mx-auto max-w-lg">
+      <h1 className="mb-6 text-2xl font-extrabold text-ink">Edit event</h1>
       <Card>
-        <p className="text-sm text-ink/60">
-          The editing screen is on the build plan (the underlying update API already works,
-          including notifying booked attendees of date changes). Until it exists, event
-          changes need to be made directly by the developer.
-        </p>
-        <Link href={`/admin/events/${eventId}`} className="mt-4 block text-sm font-bold text-plum">
-          ← Back to event
-        </Link>
+        <form onSubmit={handleSave}>
+          <Field label="Event theme">
+            <Select value={form.themeId} onChange={(e) => setForm({ ...form, themeId: e.target.value })}>
+              {themes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </Select>
+          </Field>
+          <Field label="Event name / description">
+            <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Start date & time">
+              <Input type="datetime-local" required value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} />
+            </Field>
+            <Field label="City">
+              <Select value={form.cityId} onChange={(e) => setForm({ ...form, cityId: e.target.value })}>
+                {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </Field>
+          </div>
+          <Field label="Venue"><Input required value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} /></Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Age min"><Input type="number" required value={form.ageMin} onChange={(e) => setForm({ ...form, ageMin: e.target.value })} /></Field>
+            <Field label="Age max"><Input type="number" required value={form.ageMax} onChange={(e) => setForm({ ...form, ageMax: e.target.value })} /></Field>
+          </div>
+          <Field label="Cost ($)"><Input type="number" step="0.01" required value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} /></Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Max men"><Input type="number" value={form.maxMen} onChange={(e) => setForm({ ...form, maxMen: e.target.value })} /></Field>
+            <Field label="Max women"><Input type="number" value={form.maxWomen} onChange={(e) => setForm({ ...form, maxWomen: e.target.value })} /></Field>
+          </div>
+          <Field label="Expenses ($)"><Input type="number" step="0.01" value={form.expenses} onChange={(e) => setForm({ ...form, expenses: e.target.value })} /></Field>
+
+          <label className="mb-4 flex items-center gap-2 text-sm font-semibold text-ink">
+            <input type="checkbox" checked={form.visibility === 'PUBLIC'} onChange={(e) => setForm({ ...form, visibility: e.target.checked ? 'PUBLIC' : 'NOT_PUBLIC' })} />
+            Visible to the public
+          </label>
+
+          {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
+          <Button type="submit" disabled={saving} className="w-full">{saving ? 'Saving…' : 'Save changes'}</Button>
+        </form>
       </Card>
     </div>
   );

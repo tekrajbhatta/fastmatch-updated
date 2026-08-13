@@ -9,9 +9,13 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "seed": "tsx prisma/seed.ts",
     "calculate-matches": "tsx src/scripts/calculateMatches.ts",
     "process-campaign-sends": "tsx src/scripts/processCampaignSends.ts",
     "import-members": "tsx src/scripts/importMembers.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "next": "^15.0.0",
@@ -24,7 +28,8 @@
     "zod": "^3.23.0",
     "resend": "^4.0.0",
     "qrcode": "^1.5.4",
-    "csv-parse": "^5.5.6"
+    "csv-parse": "^5.5.6",
+    "recharts": "^2.12.7"
   },
   "devDependencies": {
     "prisma": "^5.20.0",

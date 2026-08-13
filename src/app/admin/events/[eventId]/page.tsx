@@ -14,6 +14,9 @@ export default function AdminEventDetailPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const router = useRouter();
   const [event, setEvent] = useState<EventDetail | null>(null);
+  const [closing, setClosing] = useState(false);
+  const [closeResult, setCloseResult] = useState<{ matchesCreated?: number; alreadyCalculated?: boolean } | null>(null);
+  const [closeError, setCloseError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/admin/events`).then((r) => r.json()).then((events: any[]) => {
@@ -40,6 +43,16 @@ export default function AdminEventDetailPage() {
     router.push(`/admin/blasts/new?${params.toString()}`);
   }
 
+  async function handleCloseEventNow() {
+    setClosing(true);
+    setCloseError(null);
+    const res = await fetch(`/api/admin/events/${eventId}/close`, { method: 'POST' });
+    const data = await res.json();
+    setClosing(false);
+    if (!res.ok) { setCloseError(data.error ?? 'Could not close the event.'); return; }
+    setCloseResult(data);
+  }
+
   if (!event) return <p className="text-sm text-ink/50">Loading…</p>;
 
   return (
@@ -57,6 +70,28 @@ export default function AdminEventDetailPage() {
       <Card className="mb-3">
         <button onClick={createBlastForEvent} className="block text-left font-bold text-ink hover:text-plum">Create blast for this event</button>
         <p className="mt-0.5 text-sm text-ink/50">Auto-fills subject, details, and booking link — nothing to retype</p>
+      </Card>
+
+      <Card className="mb-3">
+        <div className="font-bold text-ink">Close event &amp; calculate matches</div>
+        <p className="mt-0.5 mb-3 text-sm text-ink/50">
+          Matches process automatically at midnight — use this only to run them early (e.g. testing, or the host wants results before leaving the venue).
+        </p>
+        {closeResult ? (
+          <p className="text-sm font-bold text-green-dark">
+            {closeResult.alreadyCalculated ? 'Matches were already calculated for this event.' : `Done — ${closeResult.matchesCreated} matches created and result emails sent.`}
+          </p>
+        ) : (
+          <Button onClick={handleCloseEventNow} disabled={closing} variant="ghost">
+            {closing ? 'Calculating matches…' : 'Close event now & calculate early'}
+          </Button>
+        )}
+        {closeError && <p className="mt-2 text-sm font-medium text-coral">{closeError}</p>}
+      </Card>
+
+      <Card className="mb-3">
+        <Link href={`/admin/events/${event.id}/checkin-qr`} className="block font-bold text-ink hover:text-plum">Printable check-in QR code</Link>
+        <p className="mt-0.5 text-sm text-ink/50">Display or print at the venue — attendees scan this to check in</p>
       </Card>
 
       <Button variant="ghost" onClick={() => router.push('/admin/events')} className="w-full">Back to events</Button>

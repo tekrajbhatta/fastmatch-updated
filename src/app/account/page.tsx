@@ -41,6 +41,7 @@ export default function AccountPage() {
       )}
 
       <Card className="mb-4 divide-y divide-ink/5">
+        <AccountLink href="/account/edit-profile" label="Edit profile" />
         <AccountLink href="/account/change-password" label="Change password" />
         <AccountLink href="/contact" label="Contact us" />
         <AccountLink href="/privacy" label="Privacy policy" />

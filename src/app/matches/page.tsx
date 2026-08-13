@@ -13,13 +13,24 @@ interface EventMatches {
 export default function MatchesPage() {
   const [groups, setGroups] = useState<EventMatches[]>([]);
   const [loading, setLoading] = useState(true);
+  const [needsLogin, setNeedsLogin] = useState(false);
 
   useEffect(() => {
-    fetch('/api/matches').then((r) => r.json()).then((data) => {
-      setGroups(data);
+    fetch('/api/matches').then(async (r) => {
+      if (r.status === 401) {
+        setNeedsLogin(true);
+        setLoading(false);
+        return;
+      }
+      const data = await r.json();
+      setGroups(Array.isArray(data) ? data : []);
       setLoading(false);
     });
   }, []);
+
+  if (needsLogin) {
+    return <p className="text-sm text-ink/50">Please <a href="/login" className="font-bold text-plum">log in</a>.</p>;
+  }
 
   return (
     <div className="mx-auto max-w-lg">
