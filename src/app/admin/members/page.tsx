@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Field, Input, Select, Button, Card, Badge } from '@/components/ui';
 
-interface Member { id: string; name: string; email: string; city: { name: string }; gender: string; _count: { bookings: number }; }
+interface Member { id: string; name: string; email: string; mobile: string; city: { name: string }; gender: string; _count: { bookings: number }; }
 interface Totals { count: number; male: number; female: number; totalMatches: number; }
 
 export default function AdminMembersPage() {
+  const router = useRouter();
   const [members, setMembers] = useState<Member[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [page, setPage] = useState(1);
@@ -70,12 +72,14 @@ export default function AdminMembersPage() {
       <div className="overflow-hidden rounded-xl border border-ink/10 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-cream/50 text-left text-xs font-bold uppercase text-ink/50">
-            <tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">City</th><th className="px-4 py-3">Events attended</th></tr>
+            <tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Mobile</th><th className="px-4 py-3">City</th><th className="px-4 py-3">Events attended</th></tr>
           </thead>
           <tbody>
             {members.map((m) => (
-              <tr key={m.id} className="border-t border-ink/5">
+              <tr key={m.id} className="cursor-pointer border-t border-ink/5 hover:bg-cream/30" onClick={() => router.push(`/admin/members/${m.id}`)}>
                 <td className="px-4 py-3 font-bold text-ink">{m.name}</td>
+                <td className="px-4 py-3 text-ink/60">{m.email}</td>
+                <td className="px-4 py-3 text-ink/60">{m.mobile}</td>
                 <td className="px-4 py-3 text-ink/60">{m.city?.name}</td>
                 <td className="px-4 py-3"><Badge tone="green">{m._count.bookings}</Badge></td>
               </tr>

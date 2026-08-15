@@ -73,16 +73,25 @@ async function main() {
 
 // Admin bootstrap. Admins are ordinary Members with isAdmin=true and there is
 // no in-app way to create the first one, so without this the admin panel is
-// unreachable on a fresh database. Driven by env vars so each environment
-// chooses its own credentials (nothing hard-coded here):
-//   SEED_ADMIN_EMAIL + SEED_ADMIN_PASSWORD  (both required to activate)
+// unreachable on a fresh database.
+//
+// The email defaults to gil@fastmatch.com.au (Gil's confirmed choice, decision
+// #4 of the deployment guide) but can be overridden with SEED_ADMIN_EMAIL.
+//
+// The PASSWORD is deliberately env-only with NO fallback: the client's version
+// defaulted to a hard-coded "ChangeMe123!", which would ship a known admin
+// password in the repository. Without SEED_ADMIN_PASSWORD set, the admin step
+// is skipped entirely rather than creating a guessable account.
+//
 // If the member already exists it's promoted to admin and its password is
 // left alone — so this never clobbers a real account's password on re-run.
+const DEFAULT_ADMIN_EMAIL = 'gil@fastmatch.com.au';
+
 async function seedAdmin() {
-  const email = process.env.SEED_ADMIN_EMAIL;
+  const email = process.env.SEED_ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL;
   const password = process.env.SEED_ADMIN_PASSWORD;
-  if (!email || !password) {
-    console.log('Admin bootstrap skipped (set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD to enable).');
+  if (!password) {
+    console.log(`Admin bootstrap skipped for ${email} — set SEED_ADMIN_PASSWORD to enable.`);
     return;
   }
 

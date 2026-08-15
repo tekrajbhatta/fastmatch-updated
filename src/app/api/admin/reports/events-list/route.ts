@@ -10,7 +10,10 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
   const events = await prisma.event.findMany({
-    select: { id: true, name: true, startsAt: true, theme: { select: { name: true } } },
+    select: {
+      id: true, name: true, startsAt: true, venue: true, ageMin: true, ageMax: true,
+      theme: { select: { name: true } }, city: { select: { name: true } },
+    },
     orderBy: { startsAt: 'desc' },
     take: 100,
   });

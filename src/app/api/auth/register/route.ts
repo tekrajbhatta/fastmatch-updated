@@ -48,6 +48,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: 'An account with this email already exists.' }, { status: 409 });
   }
 
+  const city = await prisma.city.findUnique({ where: { id: data.cityId } });
+  if (!city) {
+    return NextResponse.json({ error: 'Please select a valid city.' }, { status: 400 });
+  }
+
   const passwordHash = await bcrypt.hash(data.password, 12);
 
   const member = await prisma.member.create({

@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Field, Input, Button, Card } from '@/components/ui';
 
-export default function ResetPasswordPage() {
+function ResetPasswordInner() {
   const params = useSearchParams();
   const router = useRouter();
   const token = params.get('token') ?? '';
@@ -50,5 +50,16 @@ export default function ResetPasswordPage() {
         )}
       </Card>
     </div>
+  );
+}
+
+// useSearchParams() forces this into client-side rendering, which Next
+// requires to sit behind a Suspense boundary — without one, `next build`
+// fails while prerendering this page.
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordInner />
+    </Suspense>
   );
 }

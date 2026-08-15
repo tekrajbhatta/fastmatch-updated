@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import Stripe from 'stripe';
 import { z } from 'zod';
+import { getStripe } from '@/lib/stripe';
 import { getSessionMember } from '@/lib/auth';
 import { sendBookingConfirmation } from '@/lib/sendBookingConfirmation';
 import { withErrorHandling } from '@/lib/withErrorHandling';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 const bodySchema = z.object({ discountCode: z.string().optional() });
 
@@ -101,7 +99,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
     return NextResponse.json({ booking, checkoutUrl: null });
   }
 
-  const session = await stripe.checkout.sessions.create({
+  const session = await getStripe().checkout.sessions.create({
     mode: 'payment',
     line_items: [
       {

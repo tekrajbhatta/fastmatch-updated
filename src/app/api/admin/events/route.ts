@@ -35,7 +35,20 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     orderBy: { startsAt: 'asc' },
     include: { theme: true, city: true, _count: { select: { bookings: true } } },
   });
-  return NextResponse.json(events);
+
+  // Per-gender breakdown for the admin list — "17/24" was showing total
+  // bookings only, not the men/women split the screen actually needs.
+  const withGenderSplit = await Promise.all(
+    events.map(async (e) => {
+      const [men, women] = await Promise.all([
+        prisma.booking.count({ where: { eventId: e.id, status: { in: ['PENDING', 'CONFIRMED'] }, member: { gender: 'MALE' } } }),
+        prisma.booking.count({ where: { eventId: e.id, status: { in: ['PENDING', 'CONFIRMED'] }, member: { gender: 'FEMALE' } } }),
+      ]);
+      return { ...e, menBooked: men, womenBooked: women };
+    })
+  );
+
+  return NextResponse.json(withGenderSplit);
 });
 
 // POST /api/admin/events — create one event, or a whole repeat series

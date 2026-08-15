@@ -16,6 +16,10 @@ interface AdminEvent {
   theme: { name: string };
   city: { name: string };
   _count: { bookings: number };
+  menBooked: number;
+  womenBooked: number;
+  maxMen: number;
+  maxWomen: number;
 }
 
 export default function AdminEventsPage() {
@@ -50,7 +54,8 @@ export default function AdminEventsPage() {
               <th className="px-4 py-3">Theme</th>
               <th className="px-4 py-3">Start</th>
               <th className="px-4 py-3">City</th>
-              <th className="px-4 py-3">Bookings</th>
+              <th className="px-4 py-3">Men</th>
+              <th className="px-4 py-3">Women</th>
               <th className="px-4 py-3">Visibility</th>
             </tr>
           </thead>
@@ -69,7 +74,8 @@ export default function AdminEventsPage() {
                 <td className="px-4 py-3">{e.theme.name}</td>
                 <td className="px-4 py-3">{new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}, {new Date(e.startsAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}</td>
                 <td className="px-4 py-3">{e.city.name}</td>
-                <td className="px-4 py-3">{e._count.bookings}</td>
+                <td className="px-4 py-3">{e.menBooked}/{e.maxMen}</td>
+                <td className="px-4 py-3">{e.womenBooked}/{e.maxWomen}</td>
                 <td className="px-4 py-3"><Badge tone={e.visibility === 'PUBLIC' ? 'green' : 'muted'}>{e.visibility === 'PUBLIC' ? 'Public' : 'Not public'}</Badge></td>
               </tr>
             ))}

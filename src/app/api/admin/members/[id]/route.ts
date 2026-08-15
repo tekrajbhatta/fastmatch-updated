@@ -22,8 +22,8 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     where: { OR: [{ memberAId: params.id }, { memberBId: params.id }] },
   });
 
-  // Never return the password hash to the admin UI
-  const { passwordHash, ...safeMember } = member;
+  // Never return the password hash or the pending SMS verification code to the admin UI
+  const { passwordHash, mobileVerificationCode, ...safeMember } = member;
 
   return NextResponse.json({ ...safeMember, matches });
 });

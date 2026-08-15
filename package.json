@@ -12,7 +12,9 @@
     "seed": "tsx prisma/seed.ts",
     "calculate-matches": "tsx src/scripts/calculateMatches.ts",
     "process-campaign-sends": "tsx src/scripts/processCampaignSends.ts",
-    "import-members": "tsx src/scripts/importMembers.ts"
+    "import-members": "tsx src/scripts/importMembers.ts",
+    "send-reminders": "tsx src/scripts/sendReminders.ts",
+    "test": "vitest run"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -29,7 +31,8 @@
     "resend": "^4.0.0",
     "qrcode": "^1.5.4",
     "csv-parse": "^5.5.6",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "twilio": "^5.3.5"
   },
   "devDependencies": {
     "prisma": "^5.20.0",
@@ -42,6 +45,7 @@
     "tsx": "^4.19.0",
     "tailwindcss": "^3.4.0",
     "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.47"
+    "postcss": "^8.4.47",
+    "vitest": "^2.1.4"
   }
 }

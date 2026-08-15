@@ -157,6 +157,7 @@ model Booking {
   stripePaymentIntentId String?
   checkedIn      Boolean       @default(false)
   checkedInAt    DateTime?
+  reminderSent   Boolean       @default(false)
   createdAt      DateTime      @default(now())
 
   @@unique([eventId, memberId])

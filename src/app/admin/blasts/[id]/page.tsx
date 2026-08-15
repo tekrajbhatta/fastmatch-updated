@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { Field, Input, Select, Button, Card, Badge } from '@/components/ui';
 
@@ -11,7 +11,7 @@ interface Campaign {
 interface Send { id: string; status: string; sentCount: number; totalRecipients: number; startedAt: string; }
 interface City { id: string; name: string; }
 
-export default function ViewBlastPage() {
+function ViewBlastInner() {
   const { id } = useParams<{ id: string }>();
   const search = useSearchParams();
   const router = useRouter();
@@ -225,6 +225,16 @@ export default function ViewBlastPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// useSearchParams() forces client-side rendering, which Next requires to sit
+// behind a Suspense boundary — without one, `next build` fails prerendering.
+export default function ViewBlastPage() {
+  return (
+    <Suspense fallback={null}>
+      <ViewBlastInner />
+    </Suspense>
   );
 }
 

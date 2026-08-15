@@ -33,7 +33,11 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const [members, total, maleCount, femaleCount, totalMatches] = await Promise.all([
     prisma.member.findMany({
       where,
-      include: { city: true, _count: { select: { bookings: true } } },
+      select: {
+        id: true, name: true, email: true, mobile: true, gender: true, createdAt: true,
+        city: { select: { name: true } },
+        _count: { select: { bookings: true } },
+      },
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
@@ -46,12 +50,8 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     prisma.match.count({ where: { OR: [{ memberA: where }, { memberB: where }] } }),
   ]);
 
-  // Strip credential/secret fields before they leave the server — the member
-  // detail route already does this; the list must too.
-  const safeMembers = members.map(({ passwordHash, mobileVerificationCode, ...safe }) => safe);
-
   return NextResponse.json({
-    members: safeMembers,
+    members,
     page,
     pageSize: PAGE_SIZE,
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
@@ -89,7 +89,13 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const existing = await prisma.member.findUnique({ where: { email: data.email } });
   if (existing) {
-    return NextResponse.json(existing); // already a member — just use their existing record, don't duplicate
+    const { passwordHash: _ph, mobileVerificationCode: _mvc, ...safeExisting } = existing;
+    return NextResponse.json(safeExisting); // already a member — just use their existing record, don't duplicate
+  }
+
+  const city = await prisma.city.findUnique({ where: { id: data.cityId } });
+  if (!city) {
+    return NextResponse.json({ error: 'Please select a valid city.' }, { status: 400 });
   }
 
   const randomPasswordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
@@ -108,5 +114,6 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     },
   });
 
-  return NextResponse.json(member);
+  const { passwordHash: _ph2, mobileVerificationCode: _mvc2, ...safeMember } = member;
+  return NextResponse.json(safeMember);
 });

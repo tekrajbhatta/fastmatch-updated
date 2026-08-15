@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
+import { getStripe, getStripeWebhookSecret } from '@/lib/stripe';
 import { sendBookingConfirmation } from '@/lib/sendBookingConfirmation';
 import { withErrorHandling } from '@/lib/withErrorHandling';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
 
 // Per the Terms & Conditions: "Your credit card will not be debited until
 // your place at one of our events is confirmed." Booking status only flips
@@ -17,7 +15,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+    event = getStripe().webhooks.constructEvent(body, signature, getStripeWebhookSecret());
   } catch (err) {
     return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 400 });
   }

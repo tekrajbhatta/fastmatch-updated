@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Field, Input, Select, Button, Card } from '@/components/ui';
 
-export default function NewBlastPage() {
+function NewBlastInner() {
   const params = useSearchParams();
   const router = useRouter();
 
@@ -105,5 +105,16 @@ export default function NewBlastPage() {
         </form>
       </Card>
     </div>
+  );
+}
+
+// useSearchParams() (used here to pre-fill from an event's details) forces
+// client-side rendering, which Next requires to sit behind a Suspense
+// boundary — without one, `next build` fails prerendering this page.
+export default function NewBlastPage() {
+  return (
+    <Suspense fallback={null}>
+      <NewBlastInner />
+    </Suspense>
   );
 }

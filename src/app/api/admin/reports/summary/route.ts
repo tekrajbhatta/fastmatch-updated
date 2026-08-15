@@ -28,6 +28,14 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const memberWhere: Prisma.MemberWhereInput = {};
   if (gender) memberWhere.gender = gender;
+  // The city filter is otherwise about which EVENTS were held in that
+  // city (eventWhere.cityId) — but the Member Growth chart isn't about
+  // events, it's about registrations. Applying it here to the member's
+  // own registered city so "filter by Sydney" consistently means
+  // "Sydney" everywhere on the page, not just the attendance figures.
+  // Flagged by the developer as needing a decision; this is the
+  // interpretation applied — override if a different one is wanted.
+  if (cityId) memberWhere.cityId = cityId;
   if (ageMin != null || ageMax != null) {
     const today = new Date();
     memberWhere.dateOfBirth = {};

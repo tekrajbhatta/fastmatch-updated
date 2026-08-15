@@ -72,7 +72,9 @@ export async function calculateMatchesForEvent(eventId: string) {
   return { alreadyCalculated: false, matchesCreated: matchesToCreate.length };
 }
 
-function resolveMatch(a: Choice, b: Choice): MatchResult | null {
+// Exported so src/lib/__tests__/calculateMatches.test.ts can assert the rule
+// directly without needing a database.
+export function resolveMatch(a: Choice, b: Choice): MatchResult | null {
   if (a === 'DATE' && b === 'DATE') return 'DATE';
   if (
     (a === 'DATE' && b === 'FRIEND') ||
