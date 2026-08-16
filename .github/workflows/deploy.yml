@@ -1,0 +1,41 @@
+name: Deploy to production
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "mysql://ci:ci@127.0.0.1:3306/ci"
+      JWT_SECRET: "ci-build-only"
+      APP_URL: "https://5minutedating.com.au"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'npm' }
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx tsc --noEmit
+      - run: npm test
+      - run: npm run build
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          command_timeout: 15m
+          script: sudo -n /usr/local/bin/fastmatch-deploy
+
+      - name: Verify live site
+        run: |
+          sleep 5
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://5minutedating.com.au/events)
+          echo "-> $code"; [ "$code" = "200" ]
