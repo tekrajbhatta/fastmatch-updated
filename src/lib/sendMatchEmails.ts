@@ -4,8 +4,9 @@
  * each with the matched person's name/email/mobile (contact info only shared
  * for actual matches, per the Terms & Conditions).
  *
- * Template is real (see src/lib/emails/matchResultsEmail.ts). The actual
- * provider call in sendEmail() is still a stub until Resend is wired up.
+ * Template is real (see src/lib/emails/matchResultsEmail.ts), and sendEmail()
+ * now sends for real via Mailgun SMTP — it only falls back to a console.log
+ * stub when SMTP credentials are absent (local dev and CI).
  */
 
 import { prisma } from './prisma';

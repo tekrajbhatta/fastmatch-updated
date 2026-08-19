@@ -73,9 +73,9 @@ patterns as the FastmatchLive codebase.
   batch immediately for responsiveness, then the scheduled job takes over.
   Pause/cancel take effect at the next batch boundary, not instantly
   mid-batch. `GET /api/admin/sms-credits` is a placeholder for the provider
-  balance banner ("194.250 credits remaining"). Actual email/SMS sending is
-  still stubbed until providers are chosen (Resend for email, Clickatell or
-  Twilio for SMS).
+  balance banner ("194.250 credits remaining"). Email sending is real
+  (Mailgun over SMTP); SMS has real Clickatell and Twilio implementations.
+  All fall back to `console.log` when credentials are absent.
 - **Bounce handling**: `src/app/api/webhooks/email-bounce/route.ts` — instead
   of routing bounces to a separate inbox for a human to read (the old
   system's approach), the email provider posts bounce events here
@@ -106,9 +106,12 @@ patterns as the FastmatchLive codebase.
 Real answer to "how do we avoid being labeled as spam" — mostly DNS/provider
 setup, not app code, but worth having written down:
 
-- **Authenticate the sending domain**: SPF, DKIM, and DMARC DNS records for
-  fastmatch.com.au, set up through the email provider (Resend walks through
-  this). Without these, mail providers distrust the sender by default.
+- **Authenticate the sending domain**: SPF, DKIM, and DMARC DNS records for the
+  Mailgun sending domain (currently `mg.fastmatch.live`; a `mg.fastmatch.com.au`
+  subdomain is planned before launch). Mailgun provides the exact records.
+  Without these, mail providers distrust the sender by default. The sender
+  address must always match a Mailgun-verified domain — it is read from
+  `EMAIL_FROM_ADDRESS`, never hard-coded.
 - **Send from a real, monitored address** (e.g. `no-reply@fastmatch.com.au`
   for transactional, maybe `news@fastmatch.com.au` for campaigns) — not a
   freemail address.
@@ -142,10 +145,11 @@ setup, not app code, but worth having written down:
 5. **Matches after the event** → match results email (`matchResultsEmail.ts`
    via `sendMatchEmails.ts`) ✅ wired
 
-All five are wired end-to-end in terms of logic/templates. What's still
-missing for any of them to actually deliver: the real provider connections
-in `src/lib/emails/send.ts` (Resend) and `src/lib/sms/send.ts`
-(Clickatell/Twilio) — both currently just `console.log`.
+All five are wired end-to-end in terms of logic/templates, and the provider
+connections are now real: `src/lib/emails/send.ts` sends via Mailgun SMTP
+(nodemailer), and `src/lib/sms/send.ts` has working Clickatell and Twilio
+paths selected by `SMS_PROVIDER`. Each falls back to `console.log` when its
+credentials are unset, so local dev and CI never send anything.
 
 - **Member import**: `src/scripts/importMembers.ts` (`npm run
   import-members -- path/to/file.csv`) — bulk-imports members from a CSV,
@@ -186,8 +190,9 @@ the first `npm run build`.
 1. `npm install`
 2. Set up a MySQL database, put its connection string in `.env` as `DATABASE_URL`
 3. Also set in `.env`: `JWT_SECRET`, `APP_URL`, `STRIPE_SECRET_KEY`,
-   `STRIPE_WEBHOOK_SECRET`, and once providers are chosen: `RESEND_API_KEY`
-   (email) and `SMS_PROVIDER_API_KEY` (SMS) — both features work without
+   `STRIPE_WEBHOOK_SECRET`, and for the providers: `MAILGUN_SMTP_USER` /
+   `MAILGUN_SMTP_PASS` / `EMAIL_FROM_ADDRESS` (email) and
+   `SMS_PROVIDER_API_KEY` / `SMS_PROVIDER` (SMS) — both features work without
    these set (fall back to console.log stubs), so they're not required to
    get the app running, only to actually send anything
 4. `npm run prisma:migrate` to create the tables from the schema
