@@ -80,7 +80,21 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   });
   const verifyUrl = `${process.env.APP_URL}/verify-email?token=${verifyToken}`;
   const { subject, html } = welcomeVerificationEmail({ memberName: member.name, verifyUrl });
-  await sendEmail({ to: member.email, subject, html });
+
+  // Both verification sends are best-effort. The member row is already
+  // committed at this point, so letting a provider outage throw would abort
+  // the request AFTER creating the account — leaving an orphan with no
+  // session, and an email address that then 409s on every retry. Instead we
+  // log, report which send failed, and let the member re-request the
+  // verification from /verify-mobile (and the email link from their account).
+  // Nothing is bypassed: booking stays gated on emailVerified + mobileVerified.
+  let emailSent = true;
+  try {
+    await sendEmail({ to: member.email, subject, html });
+  } catch (err) {
+    emailSent = false;
+    console.error(`Registration ${member.id}: verification email failed`, err);
+  }
 
   const smsCode = String(Math.floor(100000 + Math.random() * 900000)); // 6 digits
   await prisma.member.update({
@@ -90,11 +104,18 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       mobileVerificationExpires: new Date(Date.now() + 15 * 60 * 1000), // 15 min
     },
   });
-  await sendSms({ to: member.mobile, body: verificationCodeSms(smsCode) });
+
+  let smsSent = true;
+  try {
+    await sendSms({ to: member.mobile, body: verificationCodeSms(smsCode) });
+  } catch (err) {
+    smsSent = false;
+    console.error(`Registration ${member.id}: verification SMS failed`, err);
+  }
 
   const token = signSession(member.id);
 
-  const res = NextResponse.json({ id: member.id, name: member.name });
+  const res = NextResponse.json({ id: member.id, name: member.name, emailSent, smsSent });
   res.cookies.set('fm_session', token, {
     httpOnly: true,
     secure: true,

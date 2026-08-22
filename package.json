@@ -14,6 +14,7 @@
     "process-campaign-sends": "tsx src/scripts/processCampaignSends.ts",
     "import-members": "tsx src/scripts/importMembers.ts",
     "send-reminders": "tsx src/scripts/sendReminders.ts",
+    "delete-members": "tsx src/scripts/deleteMembers.ts",
     "test": "vitest run"
   },
   "prisma": {

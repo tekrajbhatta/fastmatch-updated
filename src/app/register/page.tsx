@@ -41,7 +41,9 @@ export default function RegisterPage() {
     }
     // Straight to SMS-code entry — booking requires BOTH email and mobile
     // verification, and the code was just texted during registration.
-    router.push('/verify-mobile');
+    // The account exists either way; if the text didn't get out, say so there
+    // rather than claiming a code was sent that never arrived.
+    router.push(data.smsSent === false ? '/verify-mobile?smsFailed=1' : '/verify-mobile');
     router.refresh();
   }
 

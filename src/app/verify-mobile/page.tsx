@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, Button, Field, Input } from '@/components/ui';
 
@@ -13,8 +13,12 @@ import { Card, Button, Field, Input } from '@/components/ui';
 // Session-based: the member is already logged in from registration, so no
 // token in the URL — register redirects straight here.
 
-export default function VerifyMobilePage() {
+function VerifyMobileInner() {
   const router = useRouter();
+  // register redirects here with ?smsFailed=1 when the verification text
+  // couldn't be sent, so the page doesn't claim a code is on its way when it
+  // isn't. Cleared as soon as Resend succeeds.
+  const [smsFailed, setSmsFailed] = useState(useSearchParams().get('smsFailed') === '1');
   const [me, setMe] = useState<{ mobileVerified: boolean; emailVerified: boolean; mobile: string } | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [code, setCode] = useState('');
@@ -53,7 +57,10 @@ export default function VerifyMobilePage() {
     const res = await fetch('/api/auth/resend-mobile-code', { method: 'POST' });
     const data = await res.json();
     if (!res.ok) setError(data.error ?? 'Could not resend the code.');
-    else setNotice('A new code is on its way to your mobile.');
+    else {
+      setSmsFailed(false);
+      setNotice('A new code is on its way to your mobile.');
+    }
   }
 
   if (!loaded) return <p className="text-center text-sm text-ink/50">Loading…</p>;
@@ -72,9 +79,17 @@ export default function VerifyMobilePage() {
   return (
     <div className="mx-auto max-w-sm">
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Verify your mobile</h1>
-      <p className="mb-6 text-sm text-ink/60">
-        We texted a 6-digit code to <span className="font-bold text-ink">{me.mobile}</span>.
-      </p>
+      {smsFailed && !me.mobileVerified ? (
+        <p className="mb-6 text-sm text-ink/60">
+          Your account is created, but we couldn&apos;t text the code to{' '}
+          <span className="font-bold text-ink">{me.mobile}</span> just now. Check the number is
+          right and tap <span className="font-bold text-ink">Resend code</span> below.
+        </p>
+      ) : (
+        <p className="mb-6 text-sm text-ink/60">
+          We texted a 6-digit code to <span className="font-bold text-ink">{me.mobile}</span>.
+        </p>
+      )}
 
       <Card>
         {me.mobileVerified ? (
@@ -115,5 +130,16 @@ export default function VerifyMobilePage() {
         )}
       </Card>
     </div>
+  );
+}
+
+// useSearchParams() (the ?smsFailed flag) forces client-side rendering, which
+// Next requires to sit behind a Suspense boundary — without one, `next build`
+// fails prerendering this page.
+export default function VerifyMobilePage() {
+  return (
+    <Suspense fallback={null}>
+      <VerifyMobileInner />
+    </Suspense>
   );
 }

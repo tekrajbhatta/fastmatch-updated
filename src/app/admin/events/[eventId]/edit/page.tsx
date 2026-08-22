@@ -16,6 +16,10 @@ export default function EditEventPage() {
   const [form, setForm] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Rescheduling notifies every confirmed booking. Individual sends can fail
+  // without failing the save, so the admin is told who to chase manually
+  // instead of the failures only reaching the server log.
+  const [notifyFailures, setNotifyFailures] = useState<{ member: string; channel: string }[]>([]);
 
   useEffect(() => {
     fetch('/api/cities').then((r) => r.json()).then(setCities);
@@ -36,6 +40,7 @@ export default function EditEventPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setNotifyFailures([]);
     setSaving(true);
     const res = await fetch(`/api/admin/events/${eventId}`, {
       method: 'PATCH',
@@ -51,6 +56,12 @@ export default function EditEventPage() {
     const data = await res.json();
     setSaving(false);
     if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Please check your details.'); return; }
+    // The event IS saved either way — stay on the page only to show who
+    // didn't get their notification.
+    if (Array.isArray(data.notifyFailures) && data.notifyFailures.length > 0) {
+      setNotifyFailures(data.notifyFailures);
+      return;
+    }
     router.push(`/admin/events/${eventId}`);
   }
 
@@ -100,6 +111,15 @@ export default function EditEventPage() {
           </label>
 
           {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
+          {notifyFailures.length > 0 && (
+            <div className="mb-4 rounded-lg bg-cream/60 p-3 text-sm">
+              <p className="font-bold text-ink">Event saved, but {notifyFailures.length} notification{notifyFailures.length === 1 ? '' : 's'} couldn&apos;t be sent:</p>
+              <ul className="mt-1 list-inside list-disc text-ink/70">
+                {notifyFailures.map((f, i) => <li key={i}>{f.member} — {f.channel.toUpperCase()}</li>)}
+              </ul>
+              <p className="mt-1 text-ink/60">Please contact them directly about the new time.</p>
+            </div>
+          )}
           <Button type="submit" disabled={saving} className="w-full">{saving ? 'Saving…' : 'Save changes'}</Button>
         </form>
       </Card>

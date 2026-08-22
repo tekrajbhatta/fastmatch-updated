@@ -18,6 +18,9 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   const before = await prisma.event.findUniqueOrThrow({ where: { id: params.id } });
   const event = await prisma.event.update({ where: { id: params.id }, data: updates });
 
+  let notified = 0;
+  const notifyFailures: { member: string; channel: 'email' | 'sms' }[] = [];
+
   const oldTime = before.startsAt.getTime();
   const newTime = new Date(event.startsAt).getTime();
   if (oldTime !== newTime) {
@@ -26,6 +29,11 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
       include: { member: true },
     });
 
+    // The event is already saved by this point, so a single bad number or a
+    // provider hiccup must not throw — that would 500 the admin AND silently
+    // strand every attendee after the failure, with no way to tell who was
+    // notified. Each send is isolated and failures are reported back so the
+    // admin can follow up.
     for (const booking of bookings) {
       const { subject, html } = eventChangeEmail({
         memberName: booking.member.name,
@@ -33,15 +41,27 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
         oldStartsAt: before.startsAt,
         newStartsAt: event.startsAt,
       });
-      await sendEmail({ to: booking.member.email, subject, html });
-      await sendSms({
-        to: booking.member.mobile,
-        body: eventChangeSms({ eventName: event.name, newStartsAt: event.startsAt }),
-      });
+      try {
+        await sendEmail({ to: booking.member.email, subject, html });
+      } catch (err) {
+        console.error(`Event ${event.id}: change email to ${booking.member.email} failed`, err);
+        notifyFailures.push({ member: booking.member.name, channel: 'email' });
+      }
+      try {
+        await sendSms({
+          to: booking.member.mobile,
+          body: eventChangeSms({ eventName: event.name, newStartsAt: event.startsAt }),
+        });
+      } catch (err) {
+        console.error(`Event ${event.id}: change SMS to ${booking.member.mobile} failed`, err);
+        notifyFailures.push({ member: booking.member.name, channel: 'sms' });
+      }
     }
+
+    notified = bookings.length;
   }
 
-  return NextResponse.json(event);
+  return NextResponse.json({ ...event, notified, notifyFailures });
 });
 
 // DELETE /api/admin/events/:id — same rule as the series bulk action: no

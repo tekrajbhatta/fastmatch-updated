@@ -31,7 +31,6 @@ export interface SmsBulkResult {
 }
 
 const DEFAULT_API_URL = 'https://api.cellcast.com/api/v1/gateway';
-const DEFAULT_SENDER_ID = 'FastMatch';
 
 /** Single recipient. Throws on failure. */
 export async function sendSms({ to, body }: SendSmsArgs): Promise<void> {
@@ -61,7 +60,14 @@ export async function sendSmsBulk({ to, body }: { to: string[]; body: string }):
   }
 
   const url = process.env.CELLCAST_API_URL || DEFAULT_API_URL;
-  const sender = process.env.CELLCAST_SENDER_ID || DEFAULT_SENDER_ID;
+
+  // No default sender ID. Cellcast rejects the WHOLE request with HTTP 400
+  // ("Your sender id is not registered.") if it doesn't recognise the value,
+  // so defaulting to a plausible-looking brand name fails every single send.
+  // Blank/unset means omit the field entirely, and Cellcast sends from its
+  // shared number pool — which always works. Set CELLCAST_SENDER_ID only to
+  // an ID actually registered in the Cellcast dashboard.
+  const sender = process.env.CELLCAST_SENDER_ID?.trim() || '';
 
   let res: Response;
   try {
@@ -75,7 +81,11 @@ export async function sendSmsBulk({ to, body }: { to: string[]; body: string }):
       // Numbers are normalised to 61XXXXXXXXX before sending — see
       // toCellcastNumber() for why. Failures are still reported against the
       // ORIGINAL strings the caller passed, so logs match the member records.
-      body: JSON.stringify({ message: body, contacts: recipients.map(toCellcastNumber), sender }),
+      body: JSON.stringify({
+        message: body,
+        contacts: recipients.map(toCellcastNumber),
+        ...(sender ? { sender } : {}),
+      }),
     });
   } catch (err) {
     // Network-level failure — nothing was delivered, so every recipient failed.
