@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Field, Input, Select, Button, Card } from '@/components/ui';
 
 interface City { id: string; name: string; }
@@ -57,6 +58,9 @@ export default function EditEventPage() {
 
   return (
     <div className="mx-auto max-w-lg">
+      <Link href={`/admin/events/${eventId}`} className="mb-3 inline-flex items-center gap-1 text-sm font-bold text-plum hover:underline">
+        ← Back to event
+      </Link>
       <h1 className="mb-6 text-2xl font-extrabold text-ink">Edit event</h1>
       <Card>
         <form onSubmit={handleSave}>

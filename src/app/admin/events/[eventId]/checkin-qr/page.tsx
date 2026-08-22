@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import QRCode from 'qrcode';
 import { Button } from '@/components/ui';
 
@@ -23,6 +24,9 @@ export default function CheckinQrPage() {
 
   return (
     <div className="mx-auto max-w-md text-center">
+      <Link href={`/admin/events/${eventId}`} className="mb-3 inline-flex items-center gap-1 text-sm font-bold text-plum hover:underline print:hidden">
+        ← Back to event
+      </Link>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Check-in QR code</h1>
       <p className="mb-6 text-sm text-ink/60">Display on a tablet or print this page — one shared code for the whole event, attendees are identified from their own login.</p>
 

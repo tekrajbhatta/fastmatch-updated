@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Field, Input, Button, Card } from '@/components/ui';
 
 export default function EditBlastPage() {
@@ -39,6 +40,9 @@ export default function EditBlastPage() {
 
   return (
     <div className="mx-auto max-w-lg">
+      <Link href={`/admin/blasts/${id}`} className="mb-3 inline-flex items-center gap-1 text-sm font-bold text-plum hover:underline">
+        ← Back to blast
+      </Link>
       <h1 className="mb-6 text-2xl font-extrabold text-ink">Edit blast</h1>
       <Card>
         <form onSubmit={handleSave}>

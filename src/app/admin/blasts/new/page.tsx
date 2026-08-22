@@ -4,9 +4,17 @@ import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Field, Input, Select, Button, Card } from '@/components/ui';
 
+interface Template {
+  id: string; title: string; subject: string | null; heading: string | null;
+  freeText: string | null; eventDetailsText: string | null; bookingLink: string | null; smsBody: string | null;
+}
+
 function NewBlastInner() {
   const params = useSearchParams();
   const router = useRouter();
+
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templateId, setTemplateId] = useState('');
 
   const [form, setForm] = useState({
     title: '', sendEmail: true, sendSms: false,
@@ -21,13 +29,38 @@ function NewBlastInner() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Pre-fill the title from subject the first time params arrive
+  useEffect(() => {
+    fetch('/api/admin/campaign-templates').then((r) => r.json()).then(setTemplates);
+  }, []);
+
+  // Pre-fill the title from subject the first time query params arrive
+  // (e.g. arriving here via "Create blast for this event")
   useEffect(() => {
     if (params.get('subject') && !form.title) {
       setForm((f) => ({ ...f, title: params.get('subject') ?? '' }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Selecting a template copies its content into THIS blast's own editable
+  // fields — not a live reference. Only fills fields that are still empty,
+  // so it won't clobber anything already typed (e.g. from the "Create blast
+  // for this event" query params above).
+  function applyTemplate(id: string) {
+    setTemplateId(id);
+    if (!id) return;
+    const t = templates.find((tpl) => tpl.id === id);
+    if (!t) return;
+    setForm((f) => ({
+      ...f,
+      subject: f.subject || t.subject || '',
+      heading: f.heading || t.heading || '',
+      freeText: f.freeText || t.freeText || '',
+      eventDetailsText: f.eventDetailsText || t.eventDetailsText || '',
+      bookingLink: f.bookingLink || t.bookingLink || '',
+      smsBody: f.smsBody || t.smsBody || '',
+    }));
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -36,7 +69,7 @@ function NewBlastInner() {
     const res = await fetch('/api/admin/campaigns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, filter: {} }),
+      body: JSON.stringify({ ...form, templateId: templateId || undefined, filter: {} }),
     });
     const data = await res.json();
     setSaving(false);
@@ -44,9 +77,10 @@ function NewBlastInner() {
       setError(typeof data.error === 'string' ? data.error : 'Please check the required fields.');
       return;
     }
-    // Saving lands directly on Select Members (the Send tab) — not Details,
-    // which the admin would have to know to click into. See project notes.
-    router.push(`/admin/blasts/${data.id}?tab=send`);
+    // Saving lands on the Preview tab, not straight into member selection —
+    // matches the requested flow: create -> save -> preview -> edit as
+    // needed -> filter members -> preview final time -> send.
+    router.push(`/admin/blasts/${data.id}`);
   }
 
   return (
@@ -57,6 +91,18 @@ function NewBlastInner() {
       <Card>
         <form onSubmit={handleSave}>
           <Field label="Title"><Input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
+
+          <Field label="Blast template">
+            <Select value={templateId} onChange={(e) => applyTemplate(e.target.value)}>
+              <option value="">(None — start blank)</option>
+              {templates.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+            </Select>
+          </Field>
+          {templateId && (
+            <p className="mb-4 -mt-2 text-xs text-ink/50">
+              Content copied in below — edit freely, this blast has its own independent copy and won&apos;t affect the template or any other blast.
+            </p>
+          )}
 
           <label className="mb-2 flex items-center gap-2 text-sm font-bold text-ink">
             <input type="checkbox" checked={form.sendEmail} onChange={(e) => setForm({ ...form, sendEmail: e.target.checked })} /> Send Email?
@@ -101,7 +147,7 @@ function NewBlastInner() {
 
           {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
 
-          <Button type="submit" disabled={saving} className="w-full">{saving ? 'Saving…' : 'Save blast & select members'}</Button>
+          <Button type="submit" disabled={saving} className="w-full">{saving ? 'Saving…' : 'Save blast & preview'}</Button>
         </form>
       </Card>
     </div>

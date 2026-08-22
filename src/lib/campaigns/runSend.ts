@@ -1,7 +1,7 @@
 import { prisma } from '../prisma';
 import { buildMemberWhere, MemberFilter } from '../memberFilter';
 import { sendEmail } from '../emails/send';
-import { sendSms } from '../sms/send';
+import { sendSmsBulk } from '../sms/send';
 import { resolveCampaignEmailHtml } from '../emails/campaignEmail';
 import jwt from 'jsonwebtoken';
 
@@ -68,6 +68,13 @@ export async function processCampaignSendBatch(sendId: string) {
   const recipientIds = (send.recipientIds as string[]) ?? [];
   const batchEnd = Math.min(send.sentCount + BATCH_SIZE, recipientIds.length);
 
+  // SMS recipients are collected here and sent in a SINGLE bulk request after
+  // the loop. Cellcast accepts every recipient in one call, so a 100-strong
+  // batch costs one HTTP request instead of 100 — far faster, and much less
+  // likely to trip provider rate limits. (Email stays per-recipient: each
+  // message carries its own personalised unsubscribe link.)
+  const smsRecipients: string[] = [];
+
   for (let i = send.sentCount; i < batchEnd; i++) {
     const recipient = await prisma.member.findUnique({ where: { id: recipientIds[i] } });
     if (recipient) {
@@ -102,8 +109,22 @@ export async function processCampaignSendBatch(sendId: string) {
         campaign.sendSms &&
         (recipient.contactMethod === 'EMAIL_AND_SMS' || recipient.contactMethod === 'SMS' || campaign.ignorePreference)
       ) {
-        await sendSms({ to: recipient.mobile, body: campaign.smsBody ?? '' });
+        if (recipient.mobile) smsRecipients.push(recipient.mobile);
       }
+    }
+  }
+
+  // One request for the whole batch. sendSmsBulk returns per-recipient
+  // failures rather than throwing, so an invalid or unsubscribed number can't
+  // abort the batch and strand the rest of the send — which is what the old
+  // per-recipient `await sendSms(...)` would have done on the first bad number.
+  if (smsRecipients.length > 0) {
+    const result = await sendSmsBulk({ to: smsRecipients, body: campaign.smsBody ?? '' });
+    if (result.failed.length > 0) {
+      console.error(
+        `Campaign send ${sendId}: ${result.failed.length} of ${smsRecipients.length} SMS recipient(s) rejected.`,
+        result.failed
+      );
     }
   }
 

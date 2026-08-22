@@ -10,6 +10,8 @@ interface Campaign {
 }
 interface Send { id: string; status: string; sentCount: number; totalRecipients: number; startedAt: string; }
 interface City { id: string; name: string; }
+// Matches what POST /preview already returns (capped at 200 rows).
+interface PreviewMember { id: string; name: string; email: string; mobile: string; gender: string; contactMethod: string; city: { name: string }; }
 
 function ViewBlastInner() {
   const { id } = useParams<{ id: string }>();
@@ -22,8 +24,12 @@ function ViewBlastInner() {
   const [cities, setCities] = useState<City[]>([]);
   const [filter, setFilter] = useState({ ageMin: '', ageMax: '', gender: '', cityId: '', contactMethod: '' });
   const [previewCount, setPreviewCount] = useState<number | null>(null);
+  const [previewMembers, setPreviewMembers] = useState<PreviewMember[]>([]);
+  const [showMembers, setShowMembers] = useState(false);
   const [activeSend, setActiveSend] = useState<Send | null>(null);
   const [smsCredits, setSmsCredits] = useState<number | null>(null);
+  const [renderedHtml, setRenderedHtml] = useState<string | null>(null);
+  const [confirmingSend, setConfirmingSend] = useState(false);
 
   function loadCampaign() {
     fetch(`/api/admin/campaigns/${id}`).then((r) => r.json()).then(setCampaign);
@@ -36,27 +42,38 @@ function ViewBlastInner() {
     });
   }
 
+  // The real rendered email, via the same function the send loop uses.
+  function loadRenderedPreview() {
+    fetch(`/api/admin/campaigns/${id}/render-preview`).then((r) => r.json()).then((d) => setRenderedHtml(d.html));
+  }
+
   useEffect(() => {
-    loadCampaign(); loadHistory();
+    loadCampaign(); loadHistory(); loadRenderedPreview();
     fetch('/api/cities').then((r) => r.json()).then(setCities);
     fetch('/api/admin/sms-credits').then((r) => r.json()).then((d) => setSmsCredits(d.credits));
   }, [id]);
 
+  // Shared by preview and send so the count shown is built from exactly the
+  // same filter that gets locked in.
+  function currentFilterPayload() {
+    return {
+      ageMin: filter.ageMin ? Number(filter.ageMin) : undefined,
+      ageMax: filter.ageMax ? Number(filter.ageMax) : undefined,
+      gender: filter.gender || undefined,
+      cityId: filter.cityId || undefined,
+      contactMethods: filter.contactMethod ? [filter.contactMethod] : undefined,
+    };
+  }
+
   async function handlePreview() {
     const res = await fetch(`/api/admin/campaigns/${id}/preview`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        filter: {
-          ageMin: filter.ageMin ? Number(filter.ageMin) : undefined,
-          ageMax: filter.ageMax ? Number(filter.ageMax) : undefined,
-          gender: filter.gender || undefined,
-          cityId: filter.cityId || undefined,
-          contactMethods: filter.contactMethod ? [filter.contactMethod] : undefined,
-        },
-      }),
+      body: JSON.stringify({ filter: currentFilterPayload() }),
     });
     const data = await res.json();
     setPreviewCount(data.count);
+    setPreviewMembers(data.members ?? []);
+    setShowMembers(false);
   }
 
   async function handleTestSend() {
@@ -66,14 +83,19 @@ function ViewBlastInner() {
     alert(`Test sent to ${testTo}.`);
   }
 
-  async function handleSendNow() {
-    const savedFilter = {
-      ageMin: filter.ageMin ? Number(filter.ageMin) : undefined,
-      ageMax: filter.ageMax ? Number(filter.ageMax) : undefined,
-      gender: filter.gender || undefined,
-      cityId: filter.cityId || undefined,
-      contactMethods: filter.contactMethod ? [filter.contactMethod] : undefined,
-    };
+  // "Send Blast Now" no longer sends immediately — it opens one final review
+  // (the actual rendered content plus the exact filtered count) that has to
+  // be explicitly confirmed. This is the "preview final time" step in the
+  // requested flow: Save -> Preview -> edit -> filter members -> preview
+  // final time -> send.
+  async function handleSendBlastNowClick() {
+    if (previewCount === null) await handlePreview();
+    setConfirmingSend(true);
+  }
+
+  async function handleConfirmSend() {
+    setConfirmingSend(false);
+    const savedFilter = currentFilterPayload();
     await fetch(`/api/admin/campaigns/${id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filter: savedFilter }),
     });
@@ -124,7 +146,7 @@ function ViewBlastInner() {
   if (!campaign) return <p className="text-sm text-ink/50">Loading…</p>;
 
   return (
-    <div className="mx-auto max-w-lg">
+    <div className="mx-auto max-w-2xl">
       <h1 className="mb-2 text-2xl font-extrabold text-ink">{campaign.title}</h1>
 
       <div className="mb-4 flex gap-3 text-sm">
@@ -139,7 +161,7 @@ function ViewBlastInner() {
       <div className="mb-4 flex gap-2">
         {(['details', 'send', 'history'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${tab === t ? 'bg-plum text-white' : 'bg-plum/10 text-plum'}`}>
-            {t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === 'details' ? 'Preview' : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -154,6 +176,14 @@ function ViewBlastInner() {
           <Row label="Email from" value={`${campaign.fromName} <${campaign.fromEmail}>`} />
           <Row label="Subject" value={campaign.subject} />
           <Row label="Send SMS?" value={campaign.sendSms ? 'Yes' : 'No'} />
+
+          <div className="mt-5 text-sm font-extrabold text-ink">Preview — how it actually renders</div>
+          <p className="mb-2 text-xs text-ink/50">This is the real email, not a mockup — edit the blast if anything here needs to change.</p>
+          {renderedHtml ? (
+            <iframe srcDoc={renderedHtml} className="h-[420px] w-full rounded-lg border border-ink/10 bg-white" title="Email preview" />
+          ) : (
+            <p className="text-sm text-ink/40">Loading preview…</p>
+          )}
         </Card>
       )}
 
@@ -191,7 +221,30 @@ function ViewBlastInner() {
           </div>
           <Button variant="ghost" onClick={handlePreview} className="mb-4 w-full">Filter</Button>
           {previewCount !== null && (
-            <div className="mb-4 rounded-lg bg-plum/10 p-3 text-center font-extrabold text-plum">{previewCount.toLocaleString()} members filtered</div>
+            <div className="mb-4 rounded-lg bg-plum/10 p-3">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-plum">{previewCount.toLocaleString()} members filtered</span>
+                {previewCount > 0 && (
+                  <button onClick={() => setShowMembers(!showMembers)} className="text-xs font-bold text-plum underline">
+                    {showMembers ? 'Hide' : 'Show'}
+                  </button>
+                )}
+              </div>
+              {showMembers && (
+                <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-plum/10 bg-white">
+                  {previewMembers.map((m) => (
+                    <div key={m.id} className="border-b border-ink/5 px-3 py-2 text-xs last:border-0">
+                      <span className="font-bold text-ink">{m.name}</span>
+                      <span className="text-ink/50"> — {m.email} · {m.mobile} · {m.city?.name}</span>
+                    </div>
+                  ))}
+                  {/* The preview API caps at 200 rows. */}
+                  {previewMembers.length < (previewCount ?? 0) && (
+                    <div className="px-3 py-2 text-xs text-ink/40">Showing first {previewMembers.length} of {previewCount}.</div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {activeSend ? (
@@ -205,7 +258,7 @@ function ViewBlastInner() {
               </div>
             </div>
           ) : (
-            <Button onClick={handleSendNow} className="w-full">Send Blast Now</Button>
+            <Button onClick={handleSendBlastNowClick} className="w-full">Send Blast Now</Button>
           )}
         </Card>
       )}
@@ -222,6 +275,25 @@ function ViewBlastInner() {
             </div>
           ))}
           {sends.length === 0 && <p className="text-sm text-ink/50">No sends yet.</p>}
+        </div>
+      )}
+
+      {/* Final confirmation — the "preview final time" step. Shows the same
+          rendered email plus the exact locked-in count, and requires an
+          explicit second click before anything actually sends. */}
+      {confirmingSend && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4" onClick={() => setConfirmingSend(false)}>
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-1 text-lg font-extrabold text-ink">Confirm and send</h2>
+            <p className="mb-3 text-sm text-ink/60">
+              This will send to <b>{(previewCount ?? 0).toLocaleString()} members</b> right now. This is the last chance to check before it goes out.
+            </p>
+            {renderedHtml && <iframe srcDoc={renderedHtml} className="mb-4 h-72 w-full rounded-lg border border-ink/10" title="Final preview" />}
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => setConfirmingSend(false)} className="flex-1">Cancel</Button>
+              <Button onClick={handleConfirmSend} className="flex-1">Confirm &amp; Send Now</Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Field, Input, Select, Button, Card, Badge } from '@/components/ui';
 
-interface Member { id: string; name: string; email: string; mobile: string; city: { name: string }; gender: string; _count: { bookings: number }; }
+interface Member { id: string; name: string; email: string; mobile: string; city: { name: string }; gender: string; dateOfBirth: string; _count: { bookings: number }; }
 interface Totals { count: number; male: number; female: number; totalMatches: number; }
 
 export default function AdminMembersPage() {
@@ -72,7 +72,7 @@ export default function AdminMembersPage() {
       <div className="overflow-hidden rounded-xl border border-ink/10 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-cream/50 text-left text-xs font-bold uppercase text-ink/50">
-            <tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Mobile</th><th className="px-4 py-3">City</th><th className="px-4 py-3">Events attended</th></tr>
+            <tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Mobile</th><th className="px-4 py-3">Gender</th><th className="px-4 py-3">Age</th><th className="px-4 py-3">City</th><th className="px-4 py-3">Events attended</th></tr>
           </thead>
           <tbody>
             {members.map((m) => (
@@ -80,6 +80,8 @@ export default function AdminMembersPage() {
                 <td className="px-4 py-3 font-bold text-ink">{m.name}</td>
                 <td className="px-4 py-3 text-ink/60">{m.email}</td>
                 <td className="px-4 py-3 text-ink/60">{m.mobile}</td>
+                <td className="px-4 py-3 text-ink/60">{m.gender === 'MALE' ? 'Male' : 'Female'}</td>
+                <td className="px-4 py-3 text-ink/60">{calculateAge(m.dateOfBirth)}</td>
                 <td className="px-4 py-3 text-ink/60">{m.city?.name}</td>
                 <td className="px-4 py-3"><Badge tone="green">{m._count.bookings}</Badge></td>
               </tr>
@@ -104,4 +106,16 @@ function StatBox({ label, value }: { label: string; value: string | number }) {
       <div className="text-xs font-bold uppercase text-ink/50">{label}</div>
     </div>
   );
+}
+
+// Age is derived from dateOfBirth rather than stored, so it can never drift.
+// Mirrors the same calculation used at registration (the 18+ check) and in
+// buildMemberWhere's age-range filter.
+function calculateAge(dateOfBirth: string): number {
+  const dob = new Date(dateOfBirth);
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) age--;
+  return age;
 }

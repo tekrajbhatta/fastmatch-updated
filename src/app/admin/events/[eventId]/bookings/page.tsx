@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { Button, Card, Field, Input, Select } from '@/components/ui';
 
 interface Booking { id: string; badge: number; status: string; paidAmount: string; member: { name: string; email: string; mobile: string; gender: string }; }
@@ -60,6 +61,9 @@ export default function EventBookingsPage() {
 
   return (
     <div>
+      <Link href={`/admin/events/${eventId}`} className="mb-3 inline-flex items-center gap-1 text-sm font-bold text-plum hover:underline">
+        ← Back to event
+      </Link>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Event bookings</h1>
       <p className="mb-4 text-sm text-ink/60">{men} men · {women} women booked</p>
 

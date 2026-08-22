@@ -74,8 +74,8 @@ patterns as the FastmatchLive codebase.
   Pause/cancel take effect at the next batch boundary, not instantly
   mid-batch. `GET /api/admin/sms-credits` is a placeholder for the provider
   balance banner ("194.250 credits remaining"). Email sending is real
-  (Mailgun over SMTP); SMS has real Clickatell and Twilio implementations.
-  All fall back to `console.log` when credentials are absent.
+  (Mailgun over SMTP); SMS is a real Cellcast implementation. Both fall back
+  to `console.log` when credentials are absent.
 - **Bounce handling**: `src/app/api/webhooks/email-bounce/route.ts` — instead
   of routing bounces to a separate inbox for a human to read (the old
   system's approach), the email provider posts bounce events here
@@ -147,9 +147,11 @@ setup, not app code, but worth having written down:
 
 All five are wired end-to-end in terms of logic/templates, and the provider
 connections are now real: `src/lib/emails/send.ts` sends via Mailgun SMTP
-(nodemailer), and `src/lib/sms/send.ts` has working Clickatell and Twilio
-paths selected by `SMS_PROVIDER`. Each falls back to `console.log` when its
-credentials are unset, so local dev and CI never send anything.
+(nodemailer), and `src/lib/sms/send.ts` sends via Cellcast. Each falls back to
+`console.log` when its credentials are unset, so local dev and CI never send
+anything. Campaign blasts use `sendSmsBulk`, which sends a whole 100-recipient
+batch in one Cellcast request. See `cellcast-implementation-notes.md` in the
+repo root for the Cellcast contract and its open questions.
 
 - **Member import**: `src/scripts/importMembers.ts` (`npm run
   import-members -- path/to/file.csv`) — bulk-imports members from a CSV,

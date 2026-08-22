@@ -34,7 +34,9 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     prisma.member.findMany({
       where,
       select: {
-        id: true, name: true, email: true, mobile: true, gender: true, createdAt: true,
+        // dateOfBirth is needed for the Age column on the Members screen —
+        // age is computed client-side rather than stored.
+        id: true, name: true, email: true, mobile: true, gender: true, dateOfBirth: true, createdAt: true,
         city: { select: { name: true } },
         _count: { select: { bookings: true } },
       },
