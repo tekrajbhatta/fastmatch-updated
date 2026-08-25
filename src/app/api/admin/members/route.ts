@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { buildMemberWhere, MemberFilter } from '@/lib/memberFilter';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { calculateAge } from '@/lib/age';
 
 const PAGE_SIZE = 50;
 
@@ -84,7 +85,10 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const data = parsed.data;
 
   const dob = new Date(data.dateOfBirth);
-  const age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+  // Uses the shared helper rather than a (now - dob) / 365.25 approximation,
+  // which drifts by a day around leap years — precisely where an 18th
+  // birthday can be misjudged in either direction.
+  const age = calculateAge(dob);
   if (age < 18) {
     return NextResponse.json({ error: 'Members must be at least 18 years old.' }, { status: 403 });
   }

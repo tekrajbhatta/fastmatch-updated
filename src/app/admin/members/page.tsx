@@ -6,21 +6,33 @@ import { Field, Input, Select, Button, Card, Badge } from '@/components/ui';
 
 interface Member { id: string; name: string; email: string; mobile: string; city: { name: string }; gender: string; dateOfBirth: string; _count: { bookings: number }; }
 interface Totals { count: number; male: number; female: number; totalMatches: number; }
+interface City { id: string; name: string; }
 
 export default function AdminMembersPage() {
   const router = useRouter();
   const [members, setMembers] = useState<Member[]>([]);
+  const [cities, setCities] = useState<City[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [filters, setFilters] = useState({ search: '', gender: '', ageMin: '', ageMax: '' });
+  const [filters, setFilters] = useState({ search: '', gender: '', cityId: '', ageMin: '', ageMax: '' });
 
-  function loadMembers(pageNum = 1) {
-    const params = new URLSearchParams({ page: String(pageNum) });
+  // One place to build the query string, so the CSV export can never drift
+  // out of sync with what's on screen — an export that silently ignored the
+  // city filter would be worse than no export at all.
+  function filterParams() {
+    const params = new URLSearchParams();
     if (filters.search) params.set('search', filters.search);
     if (filters.gender) params.set('gender', filters.gender);
+    if (filters.cityId) params.set('cityId', filters.cityId);
     if (filters.ageMin) params.set('ageMin', filters.ageMin);
     if (filters.ageMax) params.set('ageMax', filters.ageMax);
+    return params;
+  }
+
+  function loadMembers(pageNum = 1) {
+    const params = filterParams();
+    params.set('page', String(pageNum));
 
     fetch(`/api/admin/members?${params}`).then((r) => r.json()).then((data) => {
       setMembers(data.members);
@@ -30,15 +42,13 @@ export default function AdminMembersPage() {
     });
   }
 
-  useEffect(() => { loadMembers(1); }, []);
+  useEffect(() => {
+    loadMembers(1);
+    fetch('/api/cities').then((r) => r.json()).then(setCities);
+  }, []);
 
   function handleExport() {
-    const params = new URLSearchParams();
-    if (filters.search) params.set('search', filters.search);
-    if (filters.gender) params.set('gender', filters.gender);
-    if (filters.ageMin) params.set('ageMin', filters.ageMin);
-    if (filters.ageMax) params.set('ageMax', filters.ageMax);
-    window.open(`/api/admin/members/export?${params}`, '_blank');
+    window.open(`/api/admin/members/export?${filterParams()}`, '_blank');
   }
 
   return (
@@ -47,11 +57,17 @@ export default function AdminMembersPage() {
       <p className="mb-6 text-sm text-ink/60">{totals ? `${totals.count.toLocaleString()} members currently match this filter.` : 'Loading…'}</p>
 
       <Card className="mb-6">
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <Field label="Search"><Input value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} placeholder="Name, email, mobile" /></Field>
           <Field label="Gender">
             <Select value={filters.gender} onChange={(e) => setFilters({ ...filters, gender: e.target.value })}>
               <option value="">Any</option><option value="MALE">Male</option><option value="FEMALE">Female</option>
+            </Select>
+          </Field>
+          <Field label="City">
+            <Select value={filters.cityId} onChange={(e) => setFilters({ ...filters, cityId: e.target.value })}>
+              <option value="">Any</option>
+              {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           </Field>
           <Field label="Age from"><Input type="number" value={filters.ageMin} onChange={(e) => setFilters({ ...filters, ageMin: e.target.value })} /></Field>

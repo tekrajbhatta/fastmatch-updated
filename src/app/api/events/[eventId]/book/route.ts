@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { getStripe } from '@/lib/stripe';
 import { getSessionMember } from '@/lib/auth';
+import { calculateAge } from '@/lib/age';
 import { sendBookingConfirmation } from '@/lib/sendBookingConfirmation';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
@@ -32,6 +33,19 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   const event = await prisma.event.findUniqueOrThrow({ where: { id: params.eventId } });
   if (event.visibility !== 'PUBLIC' || event.status !== 'UPCOMING') {
     return NextResponse.json({ error: 'This event is not open for booking.' }, { status: 400 });
+  }
+
+  // Event.ageMin/ageMax existed and were displayed on the event page, but
+  // nothing enforced them — a member could book an event outside their age
+  // range. Checked here, before the capacity check and before any Stripe
+  // checkout session is created, so no payment is ever started for a booking
+  // that would be rejected.
+  const age = calculateAge(member.dateOfBirth);
+  if (age < event.ageMin || age > event.ageMax) {
+    return NextResponse.json(
+      { error: "Sorry your age is outside of this event's age range" },
+      { status: 400 }
+    );
   }
 
   const existing = await prisma.booking.findUnique({

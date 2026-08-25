@@ -9,6 +9,7 @@ import { welcomeVerificationEmail } from '@/lib/emails/welcomeEmail';
 import { sendSms } from '@/lib/sms/send';
 import { verificationCodeSms } from '@/lib/sms/verificationSms';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { calculateAge } from '@/lib/age';
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
@@ -124,11 +125,3 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   });
   return res;
 });
-
-function calculateAge(dob: Date): number {
-  const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear();
-  const m = today.getMonth() - dob.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
-  return age;
-}
