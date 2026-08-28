@@ -17,3 +17,8 @@ npm-debug.log*
 
 .DS_Store
 next-env.d.ts
+
+# Runtime-uploaded blast images. In production UPLOAD_DIR points outside
+# the release directory (see src/lib/uploads.ts); this covers the local
+# development fallback.
+/uploads

@@ -55,7 +55,11 @@ export default function HomePage() {
                 YouTube's player off the critical path for the hero. */}
             <iframe
               className="h-full w-full"
-              src="https://www.youtube.com/embed/t3iolGRru9Y?rel=0"
+              // cc_load_policy=0 asks YouTube not to turn captions on by
+              // default — they were appearing over the animation on play.
+              // A viewer whose own YouTube account forces captions on will
+              // still see them; that preference is theirs, not ours to override.
+              src="https://www.youtube.com/embed/t3iolGRru9Y?rel=0&cc_load_policy=0"
               title="How FastMatch speed dating works"
               loading="lazy"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

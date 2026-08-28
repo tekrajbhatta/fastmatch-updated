@@ -1,12 +1,17 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Field, Input, Button, Card } from '@/components/ui';
 
-export default function LoginPage() {
+function LoginInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Set when the member was sent here mid-action (e.g. tapping "Book this
+  // event" while logged out) so they land back where they were instead of a
+  // generic events list. Only same-site paths are honoured — see next().
+  const nextParam = searchParams.get('next');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +32,10 @@ export default function LoginPage() {
       setError(data.error ?? 'Login failed.');
       return;
     }
-    router.push('/events');
+    // Admins land on the admin dashboard, not the member events list — an
+    // explicit ?next= (e.g. bounced off /admin, or off a member page) still
+    // wins, so they end up wherever they were actually headed.
+    router.push(safeNext(nextParam, data.isAdmin ? '/admin' : '/events'));
     router.refresh();
   }
 
@@ -60,5 +68,25 @@ export default function LoginPage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+// `next` arrives from the URL, so it is attacker-controllable: a link to
+// /login?next=https://evil.example would otherwise bounce a member straight
+// off-site immediately after they typed their password. Only same-site
+// absolute paths are allowed — and "//host" is rejected too, since browsers
+// read it as a protocol-relative URL to another origin.
+function safeNext(next: string | null, fallback: string): string {
+  if (!next || !next.startsWith('/') || next.startsWith('//')) return fallback;
+  return next;
+}
+
+// useSearchParams() forces client-side rendering, which Next requires to sit
+// behind a Suspense boundary — without one, `next build` fails prerendering.
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginInner />
+    </Suspense>
   );
 }

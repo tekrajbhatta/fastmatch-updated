@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card } from '@/components/ui';
+import Link from 'next/link';
+import { Card, Button } from '@/components/ui';
 
 interface Person { id: string; name: string; email: string; mobile: string; }
 interface EventMatches {
@@ -28,8 +29,17 @@ export default function MatchesPage() {
     });
   }, []);
 
+  // Middleware keeps logged-out visitors off this page, so a 401 here means a
+  // session that expired or was rejected. ?next= returns them once they're in.
   if (needsLogin) {
-    return <p className="text-sm text-ink/50">Please <a href="/login" className="font-bold text-plum">log in</a>.</p>;
+    return (
+      <div className="mx-auto max-w-sm text-center">
+        <Card>
+          <p className="mb-4 text-sm text-ink/60">Your session has expired. Please log in again.</p>
+          <Link href="/login?next=%2Fmatches"><Button className="w-full">Log in</Button></Link>
+        </Card>
+      </div>
+    );
   }
 
   return (

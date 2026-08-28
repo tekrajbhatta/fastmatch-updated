@@ -49,11 +49,15 @@ function campaignBanner(bannerImageUrl?: string | null) {
   if (bannerImageUrl) {
     return `<img src="${bannerImageUrl}" alt="" style="width:100%;display:block;" />`;
   }
+  // The real logo on white, replacing the text approximation of it that used
+  // to sit on a plum block. Absolute URL because email clients can't resolve
+  // relative paths; read here rather than at module scope so `next build`
+  // (which imports every module) can't trip over a missing APP_URL.
+  const logoSrc = `${(process.env.APP_URL ?? '').replace(/\/+$/, '')}/logo.png`;
   return `
-    <div style="background-color:${BRAND_COLORS.plum};padding:32px 24px 24px;text-align:center;">
-      <span style="font-style:italic;font-weight:800;font-size:28px;">
-        <span style="color:#fff;">fast</span><span style="color:${BRAND_COLORS.green};">match</span>
-      </span>
+    <div style="background-color:#ffffff;padding:24px;text-align:center;">
+      <img src="${logoSrc}" width="200" height="61" alt="fastmatch — Connecting People Face to Face"
+           style="width:200px;height:auto;border:0;display:inline-block;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:bold;color:${BRAND_COLORS.plum};" />
     </div>
     <div style="height:6px;background-color:${BRAND_COLORS.green};"></div>`;
 }
@@ -88,8 +92,10 @@ export function renderCampaignEmailHtml(fields: {
     .map((line) => `<p style="margin:0 0 14px;">${line}</p>`)
     .join('');
 
+  // Plum block with white text — the brand colour moved here from the banner,
+  // which is now white so the real logo sits on its own background.
   const eventDetailsHtml = fields.eventDetailsText
-    ? `<div style="background-color:${BRAND_COLORS.cream};border-left:4px solid ${BRAND_COLORS.green};border-radius:8px;padding:16px 20px;margin:18px 0;white-space:pre-line;font-size:14px;">${fields.eventDetailsText}</div>`
+    ? `<div style="background-color:${BRAND_COLORS.plum};color:#ffffff;border-left:4px solid ${BRAND_COLORS.green};border-radius:8px;padding:16px 20px;margin:18px 0;white-space:pre-line;font-size:14px;">${fields.eventDetailsText}</div>`
     : '';
 
   const photoHtml = fields.photoUrl

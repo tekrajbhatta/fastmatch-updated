@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button, Card, Badge, Field, Input } from '@/components/ui';
+import { Button, Card, Field, Input } from '@/components/ui';
 
 interface EventDetail {
   id: string;
@@ -43,6 +43,13 @@ export default function EventDetailPage() {
     });
     const data = await res.json();
     setBooking(false);
+    // A logged-out visitor can browse events but can't book one. Send them to
+    // log in and return them to this event afterwards, rather than showing a
+    // dead-end "Not authenticated" message with nothing to act on.
+    if (res.status === 401) {
+      router.push(`/login?next=${encodeURIComponent(`/events/${eventId}`)}`);
+      return;
+    }
     if (!res.ok) {
       setError(data.error ?? 'Something went wrong — please try again.');
       return;
@@ -62,7 +69,11 @@ export default function EventDetailPage() {
   return (
     <div className="mx-auto max-w-lg">
       <div className="mb-5 rounded-xl bg-gradient-to-br from-plum to-plum-dark p-6 text-white">
-        <Badge tone="muted">{event.theme.name}</Badge>
+        {/* Plain text, not the pill <Badge>: on this purple panel the muted
+            badge rendered dark grey on near-transparent grey (unreadable),
+            and its pill padding pushed it out of line with the heading and
+            venue below. White, and flush with them. */}
+        <p className="text-xs font-bold uppercase tracking-wide text-white/80">{event.theme.name}</p>
         <h1 className="mt-2 text-xl font-extrabold">{event.name}</h1>
         <p className="mt-1 text-sm text-white/80">{event.venue}, {event.city.name}</p>
       </div>
