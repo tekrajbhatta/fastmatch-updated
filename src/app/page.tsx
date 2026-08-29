@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
+import { getCurrentMember } from '@/lib/auth';
 
 // The public homepage. `/` previously did `redirect('/events')`, which dropped
 // first-time visitors straight into a booking list with no explanation of what
@@ -11,7 +12,12 @@ export const metadata: Metadata = {
     'Real conversations. Real people. Real matches. Five minutes face to face could change your life — speed dating events across Australia since 1999.',
 };
 
-export default function HomePage() {
+export default async function HomePage() {
+  // getCurrentMember() is cache()'d, so asking again here costs nothing on
+  // top of the root layout's own lookup for the header.
+  const member = await getCurrentMember();
+  const isLoggedIn = member !== null;
+
   return (
     <>
       {/* Hero */}
@@ -38,9 +44,13 @@ export default function HomePage() {
             <Link href="/events" className="rounded-lg bg-coral px-6 py-3 font-extrabold text-white hover:bg-coral/90">
               Browse events
             </Link>
-            <Link href="/register" className="rounded-lg border-2 border-white px-6 py-3 font-extrabold text-white hover:bg-white/10">
-              Sign up free
-            </Link>
+            {/* Nothing to sign up for once you're in — shown only to visitors
+                who don't already have an account. */}
+            {!isLoggedIn && (
+              <Link href="/register" className="rounded-lg border-2 border-white px-6 py-3 font-extrabold text-white hover:bg-white/10">
+                Sign up free
+              </Link>
+            )}
           </div>
         </div>
       </section>

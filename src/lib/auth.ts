@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
@@ -47,7 +48,11 @@ export async function requireAdmin(req: NextRequest) {
 // Server-component-friendly variant — RSCs don't have a NextRequest, they
 // read cookies via next/headers instead. Same session-cookie logic as
 // getSessionMember, just a different way of getting the token.
-export async function getCurrentMember() {
+// cache() memoises this for the duration of a single request render, so the
+// root layout, the admin layout and a page can each ask "who is this?"
+// without producing three identical lookups per page view. It is per-request
+// only — nothing is shared between requests or users.
+export const getCurrentMember = cache(async () => {
   // Next 15 made cookies() async (it returns a Promise); in Next 14 it was
   // synchronous. This must stay awaited while the project is on Next 15.
   const token = (await cookies()).get('fm_session')?.value;
@@ -59,4 +64,4 @@ export async function getCurrentMember() {
   } catch {
     return null;
   }
-}
+});

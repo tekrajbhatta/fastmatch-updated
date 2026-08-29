@@ -49,7 +49,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           the admin nav, and nesting admin's own max-w-[1400px] container
           inside a 1024px one. SiteChrome renders them only on member routes.
         */}
-        <SiteChrome isLoggedIn={member !== null}>{children}</SiteChrome>
+        <SiteChrome isLoggedIn={member !== null} isAdmin={member?.isAdmin ?? false}>
+          {children}
+        </SiteChrome>
       </body>
     </html>
   );

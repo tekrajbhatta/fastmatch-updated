@@ -62,11 +62,12 @@ export default function AccountPage() {
       )}
 
       <Card className="mb-4 divide-y divide-ink/5">
+        {/* Only actions that belong to THIS member's account. Contact us,
+            Privacy policy and Terms & conditions all live in the site footer
+            on every page, for every role, so listing them here as well was a
+            second route to the same three pages. */}
         <AccountLink href="/account/edit-profile" label="Edit profile" />
         <AccountLink href="/account/change-password" label="Change password" />
-        <AccountLink href="/contact" label="Contact us" />
-        <AccountLink href="/privacy" label="Privacy policy" />
-        <AccountLink href="/terms" label="Terms & conditions" />
         <AccountLink href="/account/unsubscribe" label="Unsubscribe from emails" />
       </Card>
 

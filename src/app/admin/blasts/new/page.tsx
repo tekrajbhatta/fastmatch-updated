@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Field, Input, Select, Button, Card } from '@/components/ui';
+import PhotoUploadField from '@/components/PhotoUploadField';
 
 interface Template {
   id: string; title: string; subject: string | null; heading: string | null;
@@ -30,8 +31,6 @@ function NewBlastInner() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [photoError, setPhotoError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/admin/campaign-templates').then((r) => r.json()).then(setTemplates);
@@ -67,23 +66,6 @@ function NewBlastInner() {
     }));
   }
 
-  // Uploaded as soon as it's chosen, rather than held until save: the server
-  // re-encodes and resizes it, so the URL it returns is what actually goes in
-  // the email — and the admin sees the real thing before committing to it.
-  async function handlePhoto(file: File) {
-    setPhotoError(null);
-    setUploading(true);
-    const body = new FormData();
-    body.append('file', file);
-    const res = await fetch('/api/admin/uploads', { method: 'POST', body });
-    const data = await res.json();
-    setUploading(false);
-    if (!res.ok) {
-      setPhotoError(typeof data.error === 'string' ? data.error : 'That image could not be uploaded.');
-      return;
-    }
-    setForm((f) => ({ ...f, photoUrl: data.url }));
-  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -142,37 +124,7 @@ function NewBlastInner() {
                 <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={4}
                   value={form.freeText} onChange={(e) => setForm({ ...form, freeText: e.target.value })} />
               </Field>
-              <Field label="Photo">
-                {form.photoUrl ? (
-                  <div className="flex items-start gap-3">
-                    {/* Plain <img>, not next/image: this is a runtime-uploaded
-                        file served from outside public/, so there is nothing
-                        for the image optimiser to know about at build time. */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={form.photoUrl} alt="" className="h-24 w-24 rounded-lg object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setForm({ ...form, photoUrl: '' })}
-                      className="text-sm font-bold text-coral hover:underline"
-                    >
-                      Remove photo
-                    </button>
-                  </div>
-                ) : (
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    disabled={uploading}
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePhoto(f); }}
-                    className="w-full text-sm text-ink/70 file:mr-3 file:rounded-lg file:border-0 file:bg-plum/10 file:px-3 file:py-2 file:text-sm file:font-bold file:text-plum"
-                  />
-                )}
-                {uploading && <p className="mt-1 text-xs text-ink/50">Uploading and optimising…</p>}
-                {photoError && <p className="mt-1 text-xs font-medium text-coral">{photoError}</p>}
-                {!form.photoUrl && !uploading && !photoError && (
-                  <p className="mt-1 text-xs text-ink/50">Optional. Resized automatically to fit the email.</p>
-                )}
-              </Field>
+              <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm((f) => ({ ...f, photoUrl: url }))} />
 
               <Field label="Event details">
                 <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={3}

@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { getCurrentMember } from '@/lib/auth';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -8,21 +7,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // rather than dropping them on the member events list.
   if (!member || !member.isAdmin) redirect('/login?next=%2Fadmin');
 
-  return (
-    <div className="mx-auto max-w-[1400px] px-6 py-8 md:px-10">
-      <nav className="mb-8 flex flex-wrap gap-1 border-b border-ink/10 pb-4 text-sm font-bold text-plum">
-        {/* Order mirrors the dashboard cards below it. Events and Blasts were
-            missing entirely — both had pages and were reachable only from the
-            dashboard tiles, so there was no way back to them from any other
-            admin screen. */}
-        <Link href="/admin" className="rounded-lg px-3 py-2 hover:bg-plum/5">Dashboard</Link>
-        <Link href="/admin/events" className="rounded-lg px-3 py-2 hover:bg-plum/5">Events</Link>
-        <Link href="/admin/members" className="rounded-lg px-3 py-2 hover:bg-plum/5">Members</Link>
-        <Link href="/admin/discounts" className="rounded-lg px-3 py-2 hover:bg-plum/5">Discount codes</Link>
-        <Link href="/admin/blasts" className="rounded-lg px-3 py-2 hover:bg-plum/5">Blasts</Link>
-        <Link href="/admin/reports" className="rounded-lg px-3 py-2 hover:bg-plum/5">Reports</Link>
-      </nav>
-      {children}
-    </div>
-  );
+  // The admin nav used to live here, on its own row below the logo. It now
+  // sits in the site header beside the logo (see SiteChrome), which both
+  // puts it on one row and carries it onto non-admin pages — an admin no
+  // longer loses their menu by clicking through to the public site.
+  return <div className="mx-auto max-w-[1400px] px-6 py-8 md:px-10">{children}</div>;
 }

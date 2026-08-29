@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Field, Input, Button, Card } from '@/components/ui';
+import PhotoUploadField from '@/components/PhotoUploadField';
 
 export default function EditBlastPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,7 +19,8 @@ export default function EditBlastPage() {
         title: c.title, sendEmail: c.sendEmail, sendSms: c.sendSms,
         fromName: c.fromName, fromEmail: c.fromEmail, subject: c.subject ?? '',
         heading: c.heading ?? '', freeText: c.freeText ?? '', eventDetailsText: c.eventDetailsText ?? '',
-        bookingLink: c.bookingLink ?? '', smsFromNumber: c.smsFromNumber ?? '', smsBody: c.smsBody ?? '',
+        bookingLink: c.bookingLink ?? '', photoUrl: c.photoUrl ?? '',
+        smsFromNumber: c.smsFromNumber ?? '', smsBody: c.smsBody ?? '',
       });
     });
   }, [id]);
@@ -55,6 +57,7 @@ export default function EditBlastPage() {
                 <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={4}
                   value={form.freeText} onChange={(e) => setForm({ ...form, freeText: e.target.value })} />
               </Field>
+              <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm({ ...form, photoUrl: url })} />
               <Field label="Event details">
                 <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={3}
                   value={form.eventDetailsText} onChange={(e) => setForm({ ...form, eventDetailsText: e.target.value })} />
