@@ -7,7 +7,7 @@ import { Field, Input, Select, Button, Card } from '@/components/ui';
 interface Theme { id: string; name: string; }
 interface City { id: string; name: string; }
 interface EventOption {
-  id: string; name: string; startsAt: string; venue: string; ageMin: number; ageMax: number;
+  id: string; name: string; startsAt: string; venue: { name: string; address: string | null }; ageMin: number; ageMax: number;
   theme: { name: string }; city: { name: string };
 }
 
@@ -149,7 +149,7 @@ export default function ReportsPage() {
               <Select value={selectedEvent} onChange={(e) => setSelectedEvent(e.target.value)}>
                 {events.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} — {e.theme.name} — {e.venue} — Ages {e.ageMin}-{e.ageMax}
+                    {new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} — {e.theme.name} — {e.venue.name} — Ages {e.ageMin}-{e.ageMax}
                   </option>
                 ))}
               </Select>

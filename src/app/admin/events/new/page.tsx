@@ -2,17 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Field, Input, Select, Button, Card } from '@/components/ui';
 
 interface City { id: string; name: string; }
 interface Theme { id: string; name: string; }
+interface Venue { id: string; name: string; city: { id: string; name: string }; }
 
 export default function NewEventPage() {
   const router = useRouter();
   const [cities, setCities] = useState<City[]>([]);
   const [themes, setThemes] = useState<Theme[]>([]);
+  const [venues, setVenues] = useState<Venue[]>([]);
   const [form, setForm] = useState({
-    name: '', themeId: '', cityId: '', venue: '', startsAt: '',
+    name: '', themeId: '', cityId: '', venueId: '', startsAt: '',
     ageMin: '', ageMax: '', maxMen: '12', maxWomen: '12', cost: '', expenses: '',
     visibility: 'PUBLIC' as 'PUBLIC' | 'NOT_PUBLIC',
   });
@@ -30,7 +33,22 @@ export default function NewEventPage() {
       setThemes(data);
       if (data.length) setForm((f) => ({ ...f, themeId: data[0].id }));
     });
+    fetch('/api/admin/venues').then((r) => r.json()).then(setVenues);
   }, []);
+
+  // Venues belong to a city, so the dropdown only offers venues in the city
+  // already chosen above — picking a Sydney venue for a Melbourne event
+  // shouldn't be possible.
+  const venuesInCity = venues.filter((v) => v.city.id === form.cityId);
+
+  // Changing the city can strand a venue selection that no longer belongs to
+  // it; clear it rather than silently submitting a mismatched pair.
+  function handleCityChange(cityId: string) {
+    setForm((f) => {
+      const stillValid = venues.some((v) => v.id === f.venueId && v.city.id === cityId);
+      return { ...f, cityId, venueId: stillValid ? f.venueId : '' };
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -79,13 +97,25 @@ export default function NewEventPage() {
               <Input type="datetime-local" required value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} />
             </Field>
             <Field label="City">
-              <Select value={form.cityId} onChange={(e) => setForm({ ...form, cityId: e.target.value })}>
+              <Select value={form.cityId} onChange={(e) => handleCityChange(e.target.value)}>
                 {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </Select>
             </Field>
           </div>
           <Field label="Venue">
-            <Input required value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} placeholder="Sheaf Hotel, Double Bay" />
+            <Select required value={form.venueId} onChange={(e) => setForm({ ...form, venueId: e.target.value })}>
+              <option value="">Select a venue…</option>
+              {venuesInCity.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </Select>
+            {/* Venues are picked from the directory, never typed. Without this
+                note an empty dropdown looks like a bug rather than "you have
+                not added a venue in this city yet". */}
+            <p className="mt-1 text-xs text-ink/50">
+              {venuesInCity.length === 0
+                ? 'No venues in this city yet — '
+                : 'Somewhere new? '}
+              <Link href="/admin/venues" className="font-bold text-plum hover:underline">add a venue</Link> first.
+            </p>
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Age min">

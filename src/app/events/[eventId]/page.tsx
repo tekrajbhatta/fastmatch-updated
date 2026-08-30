@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, Card, Field, Input } from '@/components/ui';
+import { venueLine } from '@/lib/venue';
 
 interface EventDetail {
   id: string;
   name: string;
-  venue: string;
+  venue: { name: string; address: string | null };
   startsAt: string;
   ageMin: number;
   ageMax: number;
@@ -75,7 +76,7 @@ export default function EventDetailPage() {
             venue below. White, and flush with them. */}
         <p className="text-xs font-bold uppercase tracking-wide text-white/80">{event.theme.name}</p>
         <h1 className="mt-2 text-xl font-extrabold">{event.name}</h1>
-        <p className="mt-1 text-sm text-white/80">{event.venue}, {event.city.name}</p>
+        <p className="mt-1 text-sm text-white/80">{venueLine(event.venue)}, {event.city.name}</p>
       </div>
 
       <Card className="mb-4">

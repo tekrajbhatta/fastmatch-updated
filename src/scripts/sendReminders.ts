@@ -15,6 +15,7 @@
 import { prisma } from '../lib/prisma';
 import { sendEmail } from '../lib/emails/send';
 import { eventReminderEmail } from '../lib/emails/eventEmails';
+import { venueLine } from '../lib/venue';
 
 const REMINDER_WINDOW_START_HOURS = 24;
 const REMINDER_WINDOW_END_HOURS = 48;
@@ -30,7 +31,7 @@ async function run() {
       reminderSent: false,
       event: { startsAt: { gte: windowStart, lte: windowEnd } },
     },
-    include: { member: true, event: true },
+    include: { member: true, event: { include: { venue: true } } },
   });
 
   let sent = 0;
@@ -40,7 +41,7 @@ async function run() {
         memberName: booking.member.name,
         eventName: booking.event.name,
         startsAt: booking.event.startsAt,
-        venue: booking.event.venue,
+        venue: venueLine(booking.event.venue),
       });
       await sendEmail({ to: booking.member.email, subject, html });
       await prisma.booking.update({ where: { id: booking.id }, data: { reminderSent: true } });

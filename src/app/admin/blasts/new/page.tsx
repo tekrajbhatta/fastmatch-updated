@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Field, Input, Select, Button, Card } from '@/components/ui';
 import PhotoUploadField from '@/components/PhotoUploadField';
+import VenuePickerField from '@/components/VenuePickerField';
 
 interface Template {
   id: string; title: string; subject: string | null; heading: string | null;
@@ -124,6 +125,10 @@ function NewBlastInner() {
                 <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={4}
                   value={form.freeText} onChange={(e) => setForm({ ...form, freeText: e.target.value })} />
               </Field>
+              <VenuePickerField
+                hasExistingContent={Boolean(form.eventDetailsText.trim() || form.photoUrl)}
+                onApply={(patch) => setForm((f) => ({ ...f, ...patch }))}
+              />
               <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm((f) => ({ ...f, photoUrl: url }))} />
 
               <Field label="Event details">

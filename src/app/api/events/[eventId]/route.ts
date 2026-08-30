@@ -9,7 +9,7 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
   const params = await ctx.params;
   const event = await prisma.event.findUniqueOrThrow({
     where: { id: params.eventId },
-    include: { theme: true, city: true },
+    include: { theme: true, city: true, venue: true },
   });
 
   const [menBooked, womenBooked] = await Promise.all([

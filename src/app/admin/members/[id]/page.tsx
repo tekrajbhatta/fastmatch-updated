@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, Badge, Button, Field, Input, Select } from '@/components/ui';
+import { venueLine } from '@/lib/venue';
 
 interface Booking {
   id: string; badge: number; status: string; paidAmount: string; checkedIn: boolean;
-  event: { id: string; name: string; startsAt: string; venue: string };
+  event: { id: string; name: string; startsAt: string; venue: { name: string; address: string | null }; };
 }
 interface MemberDetail {
   id: string; name: string; email: string; mobile: string; gender: string;
@@ -148,7 +149,7 @@ export default function MemberDetailPage() {
               <div>
                 <div className="text-sm font-bold text-ink">{b.event.name}</div>
                 <div className="text-xs text-ink/50">
-                  {b.event.venue} · {new Date(b.event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} · Badge #{b.badge}
+                  {venueLine(b.event.venue)} · {new Date(b.event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} · Badge #{b.badge}
                 </div>
               </div>
               <div className="flex gap-1.5">

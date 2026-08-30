@@ -8,7 +8,7 @@ const baseEventSchema = z.object({
   name: z.string().min(1),
   themeId: z.string(),
   cityId: z.string(),
-  venue: z.string().min(1),
+  venueId: z.string().min(1),
   startsAt: z.string(), // ISO datetime of the first occurrence
   ageMin: z.number().int().positive(),
   ageMax: z.number().int().positive(),
@@ -33,7 +33,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const events = await prisma.event.findMany({
     orderBy: { startsAt: 'asc' },
-    include: { theme: true, city: true, _count: { select: { bookings: true } } },
+    include: { theme: true, city: true, venue: true, _count: { select: { bookings: true } } },
   });
 
   // Per-gender breakdown for the admin list — "17/24" was showing total
@@ -75,7 +75,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
           name: data.name,
           themeId: data.themeId,
           cityId: data.cityId,
-          venue: data.venue,
+          venueId: data.venueId,
           startsAt,
           ageMin: data.ageMin,
           ageMax: data.ageMax,

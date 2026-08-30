@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Field, Input, Button, Card } from '@/components/ui';
 import PhotoUploadField from '@/components/PhotoUploadField';
+import VenuePickerField from '@/components/VenuePickerField';
 
 export default function EditBlastPage() {
   const { id } = useParams<{ id: string }>();
@@ -57,6 +58,10 @@ export default function EditBlastPage() {
                 <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={4}
                   value={form.freeText} onChange={(e) => setForm({ ...form, freeText: e.target.value })} />
               </Field>
+              <VenuePickerField
+                hasExistingContent={Boolean((form.eventDetailsText || '').trim() || form.photoUrl)}
+                onApply={(patch) => setForm({ ...form, ...patch })}
+              />
               <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm({ ...form, photoUrl: url })} />
               <Field label="Event details">
                 <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={3}

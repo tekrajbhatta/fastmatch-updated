@@ -8,7 +8,7 @@ interface AdminEvent {
   id: string;
   number: number;
   name: string;
-  venue: string;
+  venue: { name: string; address: string | null };
   startsAt: string;
   visibility: 'PUBLIC' | 'NOT_PUBLIC';
   status: string;
@@ -40,7 +40,10 @@ export default function AdminEventsPage() {
           <h1 className="text-2xl font-extrabold text-ink">Events</h1>
           <p className="text-sm text-ink/60">Numbers assign automatically, starting at #1.</p>
         </div>
-        <Link href="/admin/events/new"><Button>+ New event</Button></Link>
+        <div className="flex gap-2">
+          <Link href="/admin/venues"><Button variant="ghost">Manage venues</Button></Link>
+          <Link href="/admin/events/new"><Button>+ New event</Button></Link>
+        </div>
       </div>
 
       {loading && <p className="text-sm text-ink/50">Loading…</p>}

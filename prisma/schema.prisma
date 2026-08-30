@@ -89,6 +89,38 @@ model City {
   name   String  @unique
   events Event[]
   members Member[]
+  venues Venue[]
+}
+
+// Venue directory — replaces the free-text `Event.venue` string, so the same
+// place is described once and reused. Selecting a venue on a blast copies its
+// details into that blast (see renderCampaignEmailHtml / the blast form);
+// blasts deliberately do NOT hold a reference back here, so editing a venue
+// can't rewrite a blast that was already written and proofread.
+//
+// Belongs to a City: the event form filters the venue dropdown by the city
+// already chosen on the event, which mirrors the old system's venue->location
+// relationship and stops a Sydney venue being attached to a Melbourne event.
+model Venue {
+  id         String   @id @default(cuid())
+  name       String
+  address    String?
+  phone      String?
+  websiteUrl String?
+  // Uploaded through the same sharp re-encode pipeline as blast photos and
+  // stored in UPLOAD_DIR — see src/lib/uploads.ts. Holds the served URL.
+  photoUrl   String?
+  city       City     @relation(fields: [cityId], references: [id])
+  cityId     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  events Event[]
+
+  // Same venue name can exist in two cities ("Grand Hotel", Sydney and Perth)
+  // but not twice within one.
+  @@unique([name, cityId])
+  @@index([cityId])
 }
 
 model EventTheme {
@@ -114,7 +146,11 @@ model Event {
   themeId       String
   city          City            @relation(fields: [cityId], references: [id])
   cityId        String
-  venue         String
+  // Was a free-text String until the venue directory was added. Events are
+  // now always attached to a Venue row — the admin picks from the dropdown,
+  // adding the venue first if it's somewhere new.
+  venue         Venue           @relation(fields: [venueId], references: [id])
+  venueId       String
   startsAt      DateTime
   ageMin        Int
   ageMax        Int
@@ -141,6 +177,7 @@ model Event {
   @@index([startsAt])
   @@index([themeId])
   @@index([cityId])
+  @@index([venueId])
 }
 
 model Booking {

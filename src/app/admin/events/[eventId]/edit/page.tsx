@@ -7,12 +7,14 @@ import { Field, Input, Select, Button, Card } from '@/components/ui';
 
 interface City { id: string; name: string; }
 interface Theme { id: string; name: string; }
+interface Venue { id: string; name: string; city: { id: string; name: string }; }
 
 export default function EditEventPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const router = useRouter();
   const [cities, setCities] = useState<City[]>([]);
   const [themes, setThemes] = useState<Theme[]>([]);
+  const [venues, setVenues] = useState<Venue[]>([]);
   const [form, setForm] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,11 +26,12 @@ export default function EditEventPage() {
   useEffect(() => {
     fetch('/api/cities').then((r) => r.json()).then(setCities);
     fetch('/api/event-themes').then((r) => r.json()).then(setThemes);
+    fetch('/api/admin/venues').then((r) => r.json()).then(setVenues);
     fetch('/api/admin/events').then((r) => r.json()).then((events: any[]) => {
       const e = events.find((ev) => ev.id === eventId);
       if (e) {
         setForm({
-          name: e.name, themeId: e.themeId, cityId: e.cityId, venue: e.venue,
+          name: e.name, themeId: e.themeId, cityId: e.cityId, venueId: e.venueId,
           startsAt: e.startsAt.slice(0, 16), ageMin: e.ageMin, ageMax: e.ageMax,
           maxMen: e.maxMen, maxWomen: e.maxWomen, cost: e.cost,
           expenses: e.expenses ?? '', visibility: e.visibility,
@@ -93,7 +96,16 @@ export default function EditEventPage() {
               </Select>
             </Field>
           </div>
-          <Field label="Venue"><Input required value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} /></Field>
+          <Field label="Venue">
+            <Select required value={form.venueId} onChange={(e) => setForm({ ...form, venueId: e.target.value })}>
+              <option value="">Select a venue…</option>
+              {venues.filter((v) => v.city.id === form.cityId).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </Select>
+            <p className="mt-1 text-xs text-ink/50">
+              Only venues in the selected city are listed.{' '}
+              <Link href="/admin/venues" className="font-bold text-plum hover:underline">Manage venues</Link>
+            </p>
+          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Age min"><Input type="number" required value={form.ageMin} onChange={(e) => setForm({ ...form, ageMin: e.target.value })} /></Field>
             <Field label="Age max"><Input type="number" required value={form.ageMax} onChange={(e) => setForm({ ...form, ageMax: e.target.value })} /></Field>

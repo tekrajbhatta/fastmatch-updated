@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, Button } from '@/components/ui';
+import { venueLine } from '@/lib/venue';
 
 interface Person { id: string; name: string; email: string; mobile: string; }
 interface EventMatches {
-  event: { id: string; name: string; venue: string; startsAt: string };
+  event: { id: string; name: string; venue: { name: string; address: string | null }; startsAt: string };
   dateMatches: Person[];
   friendMatches: Person[];
 }
@@ -53,7 +54,7 @@ export default function MatchesPage() {
       {groups.map((g) => (
         <Card key={g.event.id} className="mb-4">
           <h2 className="mb-3 font-extrabold text-ink">{g.event.name}</h2>
-          <p className="mb-4 text-xs text-ink/50">{g.event.venue} · {new Date(g.event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          <p className="mb-4 text-xs text-ink/50">{venueLine(g.event.venue)} · {new Date(g.event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
 
           {g.dateMatches.length > 0 && (
             <div className="mb-3">

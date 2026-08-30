@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui';
+import { venueLine } from '@/lib/venue';
 
 interface EventListItem {
   id: string;
   name: string;
-  venue: string;
+  venue: { name: string; address: string | null };
   startsAt: string;
   maxMen: number;
   maxWomen: number;
@@ -50,7 +51,7 @@ export default function EventsPage() {
               <Badge tone={THEME_TONES[i % THEME_TONES.length]}>{event.theme.name}</Badge>
               <h2 className="mt-2 font-extrabold text-ink">{event.name}</h2>
               <p className="mt-1 text-sm text-ink/60">
-                {event.venue}, {event.city.name}
+                {venueLine(event.venue)}, {event.city.name}
                 <br />
                 <strong className="text-ink">
                   {date.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })},{' '}

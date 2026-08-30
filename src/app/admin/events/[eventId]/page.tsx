@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, Button } from '@/components/ui';
+import { venueLine, venueBlock } from '@/lib/venue';
 
 interface EventDetail {
-  id: string; name: string; venue: string; startsAt: string; cost: string;
+  id: string; name: string; venue: { name: string; address: string | null; phone: string | null; websiteUrl: string | null }; startsAt: string; cost: string;
   theme: { name: string }; city: { name: string };
 }
 
@@ -37,7 +38,7 @@ export default function AdminEventDetailPage() {
     const params = new URLSearchParams({
       subject: `${event.name} — ${event.theme.name}`,
       heading: event.theme.name,
-      eventDetails: `When: ${dateStr}, ${timeStr}\nWhere: ${event.venue}, ${event.city.name}\nCost: $${event.cost}`,
+      eventDetails: `When: ${dateStr}, ${timeStr}\nWhere: ${venueBlock(event.venue)}, ${event.city.name}\nCost: $${event.cost}`,
       bookingLink: `${window.location.origin}/events/${event.id}`,
     });
     router.push(`/admin/blasts/new?${params.toString()}`);
@@ -58,7 +59,7 @@ export default function AdminEventDetailPage() {
   return (
     <div className="mx-auto max-w-md">
       <h1 className="mb-1 text-2xl font-extrabold text-ink">{event.name}</h1>
-      <p className="mb-6 text-sm text-ink/60">{event.venue} · {new Date(event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'long' })}</p>
+      <p className="mb-6 text-sm text-ink/60">{venueLine(event.venue)} · {new Date(event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'long' })}</p>
 
       <Card className="mb-3">
         <Link href={`/admin/events/${event.id}/bookings`} className="block font-bold text-ink hover:text-plum">View bookings</Link>

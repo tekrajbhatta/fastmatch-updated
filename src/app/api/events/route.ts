@@ -18,6 +18,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
       ...(themeId ? { themeId } : {}),
     },
     include: {
+      venue: true,
       theme: true,
       city: true,
       _count: { select: { bookings: true } },

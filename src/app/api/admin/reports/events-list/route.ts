@@ -11,7 +11,8 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const events = await prisma.event.findMany({
     select: {
-      id: true, name: true, startsAt: true, venue: true, ageMin: true, ageMax: true,
+      id: true, name: true, startsAt: true, ageMin: true, ageMax: true,
+      venue: { select: { name: true, address: true } },
       theme: { select: { name: true } }, city: { select: { name: true } },
     },
     orderBy: { startsAt: 'desc' },

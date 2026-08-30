@@ -11,7 +11,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const matches = await prisma.match.findMany({
     where: { OR: [{ memberAId: member.id }, { memberBId: member.id }] },
-    include: { event: true },
+    include: { event: { include: { venue: true } } },
     orderBy: { createdAt: 'desc' },
   });
 
