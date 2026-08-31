@@ -20,6 +20,11 @@ interface AdminEvent {
   womenBooked: number;
   maxMen: number;
   maxWomen: number;
+  // Already returned by GET /api/admin/events (findMany returns every scalar
+  // column) — they were simply missing from this interface, so no API change
+  // was needed to show the age range.
+  ageMin: number;
+  ageMax: number;
 }
 
 export default function AdminEventsPage() {
@@ -54,9 +59,11 @@ export default function AdminEventsPage() {
             <tr>
               <th className="px-4 py-3">#</th>
               <th className="px-4 py-3">Title</th>
+              <th className="px-4 py-3">Date &amp; Time</th>
               <th className="px-4 py-3">Theme</th>
-              <th className="px-4 py-3">Start</th>
               <th className="px-4 py-3">City</th>
+              <th className="px-4 py-3">Venue</th>
+              <th className="px-4 py-3">Ages</th>
               <th className="px-4 py-3">Men</th>
               <th className="px-4 py-3">Women</th>
               <th className="px-4 py-3">Visibility</th>
@@ -74,9 +81,18 @@ export default function AdminEventsPage() {
                     </Link>
                   )}
                 </td>
+                {/* Cell order must mirror the <th> order above: Date & Time,
+                    Theme, City, Venue, Ages, Men, Women, Visibility. */}
+                <td className="whitespace-nowrap px-4 py-3">
+                  {new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}, {new Date(e.startsAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}
+                </td>
                 <td className="px-4 py-3">{e.theme.name}</td>
-                <td className="px-4 py-3">{new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}, {new Date(e.startsAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}</td>
                 <td className="px-4 py-3">{e.city.name}</td>
+                {/* Name only — venueLine() would add the full street address
+                    and make this column dominate the table. The address is on
+                    the event's own page and in /admin/venues. */}
+                <td className="px-4 py-3">{e.venue.name}</td>
+                <td className="whitespace-nowrap px-4 py-3">{e.ageMin}–{e.ageMax}</td>
                 <td className="px-4 py-3">{e.menBooked}/{e.maxMen}</td>
                 <td className="px-4 py-3">{e.womenBooked}/{e.maxWomen}</td>
                 <td className="px-4 py-3"><Badge tone={e.visibility === 'PUBLIC' ? 'green' : 'muted'}>{e.visibility === 'PUBLIC' ? 'Public' : 'Not public'}</Badge></td>
