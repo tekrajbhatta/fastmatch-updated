@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { calculateAge } from '@/lib/age';
+import { calculateAge, suitsAge } from '@/lib/age';
 
 /**
  * The event age-range check and the 18+ registration check both hinge on
@@ -79,5 +79,52 @@ describe('event age-range rule', () => {
   it('rejects someone who has aged past the upper bound', () => {
     freeze('2026-08-25T12:00:00Z');
     expect(isBookable(new Date('1980-08-25'), 30, 45)).toBe(false); // 46
+  });
+});
+
+/**
+ * The events-page suggestion rule: an event is suggested when the member's
+ * age falls within the event's range widened by AGE_SUGGESTION_MARGIN either
+ * side. Gil's example wording was "10 years above below age range".
+ */
+describe('suitsAge — events-page suggestions', () => {
+  const ev = (ageMin: number, ageMax: number) => ({ ageMin, ageMax });
+
+  it('suggests an event whose range contains the member', () => {
+    expect(suitsAge(ev(25, 35), 30)).toBe(true);
+  });
+
+  it('suggests an event up to 10 years above the member', () => {
+    expect(suitsAge(ev(40, 50), 35)).toBe(true);   // 35 >= 40-10
+    expect(suitsAge(ev(46, 60), 35)).toBe(false);  // 35 < 46-10
+  });
+
+  it('suggests an event up to 10 years below the member', () => {
+    expect(suitsAge(ev(18, 30), 40)).toBe(true);   // 40 <= 30+10
+    expect(suitsAge(ev(18, 29), 40)).toBe(false);  // 40 > 29+10
+  });
+
+  it('is inclusive exactly on both widened boundaries', () => {
+    expect(suitsAge(ev(30, 40), 20)).toBe(true);   // exactly ageMin-10
+    expect(suitsAge(ev(30, 40), 50)).toBe(true);   // exactly ageMax+10
+    expect(suitsAge(ev(30, 40), 19)).toBe(false);  // one year outside
+    expect(suitsAge(ev(30, 40), 51)).toBe(false);
+  });
+
+  it("matches Gil's worked example for a 35-year-old", () => {
+    expect(suitsAge(ev(25, 35), 35)).toBe(true);
+    expect(suitsAge(ev(40, 50), 35)).toBe(true);
+    expect(suitsAge(ev(50, 65), 35)).toBe(false);
+    expect(suitsAge(ev(18, 24), 35)).toBe(false);
+  });
+
+  // The suggestion window is wider than the booking rule on purpose, so some
+  // suggested events are legitimately refused at booking. Locked in so nobody
+  // "fixes" one to match the other without meaning to.
+  it('is deliberately wider than the booking age check', () => {
+    const event = ev(40, 50);
+    const age = 35;
+    expect(suitsAge(event, age)).toBe(true);                       // suggested
+    expect(age < event.ageMin || age > event.ageMax).toBe(true);   // but NOT bookable
   });
 });
