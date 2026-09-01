@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Field, Input, Select, Button, Card } from '@/components/ui';
+import { fromDateTimeLocalValue } from '@/lib/datetime';
 
 interface City { id: string; name: string; }
 interface Theme { id: string; name: string; }
@@ -59,6 +60,9 @@ export default function NewEventPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...form,
+        // Converted here, in the browser. Posting the raw datetime-local
+        // string made the SERVER parse it in ITS timezone, not the admin's.
+        startsAt: fromDateTimeLocalValue(form.startsAt),
         ageMin: Number(form.ageMin),
         ageMax: Number(form.ageMax),
         maxMen: Number(form.maxMen),

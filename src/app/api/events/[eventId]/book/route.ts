@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { getStripe } from '@/lib/stripe';
 import { getSessionMember } from '@/lib/auth';
 import { calculateAge } from '@/lib/age';
+import { venueLine } from '@/lib/venue';
+import { formatEventWhen } from '@/lib/datetime';
 import { sendBookingConfirmation } from '@/lib/sendBookingConfirmation';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
@@ -30,7 +32,10 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
     );
   }
 
-  const event = await prisma.event.findUniqueOrThrow({ where: { id: params.eventId } });
+  const event = await prisma.event.findUniqueOrThrow({
+    where: { id: params.eventId },
+    include: { venue: true, city: true },
+  });
   if (event.visibility !== 'PUBLIC' || event.status !== 'UPCOMING') {
     return NextResponse.json({ error: 'This event is not open for booking.' }, { status: 400 });
   }
@@ -119,7 +124,19 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
       {
         price_data: {
           currency: 'aud',
-          product_data: { name: event.name },
+          // Shown under the product name on Stripe's payment page, so the
+          // member sees exactly which event they're paying for before
+          // entering card details. (The logo on that page is a Stripe
+          // Dashboard branding setting, not something set from here.)
+          product_data: {
+            name: event.name,
+            description: [
+              venueLine(event.venue),
+              event.city.name,
+              formatEventWhen(event.startsAt),
+              `Ages ${event.ageMin}-${event.ageMax}`,
+            ].join(' \u00b7 '),
+          },
           unit_amount: Math.round(finalAmount * 100),
         },
         quantity: 1,

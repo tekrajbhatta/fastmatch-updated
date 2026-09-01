@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Field, Input, Select, Button, Card } from '@/components/ui';
+import { toDateTimeLocalValue, fromDateTimeLocalValue } from '@/lib/datetime';
 
 interface City { id: string; name: string; }
 interface Theme { id: string; name: string; }
@@ -32,7 +33,7 @@ export default function EditEventPage() {
       if (e) {
         setForm({
           name: e.name, themeId: e.themeId, cityId: e.cityId, venueId: e.venueId,
-          startsAt: e.startsAt.slice(0, 16), ageMin: e.ageMin, ageMax: e.ageMax,
+          startsAt: toDateTimeLocalValue(e.startsAt), ageMin: e.ageMin, ageMax: e.ageMax,
           maxMen: e.maxMen, maxWomen: e.maxWomen, cost: e.cost,
           expenses: e.expenses ?? '', visibility: e.visibility,
         });
@@ -53,7 +54,7 @@ export default function EditEventPage() {
         ageMin: Number(form.ageMin), ageMax: Number(form.ageMax),
         maxMen: Number(form.maxMen), maxWomen: Number(form.maxWomen),
         cost: Number(form.cost), expenses: form.expenses ? Number(form.expenses) : undefined,
-        startsAt: new Date(form.startsAt).toISOString(),
+        startsAt: fromDateTimeLocalValue(form.startsAt),
       }),
     });
     const data = await res.json();

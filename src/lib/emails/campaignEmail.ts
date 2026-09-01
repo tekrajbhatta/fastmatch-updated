@@ -75,8 +75,8 @@ function campaignFooter(unsubscribeUrl: string) {
 }
 
 // Renders a campaign/template's structured fields into the full branded
-// layout: banner -> heading -> free-text paragraphs -> optional photo ->
-// optional event-details block -> optional Book Now button -> footer.
+// layout: banner -> heading -> optional photo -> free-text paragraphs ->
+// optional event-details block -> Book Now button -> footer.
 export function renderCampaignEmailHtml(fields: {
   heading?: string | null;
   freeText?: string | null;
@@ -92,28 +92,36 @@ export function renderCampaignEmailHtml(fields: {
     .map((line) => `<p style="margin:0 0 14px;">${line}</p>`)
     .join('');
 
-  // Plum block with white text — the brand colour moved here from the banner,
-  // which is now white so the real logo sits on its own background.
+  // Light background with dark text, NOT the plum block this briefly used.
+  // Mail clients auto-detect the address, phone number and website in here and
+  // re-colour them as links — mid-blue, which was unreadable on purple. There
+  // is no reliable way to override Apple Mail's data detectors from an inline
+  // style, so the background gives way instead of the text.
   const eventDetailsHtml = fields.eventDetailsText
-    ? `<div style="background-color:${BRAND_COLORS.plum};color:#ffffff;border-left:4px solid ${BRAND_COLORS.green};border-radius:8px;padding:16px 20px;margin:18px 0;white-space:pre-line;font-size:14px;">${fields.eventDetailsText}</div>`
+    ? `<div style="background-color:${BRAND_COLORS.cream};color:${BRAND_COLORS.ink};border-left:4px solid ${BRAND_COLORS.green};border-radius:8px;padding:16px 20px;margin:18px 0;white-space:pre-line;font-size:14px;">${fields.eventDetailsText}</div>`
     : '';
 
+  // 70% rather than full width, centred. Full-bleed made the photo dominate
+  // the email; this keeps it clearly secondary to the copy.
   const photoHtml = fields.photoUrl
-    ? `<img src="${fields.photoUrl}" alt="" style="width:100%;border-radius:12px;margin:18px 0;display:block;" />`
+    ? `<img src="${fields.photoUrl}" alt="" width="330" style="width:70%;max-width:330px;height:auto;border-radius:12px;margin:18px auto;display:block;" />`
     : '';
 
-  const bookingButtonHtml = fields.bookingLink
-    ? `<p style="text-align:center;"><a href="${fields.bookingLink}" style="background:${BRAND_COLORS.redCta};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:bold;">Book Now</a></p>`
-    : '';
+  // ALWAYS rendered. It used to appear only when the blast had a booking link,
+  // so leaving that field blank silently shipped a marketing email with no
+  // call to action at all. An empty field now falls back to the events page.
+  const bookingUrl =
+    fields.bookingLink?.trim() || `${(process.env.APP_URL ?? '').replace(/\/+$/, '')}/events`;
+  const bookingButtonHtml = `<p style="text-align:center;margin:24px 0 8px;"><a href="${bookingUrl}" style="background:${BRAND_COLORS.redCta};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:bold;">Book Now</a></p>`;
 
   return `
     <div style="max-width:520px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:${BRAND_COLORS.ink};line-height:1.6;background-color:#ffffff;">
       ${campaignBanner(fields.bannerImageUrl)}
       <div style="padding:24px 24px 8px;">
         ${fields.heading ? `<h1 style="color:${BRAND_COLORS.plum};font-size:20px;text-align:center;margin:0 0 20px;line-height:1.4;">${fields.heading.split('\n').filter((l) => l.trim()).join('<br/>')}</h1>` : ''}
+        ${photoHtml}
         ${paragraphs}
         ${eventDetailsHtml}
-        ${photoHtml}
         ${bookingButtonHtml}
       </div>
       ${campaignFooter(fields.unsubscribeUrl)}

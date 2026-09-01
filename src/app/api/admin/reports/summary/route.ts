@@ -68,16 +68,49 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     where: bookingWhere,
     include: { event: { include: { theme: true, city: true } } },
   });
-  const byTheme = new Map<string, { attendees: number; revenue: number }>();
-  const byCity = new Map<string, { attendees: number; revenue: number }>();
+  type Group = { attendees: number; revenue: number; expenses: number };
+  const blank = (): Group => ({ attendees: 0, revenue: 0, expenses: 0 });
+  const byTheme = new Map<string, Group>();
+  const byCity = new Map<string, Group>();
+
+  // EXPENSES ARE PER EVENT, REVENUE IS PER BOOKING.
+  //
+  // Event.expenses is one figure for the night — venue hire, host, catering —
+  // not a per-head cost. Adding it inside this per-booking loop would multiply
+  // it by the attendee count (up to 24x on a full event) and drive every
+  // profit figure deeply, silently negative. Each event is therefore counted
+  // exactly once, via this map.
+  //
+  // Events are taken from the FILTERED bookings rather than from eventWhere
+  // alone, so an event's expenses only ever appear alongside that same event's
+  // revenue. Pulling every event matching the date/city filter instead would
+  // charge expenses for events that contributed no revenue to this view.
+  const eventsSeen = new Map<string, { expenses: number; theme: string; city: string }>();
   for (const b of bookings) {
-    const t = byTheme.get(b.event.theme.name) ?? { attendees: 0, revenue: 0 };
+    if (!eventsSeen.has(b.eventId)) {
+      eventsSeen.set(b.eventId, {
+        expenses: Number(b.event.expenses ?? 0),
+        theme: b.event.theme.name,
+        city: b.event.city.name,
+      });
+    }
+
+    const t = byTheme.get(b.event.theme.name) ?? blank();
     t.attendees++; t.revenue += Number(b.paidAmount);
     byTheme.set(b.event.theme.name, t);
 
-    const c = byCity.get(b.event.city.name) ?? { attendees: 0, revenue: 0 };
+    const c = byCity.get(b.event.city.name) ?? blank();
     c.attendees++; c.revenue += Number(b.paidAmount);
     byCity.set(b.event.city.name, c);
+  }
+
+  // Now fold each event's expenses in once. An event has exactly one theme and
+  // one city, so it lands in exactly one bucket of each.
+  let totalExpenses = 0;
+  for (const ev of eventsSeen.values()) {
+    totalExpenses += ev.expenses;
+    const t = byTheme.get(ev.theme); if (t) t.expenses += ev.expenses;
+    const c = byCity.get(ev.city); if (c) c.expenses += ev.expenses;
   }
 
   // Revenue over time (by month) and member growth (registrations by month)
@@ -93,10 +126,20 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     growthByMonth.set(key, (growthByMonth.get(key) ?? 0) + 1);
   }
 
+  const totalRevenue = Number(revenueAgg._sum.paidAmount ?? 0);
+  const withProfit = (m: Map<string, Group>) =>
+    Array.from(m.entries()).map(([name, v]) => ({ name, ...v, profit: v.revenue - v.expenses }));
+
   return NextResponse.json({
-    totals: { attendees: attendeeCount, revenue: Number(revenueAgg._sum.paidAmount ?? 0), matchRate },
-    byTheme: Array.from(byTheme.entries()).map(([name, v]) => ({ name, ...v })),
-    byCity: Array.from(byCity.entries()).map(([name, v]) => ({ name, ...v })),
+    totals: {
+      attendees: attendeeCount,
+      revenue: totalRevenue,
+      expenses: totalExpenses,
+      profit: totalRevenue - totalExpenses,
+      matchRate,
+    },
+    byTheme: withProfit(byTheme),
+    byCity: withProfit(byCity),
     revenueOverTime: Array.from(revenueByMonth.entries()).sort().map(([month, revenue]) => ({ month, revenue })),
     memberGrowth: Array.from(growthByMonth.entries()).sort().map(([month, count]) => ({ month, count })),
   });

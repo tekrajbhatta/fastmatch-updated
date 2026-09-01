@@ -30,6 +30,9 @@ function ViewBlastInner() {
   const [smsCredits, setSmsCredits] = useState<number | null>(null);
   const [renderedHtml, setRenderedHtml] = useState<string | null>(null);
   const [confirmingSend, setConfirmingSend] = useState(false);
+  // The send that has just COMPLETED, so the admin gets told it finished
+  // instead of being left staring at "sending…".
+  const [justSent, setJustSent] = useState<Send | null>(null);
 
   function loadCampaign() {
     fetch(`/api/admin/campaigns/${id}`).then((r) => r.json()).then(setCampaign);
@@ -102,16 +105,26 @@ function ViewBlastInner() {
     const res = await fetch(`/api/admin/campaigns/${id}/send`, { method: 'POST' });
     const data = await res.json();
     // Poll for progress
-    pollSend(data.id ?? null);
+    pollSend();
   }
 
-  async function pollSend(sendId: string | null) {
+  async function pollSend() {
     loadHistory();
     const latest = await fetch(`/api/admin/campaigns/${id}/sends`).then((r) => r.json());
     const current = latest[0];
-    setActiveSend(current);
+
+    // Only an in-flight send belongs in `activeSend`. This used to assign
+    // `latest[0]` unconditionally, so a FINISHED send stayed there and the
+    // progress block — whose label was a two-way ternary with no completion
+    // branch — sat on "N/N sending…" forever. Small sends finish inside the
+    // POST itself, so the very first poll already sees SENT and it never
+    // changed again.
+    const inFlight = current && (current.status === 'SENDING' || current.status === 'PAUSED');
+    setActiveSend(inFlight ? current : null);
+    setJustSent(current && current.status === 'SENT' ? current : null);
+
     if (current && current.status === 'SENDING') {
-      setTimeout(() => pollSend(current.id), 2000);
+      setTimeout(() => pollSend(), 2000);
     }
   }
 
@@ -134,7 +147,7 @@ function ViewBlastInner() {
   async function handleResume() {
     if (!activeSend) return;
     await fetch(`/api/admin/campaigns/${id}/sends/${activeSend.id}/resume`, { method: 'POST' });
-    pollSend(activeSend.id);
+    pollSend();
   }
   async function handleCancel() {
     if (!activeSend) return;
@@ -247,6 +260,12 @@ function ViewBlastInner() {
             </div>
           )}
 
+          {justSent && !activeSend && (
+            <div className="mb-4 rounded-lg border border-green/40 bg-green/10 p-3 text-center text-sm">
+              <div className="text-xl font-extrabold text-green-dark">{justSent.sentCount} / {justSent.totalRecipients} sent</div>
+              <div className="text-ink/60">Blast delivered to everyone in the filtered list.</div>
+            </div>
+          )}
           {activeSend ? (
             <div className="mb-4 rounded-lg bg-cream/50 p-3 text-center text-sm">
               <div className="text-xl font-extrabold text-plum">{activeSend.sentCount} / {activeSend.totalRecipients}</div>

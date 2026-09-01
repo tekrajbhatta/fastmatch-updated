@@ -11,10 +11,11 @@ interface EventOption {
   theme: { name: string }; city: { name: string };
 }
 
+interface ReportRow { name: string; attendees: number; revenue: number; expenses: number; profit: number; }
 interface SummaryData {
-  totals: { attendees: number; revenue: number; matchRate: number };
-  byTheme: { name: string; attendees: number; revenue: number }[];
-  byCity: { name: string; attendees: number; revenue: number }[];
+  totals: { attendees: number; revenue: number; expenses: number; profit: number; matchRate: number };
+  byTheme: ReportRow[];
+  byCity: ReportRow[];
   revenueOverTime: { month: string; revenue: number }[];
   memberGrowth: { month: string; count: number }[];
 }
@@ -100,9 +101,13 @@ export default function ReportsPage() {
 
           {summary && (
             <>
-              <div className="mb-6 grid grid-cols-3 gap-4">
+              {/* Five across now: revenue alone didn't answer "did the night make
+            money?" — expenses and profit are what Gil actually reports on. */}
+        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-5">
                 <StatBox label="Attendees" value={summary.totals.attendees.toLocaleString()} />
                 <StatBox label="Revenue" value={`$${summary.totals.revenue.toLocaleString()}`} />
+                <StatBox label="Expenses" value={`$${summary.totals.expenses.toLocaleString()}`} />
+                <StatBox label="Profit / loss" value={`${summary.totals.profit < 0 ? '-' : ''}$${Math.abs(summary.totals.profit).toLocaleString()}`} />
                 <StatBox label="Match rate" value={`${summary.totals.matchRate}%`} />
               </div>
 
@@ -201,13 +206,13 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ReportTable({ title, rows }: { title: string; rows: { name: string; attendees: number; revenue: number }[] }) {
+function ReportTable({ title, rows }: { title: string; rows: ReportRow[] }) {
   return (
     <Card>
       <h2 className="mb-3 font-extrabold text-ink">{title}</h2>
       <table className="w-full text-sm">
         <thead className="text-left text-xs font-bold uppercase text-ink/40">
-          <tr><th className="pb-2">Name</th><th className="pb-2">Attendees</th><th className="pb-2">Revenue</th></tr>
+          <tr><th className="pb-2">Name</th><th className="pb-2">Attendees</th><th className="pb-2">Revenue</th><th className="pb-2">Expenses</th><th className="pb-2">Profit / loss</th></tr>
         </thead>
         <tbody>
           {rows.map((r) => (
@@ -215,9 +220,14 @@ function ReportTable({ title, rows }: { title: string; rows: { name: string; att
               <td className="py-2 font-bold text-ink">{r.name}</td>
               <td className="py-2">{r.attendees}</td>
               <td className="py-2">${r.revenue.toLocaleString()}</td>
+              <td className="py-2">${r.expenses.toLocaleString()}</td>
+              {/* Losses read as -$120, not ($120) or $-120. */}
+              <td className={`py-2 font-bold ${r.profit < 0 ? 'text-coral' : 'text-green-dark'}`}>
+                {r.profit < 0 ? '-' : ''}${Math.abs(r.profit).toLocaleString()}
+              </td>
             </tr>
           ))}
-          {rows.length === 0 && <tr><td colSpan={3} className="py-3 text-ink/40">No data for this filter.</td></tr>}
+          {rows.length === 0 && <tr><td colSpan={5} className="py-3 text-ink/40">No data for this filter.</td></tr>}
         </tbody>
       </table>
     </Card>
