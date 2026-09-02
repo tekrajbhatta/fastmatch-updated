@@ -18,7 +18,7 @@ export default function EditBlastPage() {
     fetch(`/api/admin/campaigns/${id}`).then((r) => r.json()).then((c) => {
       setForm({
         title: c.title, sendEmail: c.sendEmail, sendSms: c.sendSms,
-        fromName: c.fromName, fromEmail: c.fromEmail, subject: c.subject ?? '',
+        subject: c.subject ?? '',
         heading: c.heading ?? '', freeText: c.freeText ?? '', eventDetailsText: c.eventDetailsText ?? '',
         bookingLink: c.bookingLink ?? '', photoUrl: c.photoUrl ?? '',
         smsFromNumber: c.smsFromNumber ?? '', smsBody: c.smsBody ?? '',
@@ -52,7 +52,7 @@ export default function EditBlastPage() {
           <Field label="Title"><Input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
           {form.sendEmail && (
             <>
-              <Field label="Subject"><Input required value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} /></Field>
+              <Field label="Email subject"><Input required value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} /></Field>
               <Field label="Heading">
                 <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={2}
                   value={form.heading} onChange={(e) => setForm({ ...form, heading: e.target.value })}

@@ -6,7 +6,7 @@ import { Field, Input, Select, Button, Card, Badge } from '@/components/ui';
 
 interface Campaign {
   id: string; title: string; hasBeenSent: boolean; subject: string; sendEmail: boolean; sendSms: boolean;
-  fromName: string; fromEmail: string; reusable: boolean;
+  reusable: boolean;
 }
 interface Send { id: string; status: string; sentCount: number; totalRecipients: number; startedAt: string; }
 interface City { id: string; name: string; }
@@ -186,8 +186,7 @@ function ViewBlastInner() {
             <Button onClick={handleTestSend}>Send Test</Button>
           </div>
           <Row label="Send Email?" value={campaign.sendEmail ? 'Yes' : 'No'} />
-          <Row label="Email from" value={`${campaign.fromName} <${campaign.fromEmail}>`} />
-          <Row label="Subject" value={campaign.subject} />
+          <Row label="Email subject" value={campaign.subject} />
           <Row label="Send SMS?" value={campaign.sendSms ? 'Yes' : 'No'} />
 
           <div className="mt-5 text-sm font-extrabold text-ink">Preview — how it actually renders</div>

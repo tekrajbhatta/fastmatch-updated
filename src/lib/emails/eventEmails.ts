@@ -1,5 +1,5 @@
 import { emailLayout } from './layout';
-import { formatEventWhen } from '../datetime';
+import { formatEventWhen, formatEventShort } from '../datetime';
 
 export function bookingConfirmationEmail(opts: {
   memberName: string;
@@ -62,6 +62,8 @@ export interface EventChange {
   ageMax: number;
   oldVenue: string;
   newVenue: string;
+  /** New venue with its street address, for a venue move. */
+  newVenueFull: string;
   oldStartsAt: Date;
   newStartsAt: Date;
   venueChanged: boolean;
@@ -71,35 +73,33 @@ export interface EventChange {
 
 
 /**
- * The event-change SMS.
+ * The event-change SMS — Gil's approved wording, one message per case.
  *
- * Names the event in full — venue, theme, age range and the ORIGINAL date and
- * time — so the recipient knows which booking this is about, then states only
- * what actually changed. Gil's requested shape:
+ * Every variant opens by naming the booking the same way ("Your fastmatch
+ * event on <date> at <time> at <venue>") so the recipient knows which event
+ * this is about before reading what changed.
  *
- *   "Soultrap Bar professional speed dating 28-40 years on Tue 23 Sep 2025 at
- *    7:20pm has now been changed to GG Bar on Thu 25 Sep 2025 at 8:00pm.
- *    If any issues please contact gil@fastmatch.com.au"
- *
- * LENGTH: this is deliberately detailed and will run to 2-3 SMS segments
- * (160 chars for one, then 153 each). Cellcast bills per segment, so a change
- * to a full 24-person event costs roughly 2-3 credits per attendee.
+ * LENGTH: all three fit inside a SINGLE SMS (160 chars GSM-7). The earlier,
+ * longer version ran to two segments and doubled the per-recipient cost.
+ * There is a test pinning this — if a venue name is long enough to push a
+ * message over, the test is the thing that should be reconsidered, not
+ * silently raised.
  */
 export function eventChangeSms(c: EventChange): string {
-  const subject = `${c.oldVenue} ${c.themeName} ${c.ageMin}-${c.ageMax} years on ${formatEventWhen(c.oldStartsAt)}`;
-  const contact = 'If any issues please contact gil@fastmatch.com.au';
+  const from = `Your fastmatch event on ${formatEventShort(c.oldStartsAt)} at ${c.oldVenue}`;
 
   if (c.cancelled) {
-    return `${subject} has been CANCELLED. ${contact}`;
+    return `${from} has been cancelled. Sorry for the inconvenience. We will contact you shortly by email.`;
   }
 
-  // Only mention the parts that moved: saying "changed to <same venue>" when
-  // only the time moved reads like a mistake.
-  const parts: string[] = [];
-  if (c.venueChanged) parts.push(c.newVenue);
-  if (c.timeChanged) parts.push(formatEventWhen(c.newStartsAt));
+  // A venue move names the NEW venue with its street address — the recipient
+  // is going somewhere they may not know. A time-only change doesn't repeat
+  // the address, since they already know where it is.
+  if (c.venueChanged) {
+    return `${from} has been moved to ${formatEventShort(c.newStartsAt)} at ${c.newVenueFull}.`;
+  }
 
-  return `${subject} has now been changed to ${parts.join(' on ')}. ${contact}`;
+  return `${from} has been changed to ${formatEventShort(c.newStartsAt)} at ${c.newVenue}.`;
 }
 
 export function eventChangeEmail(c: EventChange & { memberName: string }) {

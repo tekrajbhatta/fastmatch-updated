@@ -78,3 +78,22 @@ export function toDateTimeLocalValue(iso: string | Date): string {
 export function fromDateTimeLocalValue(local: string): string {
   return new Date(local).toISOString();
 }
+
+/**
+ * "23/07/26 at 7.30pm" — the compact form Gil asked for in the event-change
+ * SMS. Deliberately shorter than formatEventWhen: the long form pushed the
+ * message to two SMS segments, and this keeps every variant inside one.
+ *
+ * Note the DOT in the time ("7.30pm", not "7:30pm") — that is how Gil writes
+ * it, and it is what the approved wording uses.
+ */
+export function formatEventShort(d: Date): string {
+  const parts = new Intl.DateTimeFormat('en-AU', {
+    day: '2-digit', month: '2-digit', year: '2-digit',
+    hour: 'numeric', minute: '2-digit', hour12: true,
+    timeZone: EVENT_TIME_ZONE,
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((x) => x.type === t)?.value ?? '';
+  const ampm = get('dayPeriod').toLowerCase().replace(/[^apm]/g, '');
+  return `${get('day')}/${get('month')}/${get('year')} at ${get('hour')}.${get('minute')}${ampm}`;
+}

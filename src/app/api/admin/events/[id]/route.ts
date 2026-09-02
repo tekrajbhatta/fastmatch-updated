@@ -5,6 +5,7 @@ import { sendEmail } from '@/lib/emails/send';
 import { sendSms } from '@/lib/sms/send';
 import { eventChangeEmail, eventChangeSms } from '@/lib/emails/eventEmails';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { venueLine } from '@/lib/venue';
 
 // PATCH /api/admin/events/:id — edit any field. Attendees are notified by
 // email and SMS ONLY when the date/time, the venue, or the event's public
@@ -52,6 +53,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
       ageMax: event.ageMax,
       oldVenue: before.venue.name,
       newVenue: event.venue.name,
+      newVenueFull: venueLine(event.venue),
       oldStartsAt: before.startsAt,
       newStartsAt: new Date(event.startsAt),
       venueChanged,

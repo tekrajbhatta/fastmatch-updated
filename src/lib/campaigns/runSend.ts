@@ -1,7 +1,7 @@
 import { prisma } from '../prisma';
 import { buildMemberWhere, MemberFilter } from '../memberFilter';
 import { sendEmail } from '../emails/send';
-import { sendSmsBulk } from '../sms/send';
+import { sendSmsBulk, withOptOut } from '../sms/send';
 import { resolveCampaignEmailHtml } from '../emails/campaignEmail';
 import jwt from 'jsonwebtoken';
 
@@ -119,7 +119,7 @@ export async function processCampaignSendBatch(sendId: string) {
   // abort the batch and strand the rest of the send — which is what the old
   // per-recipient `await sendSms(...)` would have done on the first bad number.
   if (smsRecipients.length > 0) {
-    const result = await sendSmsBulk({ to: smsRecipients, body: campaign.smsBody ?? '' });
+    const result = await sendSmsBulk({ to: smsRecipients, body: withOptOut(campaign.smsBody ?? '') });
     if (result.failed.length > 0) {
       console.error(
         `Campaign send ${sendId}: ${result.failed.length} of ${smsRecipients.length} SMS recipient(s) rejected.`,

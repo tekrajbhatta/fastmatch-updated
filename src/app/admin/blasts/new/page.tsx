@@ -21,7 +21,6 @@ function NewBlastInner() {
 
   const [form, setForm] = useState({
     title: '', sendEmail: true, sendSms: false,
-    fromName: 'FastMatch', fromEmail: 'donotreply@fastmatch.com.au',
     subject: params.get('subject') ?? '',
     heading: params.get('heading') ?? '',
     freeText: '', eventDetailsText: params.get('eventDetails') ?? '',
@@ -115,11 +114,7 @@ function NewBlastInner() {
           </label>
           {form.sendEmail && (
             <div className="mb-4 rounded-lg bg-cream/40 p-4">
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="From name"><Input value={form.fromName} onChange={(e) => setForm({ ...form, fromName: e.target.value })} /></Field>
-                <Field label="From address"><Input value={form.fromEmail} onChange={(e) => setForm({ ...form, fromEmail: e.target.value })} /></Field>
-              </div>
-              <Field label="Subject"><Input required value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} /></Field>
+              <Field label="Email subject"><Input required value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} /></Field>
               <Field label="Heading">
                 <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={2}
                   value={form.heading} onChange={(e) => setForm({ ...form, heading: e.target.value })}
