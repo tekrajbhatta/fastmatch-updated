@@ -72,7 +72,7 @@ export default function EventsPage() {
       {!loading && loggedIn && (
         <>
           {booked.length > 0 && (
-            <Section title="Events you have booked into" events={booked} />
+            <Section title="Events you have booked into" events={booked} highlight />
           )}
           {suggested.length > 0 && (
             <Section
@@ -90,9 +90,11 @@ export default function EventsPage() {
   );
 }
 
-function Section({ title, subtitle, events }: { title: string; subtitle?: string; events: EventListItem[] }) {
+function Section({ title, subtitle, events, highlight = false }: { title: string; subtitle?: string; events: EventListItem[]; highlight?: boolean }) {
+  // The booked section sits on a tinted, bordered panel so it reads as "yours"
+  // at a glance rather than as just another heading in a long scroll.
   return (
-    <section className="mb-8">
+    <section className={highlight ? 'mb-8 rounded-2xl border border-green/30 bg-green/5 p-4 sm:p-5' : 'mb-8'}>
       <h2 className="mb-1 text-lg font-extrabold text-ink">{title}</h2>
       {subtitle && <p className="mb-3 text-sm text-ink/50">{subtitle}</p>}
       <div className={subtitle ? '' : 'mt-3'}>

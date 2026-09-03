@@ -16,7 +16,7 @@ export default function NewEventPage() {
   const [themes, setThemes] = useState<Theme[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [form, setForm] = useState({
-    name: '', themeId: '', cityId: '', venueId: '', startsAt: '',
+    name: '', description: '', themeId: '', cityId: '', venueId: '', startsAt: '',
     ageMin: '', ageMax: '', maxMen: '12', maxWomen: '12', cost: '', expenses: '',
     visibility: 'PUBLIC' as 'PUBLIC' | 'NOT_PUBLIC',
   });
@@ -95,6 +95,11 @@ export default function NewEventPage() {
           </Field>
           <Field label="Event name / description">
             <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ages 28–40, Sydney CBD" />
+          </Field>
+          <Field label="Event description">
+            <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={4}
+              value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
+              placeholder="Shown to members on the event page, under the Book button." />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Start date & time">

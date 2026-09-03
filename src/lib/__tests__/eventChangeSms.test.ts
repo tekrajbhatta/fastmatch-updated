@@ -26,21 +26,21 @@ describe('eventChangeSms — Gil\'s approved wording', () => {
     // same place — exactly as in Gil's example.
     const sms = eventChangeSms({ ...base, newVenue: 'Soultrap', timeChanged: true });
     expect(sms).toBe(
-      'Your fastmatch event on 23/07/26 at 7.30pm at Soultrap has been changed to 30/07/26 at 8.30pm at Soultrap.'
+      'Your fastmatch event on 23/07/26 at 7.30pm at Soultrap has been changed to 30/07/26 at 8.30pm at Soultrap. gil@fastmatch.com.au'
     );
   });
 
   it('cancellation', () => {
     expect(eventChangeSms({ ...base, cancelled: true })).toBe(
       'Your fastmatch event on 23/07/26 at 7.30pm at Soultrap has been cancelled. ' +
-        'Sorry for the inconvenience. We will contact you shortly by email.'
+        'Sorry for the inconvenience. gil@fastmatch.com.au'
     );
   });
 
   it('venue change names the new venue WITH its street address', () => {
     expect(eventChangeSms({ ...base, venueChanged: true })).toBe(
       'Your fastmatch event on 23/07/26 at 7.30pm at Soultrap has been moved to ' +
-        '30/07/26 at 8.30pm at GG Bar, 23 Campbell St Surry Hills.'
+        '30/07/26 at 8.30pm at GG Bar, 23 Campbell St Surry Hills. gil@fastmatch.com.au'
     );
   });
 
@@ -70,6 +70,17 @@ describe('eventChangeSms — Gil\'s approved wording', () => {
     ] as const) {
       const sms = eventChangeSms(c);
       expect(segments(sms), `${label}: ${sms.length} chars`).toBe(1);
+    }
+  });
+
+  it('carries gil@fastmatch.com.au on every variant', () => {
+    for (const c of [
+      { ...base, timeChanged: true },
+      { ...base, venueChanged: true },
+      { ...base, cancelled: true },
+      { ...base, venueChanged: true, timeChanged: true },
+    ]) {
+      expect(eventChangeSms(c)).toContain('gil@fastmatch.com.au');
     }
   });
 

@@ -6,6 +6,7 @@ import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const baseEventSchema = z.object({
   name: z.string().min(1),
+  description: z.string().optional(),
   themeId: z.string(),
   cityId: z.string(),
   venueId: z.string().min(1),
@@ -73,6 +74,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       prisma.event.create({
         data: {
           name: data.name,
+          description: data.description || null,
           themeId: data.themeId,
           cityId: data.cityId,
           venueId: data.venueId,

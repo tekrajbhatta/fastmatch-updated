@@ -142,6 +142,10 @@ model Event {
   id            String          @id @default(cuid())
   number        Int             @unique @default(autoincrement())
   name          String          // e.g. "Ages 28-40, Sydney CBD"
+  // Longer blurb shown to members on the public event page, under the Book
+  // button. Distinct from `name`, which is the short label used in lists,
+  // emails and SMS. Optional — existing events have none.
+  description   String?         @db.Text
   theme         EventTheme      @relation(fields: [themeId], references: [id])
   themeId       String
   city          City            @relation(fields: [cityId], references: [id])

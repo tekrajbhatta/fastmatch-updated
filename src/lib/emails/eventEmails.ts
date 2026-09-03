@@ -87,19 +87,26 @@ export interface EventChange {
  */
 export function eventChangeSms(c: EventChange): string {
   const from = `Your fastmatch event on ${formatEventShort(c.oldStartsAt)} at ${c.oldVenue}`;
+  // Gil doesn't want replies to the number, so every event-change message
+  // carries his address instead. Note the cancellation dropped "We will
+  // contact you shortly by email" when this was added: with the address
+  // right there it was redundant, and keeping it pushed the message to 162
+  // characters — two over the single-SMS limit, doubling the cost of exactly
+  // the message you least want to skimp on.
+  const contact = 'gil@fastmatch.com.au';
 
   if (c.cancelled) {
-    return `${from} has been cancelled. Sorry for the inconvenience. We will contact you shortly by email.`;
+    return `${from} has been cancelled. Sorry for the inconvenience. ${contact}`;
   }
 
   // A venue move names the NEW venue with its street address — the recipient
   // is going somewhere they may not know. A time-only change doesn't repeat
   // the address, since they already know where it is.
   if (c.venueChanged) {
-    return `${from} has been moved to ${formatEventShort(c.newStartsAt)} at ${c.newVenueFull}.`;
+    return `${from} has been moved to ${formatEventShort(c.newStartsAt)} at ${c.newVenueFull}. ${contact}`;
   }
 
-  return `${from} has been changed to ${formatEventShort(c.newStartsAt)} at ${c.newVenue}.`;
+  return `${from} has been changed to ${formatEventShort(c.newStartsAt)} at ${c.newVenue}. ${contact}`;
 }
 
 export function eventChangeEmail(c: EventChange & { memberName: string }) {

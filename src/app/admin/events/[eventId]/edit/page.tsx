@@ -32,7 +32,7 @@ export default function EditEventPage() {
       const e = events.find((ev) => ev.id === eventId);
       if (e) {
         setForm({
-          name: e.name, themeId: e.themeId, cityId: e.cityId, venueId: e.venueId,
+          name: e.name, description: e.description ?? '', themeId: e.themeId, cityId: e.cityId, venueId: e.venueId,
           startsAt: toDateTimeLocalValue(e.startsAt), ageMin: e.ageMin, ageMax: e.ageMax,
           maxMen: e.maxMen, maxWomen: e.maxWomen, cost: e.cost,
           expenses: e.expenses ?? '', visibility: e.visibility,
@@ -86,6 +86,11 @@ export default function EditEventPage() {
           </Field>
           <Field label="Event name / description">
             <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </Field>
+          <Field label="Event description">
+            <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={4}
+              value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
+              placeholder="Shown to members on the event page, under the Book button." />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Start date & time">

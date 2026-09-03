@@ -8,7 +8,8 @@ import { venueLine } from '@/lib/venue';
 interface EventDetail {
   id: string;
   name: string;
-  venue: { name: string; address: string | null };
+  description: string | null;
+  venue: { name: string; address: string | null; photoUrl: string | null };
   startsAt: string;
   ageMin: number;
   ageMax: number;
@@ -79,6 +80,19 @@ export default function EventDetailPage() {
         <p className="mt-1 text-sm text-white/80">{venueLine(event.venue)}, {event.city.name}</p>
       </div>
 
+      {/* The venue's own photo, so people can see where they're going before
+          they pay. Pulled from the venue record rather than uploaded per
+          event — one photo per place, reused by every event held there.
+          Nothing renders if that venue has no photo yet. */}
+      {event.venue.photoUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={event.venue.photoUrl}
+          alt={event.venue.name}
+          className="mb-5 h-48 w-full rounded-xl object-cover sm:h-56"
+        />
+      )}
+
       <Card className="mb-4">
         <Row label="Date & time" value={`${date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}, ${date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}`} />
         <Row label="Ages" value={`${event.ageMin}–${event.ageMax}`} />
@@ -105,6 +119,14 @@ export default function EventDetailPage() {
         <Button onClick={handleBook} disabled={booking || spotsLeft <= 0} className="w-full">
           {spotsLeft <= 0 ? 'Sold out' : booking ? 'Booking…' : 'Book this event'}
         </Button>
+      )}
+
+      {/* whitespace-pre-line so the admin's line breaks survive — the field is
+          a textarea and people write in paragraphs. */}
+      {event.description && (
+        <div className="mt-6 whitespace-pre-line text-sm leading-relaxed text-ink/70">
+          {event.description}
+        </div>
       )}
     </div>
   );
