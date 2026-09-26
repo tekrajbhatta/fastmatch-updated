@@ -3,17 +3,16 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Field, Input, Select, Button, Card, Badge } from '@/components/ui';
-import PhotoUploadField from '@/components/PhotoUploadField';
 
 interface City { id: string; name: string; }
 interface Venue {
   id: string; name: string; address: string | null; phone: string | null;
-  websiteUrl: string | null; photoUrl: string | null;
+  websiteUrl: string | null;
   city: { id: string; name: string };
   _count: { events: number };
 }
 
-const EMPTY = { name: '', cityId: '', address: '', phone: '', websiteUrl: '', photoUrl: '' };
+const EMPTY = { name: '', cityId: '', address: '', phone: '', websiteUrl: '' };
 
 export default function AdminVenuesPage() {
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -48,7 +47,7 @@ export default function AdminVenuesPage() {
     setEditingId(v.id);
     setForm({
       name: v.name, cityId: v.city.id, address: v.address ?? '',
-      phone: v.phone ?? '', websiteUrl: v.websiteUrl ?? '', photoUrl: v.photoUrl ?? '',
+      phone: v.phone ?? '', websiteUrl: v.websiteUrl ?? '',
     });
     setError(null);
     setOpen(true);
@@ -89,7 +88,7 @@ export default function AdminVenuesPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="mb-1 text-2xl font-extrabold text-ink">Venues</h1>
-          <p className="text-sm text-ink/60">Add a venue here, then pick it when creating an event or a blast.</p>
+          <p className="text-sm text-ink/60">Add a venue here, then pick it when creating an event or a blast. The photo lives on the event now.</p>
         </div>
         {!open && <Button onClick={startCreate}>Create venue</Button>}
       </div>
@@ -119,8 +118,6 @@ export default function AdminVenuesPage() {
                 <Input value={form.websiteUrl} onChange={(e) => setForm({ ...form, websiteUrl: e.target.value })} placeholder="ggbar.com.au" />
               </Field>
             </div>
-            <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm({ ...form, photoUrl: url })} />
-
             {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
             <div className="flex gap-2">
               <Button type="submit" disabled={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create venue'}</Button>
@@ -157,15 +154,7 @@ export default function AdminVenuesPage() {
             <tbody>
               {venues.map((v) => (
                 <tr key={v.id} className="border-t border-ink/5">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      {v.photoUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={v.photoUrl} alt="" className="h-9 w-9 rounded object-cover" />
-                      )}
-                      <span className="font-bold text-ink">{v.name}</span>
-                    </div>
-                  </td>
+                  <td className="px-4 py-3"><span className="font-bold text-ink">{v.name}</span></td>
                   <td className="px-4 py-3 text-ink/60">{v.city.name}</td>
                   <td className="px-4 py-3 text-ink/60">{v.address ?? <span className="text-ink/30">—</span>}</td>
                   <td className="px-4 py-3 text-ink/60">

@@ -9,7 +9,8 @@ interface EventDetail {
   id: string;
   name: string;
   description: string | null;
-  venue: { name: string; address: string | null; photoUrl: string | null };
+  photoUrl: string | null;
+  venue: { name: string; address: string | null };
   startsAt: string;
   ageMin: number;
   ageMax: number;
@@ -80,17 +81,25 @@ export default function EventDetailPage() {
         <p className="mt-1 text-sm text-white/80">{venueLine(event.venue)}, {event.city.name}</p>
       </div>
 
-      {/* The venue's own photo, so people can see where they're going before
-          they pay. Pulled from the venue record rather than uploaded per
-          event — one photo per place, reused by every event held there.
-          Nothing renders if that venue has no photo yet. */}
-      {event.venue.photoUrl && (
+      {/* The event's own photo, uploaded on the event form. Nothing renders
+          if this event has none, so the page still reads correctly. */}
+      {event.photoUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={event.venue.photoUrl}
-          alt={event.venue.name}
+          src={event.photoUrl}
+          alt={event.name}
           className="mb-5 h-48 w-full rounded-xl object-cover sm:h-56"
         />
+      )}
+
+      {/* Directly under the photo, where Gil asked for it — the blurb sells
+          the night, so it belongs above the price and the button rather than
+          below them. whitespace-pre-line keeps the admin's line breaks: the
+          field is a textarea and people write in paragraphs. */}
+      {event.description && (
+        <div className="mb-5 whitespace-pre-line text-sm leading-relaxed text-ink/70">
+          {event.description}
+        </div>
       )}
 
       <Card className="mb-4">
@@ -121,13 +130,6 @@ export default function EventDetailPage() {
         </Button>
       )}
 
-      {/* whitespace-pre-line so the admin's line breaks survive — the field is
-          a textarea and people write in paragraphs. */}
-      {event.description && (
-        <div className="mt-6 whitespace-pre-line text-sm leading-relaxed text-ink/70">
-          {event.description}
-        </div>
-      )}
     </div>
   );
 }

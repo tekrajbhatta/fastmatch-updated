@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button, Badge } from '@/components/ui';
+import { eventPeriod, type EventPeriod } from '@/lib/eventWeek';
 
 interface AdminEvent {
   id: string;
@@ -27,9 +28,25 @@ interface AdminEvent {
   ageMax: number;
 }
 
+const PER_PAGE = 10;
+
+/**
+ * Row tint by how soon the event is. Past and far-off events stay white so
+ * the two that need attention — this week and next — are the only things
+ * that catch the eye. Brand amber and green at low opacity, so black text
+ * stays perfectly legible on both.
+ */
+const ROW_TINT: Record<EventPeriod, string> = {
+  past: 'hover:bg-cream/30',
+  thisWeek: 'bg-amber/15 hover:bg-amber/25',
+  nextWeek: 'bg-green/15 hover:bg-green/25',
+  later: 'hover:bg-cream/30',
+};
+
 export default function AdminEventsPage() {
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     fetch('/api/admin/events').then((r) => r.json()).then((data) => {
@@ -38,9 +55,19 @@ export default function AdminEventsPage() {
     });
   }, []);
 
+  // One "now" for the whole render, so every row is bucketed against the same
+  // instant rather than each against a slightly later one.
+  const now = new Date();
+
+  const pageCount = Math.max(1, Math.ceil(events.length / PER_PAGE));
+  // Deleting the last event on the final page would otherwise strand the
+  // viewer on an empty one.
+  const currentPage = Math.min(page, pageCount);
+  const visible = events.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
+
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-ink">Events</h1>
           <p className="text-sm text-ink/60">Numbers assign automatically, starting at #1.</p>
@@ -49,6 +76,19 @@ export default function AdminEventsPage() {
           <Link href="/admin/venues"><Button variant="ghost">Manage venues</Button></Link>
           <Link href="/admin/events/new"><Button>+ New event</Button></Link>
         </div>
+      </div>
+
+      {/* Without this the colours are a guessing game. */}
+      <div className="mb-4 flex flex-wrap items-center gap-4 text-xs text-ink/60">
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded border border-ink/15 bg-amber/25" /> On this week
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded border border-ink/15 bg-green/25" /> On next week
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded border border-ink/15 bg-white" /> Past, or further ahead
+        </span>
       </div>
 
       {loading && <p className="text-sm text-ink/50">Loading…</p>}
@@ -70,8 +110,12 @@ export default function AdminEventsPage() {
             </tr>
           </thead>
           <tbody>
-            {events.map((e) => (
-              <tr key={e.id} className="cursor-pointer border-t border-ink/5 hover:bg-cream/30" onClick={() => (window.location.href = `/admin/events/${e.id}`)}>
+            {visible.map((e) => (
+              <tr
+                key={e.id}
+                className={`cursor-pointer border-t border-ink/5 ${ROW_TINT[eventPeriod(new Date(e.startsAt), now)]}`}
+                onClick={() => (window.location.href = `/admin/events/${e.id}`)}
+              >
                 <td className="px-4 py-3 text-ink/40">#{e.number}</td>
                 <td className="px-4 py-3 font-bold text-ink">
                   {e.name}
@@ -101,6 +145,55 @@ export default function AdminEventsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Hidden until there is a second page — a lone "Page 1 of 1" is just
+          clutter on a short list. */}
+      {pageCount > 1 && (
+        <Pager page={currentPage} pageCount={pageCount} total={events.length} onChange={setPage} />
+      )}
     </div>
+  );
+}
+
+function Pager({ page, pageCount, total, onChange }: {
+  page: number; pageCount: number; total: number; onChange: (p: number) => void;
+}) {
+  const first = (page - 1) * PER_PAGE + 1;
+  const last = Math.min(page * PER_PAGE, total);
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+      <p className="text-sm text-ink/50">Showing {first}–{last} of {total} events</p>
+      <div className="flex items-center gap-1">
+        <PagerButton disabled={page === 1} onClick={() => onChange(page - 1)}>Previous</PagerButton>
+        {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
+          <button
+            key={n}
+            onClick={() => onChange(n)}
+            aria-current={n === page ? 'page' : undefined}
+            className={`min-w-9 rounded-lg px-3 py-1.5 text-sm font-bold ${
+              n === page ? 'bg-plum text-white' : 'text-ink/60 hover:bg-cream/60'
+            }`}
+          >
+            {n}
+          </button>
+        ))}
+        <PagerButton disabled={page === pageCount} onClick={() => onChange(page + 1)}>Next</PagerButton>
+      </div>
+    </div>
+  );
+}
+
+function PagerButton({ disabled, onClick, children }: {
+  disabled: boolean; onClick: () => void; children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="rounded-lg px-3 py-1.5 text-sm font-bold text-ink/60 hover:bg-cream/60 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+    >
+      {children}
+    </button>
   );
 }

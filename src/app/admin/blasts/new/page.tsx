@@ -128,7 +128,7 @@ function NewBlastInner() {
                   value={form.freeText} onChange={(e) => setForm({ ...form, freeText: e.target.value })} />
               </Field>
               <VenuePickerField
-                hasExistingContent={Boolean(form.eventDetailsText.trim() || form.photoUrl)}
+                hasExistingContent={Boolean(form.eventDetailsText.trim())}
                 onApply={(patch) => setForm((f) => ({ ...f, ...patch }))}
               />
               <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm((f) => ({ ...f, photoUrl: url }))} />

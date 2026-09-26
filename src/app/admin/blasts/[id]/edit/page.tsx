@@ -66,7 +66,7 @@ export default function EditBlastPage() {
                   value={form.freeText} onChange={(e) => setForm({ ...form, freeText: e.target.value })} />
               </Field>
               <VenuePickerField
-                hasExistingContent={Boolean((form.eventDetailsText || '').trim() || form.photoUrl)}
+                hasExistingContent={Boolean((form.eventDetailsText || '').trim())}
                 onApply={(patch) => setForm({ ...form, ...patch })}
               />
               <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm({ ...form, photoUrl: url })} />

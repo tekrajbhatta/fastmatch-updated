@@ -22,7 +22,6 @@ const venueSchema = z.object({
   // a hard validation failure on that is more annoying than useful. The UI
   // normalises it to https:// for the href.
   websiteUrl: blankToNull,
-  photoUrl: blankToNull,
 });
 
 // GET /api/admin/venues?cityId= — the venue directory, and the source for the

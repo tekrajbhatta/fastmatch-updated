@@ -16,9 +16,13 @@ import { Field } from '@/components/ui';
 export default function PhotoUploadField({
   value,
   onChange,
+  hint = 'Optional. Resized automatically to fit the email.',
 }: {
   value: string;
   onChange: (url: string) => void;
+  /** Shown under an empty picker. Blasts and events size their images
+      differently, so each screen says what its own photo is for. */
+  hint?: string;
 }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +71,7 @@ export default function PhotoUploadField({
       {uploading && <p className="mt-1 text-xs text-ink/50">Uploading and optimising…</p>}
       {error && <p className="mt-1 text-xs font-medium text-coral">{error}</p>}
       {!value && !uploading && !error && (
-        <p className="mt-1 text-xs text-ink/50">Optional. Resized automatically to fit the email.</p>
+        <p className="mt-1 text-xs text-ink/50">{hint}</p>
       )}
     </Field>
   );

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Field, Input, Select, Button, Card } from '@/components/ui';
+import PhotoUploadField from '@/components/PhotoUploadField';
 import { toDateTimeLocalValue, fromDateTimeLocalValue } from '@/lib/datetime';
 
 interface City { id: string; name: string; }
@@ -32,7 +33,7 @@ export default function EditEventPage() {
       const e = events.find((ev) => ev.id === eventId);
       if (e) {
         setForm({
-          name: e.name, description: e.description ?? '', themeId: e.themeId, cityId: e.cityId, venueId: e.venueId,
+          name: e.name, description: e.description ?? '', photoUrl: e.photoUrl ?? '', themeId: e.themeId, cityId: e.cityId, venueId: e.venueId,
           startsAt: toDateTimeLocalValue(e.startsAt), ageMin: e.ageMin, ageMax: e.ageMax,
           maxMen: e.maxMen, maxWomen: e.maxWomen, cost: e.cost,
           expenses: e.expenses ?? '', visibility: e.visibility,
@@ -51,6 +52,8 @@ export default function EditEventPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...form,
+        description: form.description || null,
+        photoUrl: form.photoUrl || null,
         ageMin: Number(form.ageMin), ageMax: Number(form.ageMax),
         maxMen: Number(form.maxMen), maxWomen: Number(form.maxWomen),
         cost: Number(form.cost), expenses: form.expenses ? Number(form.expenses) : undefined,
@@ -90,8 +93,10 @@ export default function EditEventPage() {
           <Field label="Event description">
             <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={4}
               value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Shown to members on the event page, under the Book button." />
+              placeholder="Shown to members on the event page, under the photo." />
           </Field>
+          <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm({ ...form, photoUrl: url })}
+            hint="Optional. Shown at the top of the event page." />
           <div className="grid grid-cols-2 gap-3">
             <Field label="Start date & time">
               <Input type="datetime-local" required value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} />

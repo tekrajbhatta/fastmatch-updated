@@ -7,6 +7,7 @@ import { withErrorHandling } from '@/lib/withErrorHandling';
 const baseEventSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
+  photoUrl: z.string().optional(),
   themeId: z.string(),
   cityId: z.string(),
   venueId: z.string().min(1),
@@ -75,6 +76,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         data: {
           name: data.name,
           description: data.description || null,
+          photoUrl: data.photoUrl || null,
           themeId: data.themeId,
           cityId: data.cityId,
           venueId: data.venueId,

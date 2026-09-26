@@ -13,10 +13,9 @@ interface EventListItem {
   startsAt: string;
   ageMin: number;
   ageMax: number;
-  maxMen: number;
-  maxWomen: number;
-  menBooked: number;
-  womenBooked: number;
+  // No booked counts here on purpose. /api/events still returns them (the
+  // admin screens need them), but members must not see how full an event is
+  // — a half-empty night shouldn't talk anyone out of coming.
   bookedByMe: boolean;
   theme: { name: string };
   city: { name: string };
@@ -108,9 +107,6 @@ function EventGrid({ events }: { events: EventListItem[] }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {events.map((event, i) => {
-        const totalCapacity = event.maxMen + event.maxWomen;
-        const totalBooked = event.menBooked + event.womenBooked;
-        const pct = Math.min(100, Math.round((totalBooked / totalCapacity) * 100));
         const date = new Date(event.startsAt);
 
         return (
@@ -130,12 +126,6 @@ function EventGrid({ events }: { events: EventListItem[] }) {
               <br />
               <span className="text-xs">Ages {event.ageMin}–{event.ageMax}</span>
             </p>
-            <div className="mt-3 flex items-center gap-2">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink/10">
-                <div className="h-full bg-green" style={{ width: `${pct}%` }} />
-              </div>
-              <span className="text-xs font-bold text-green-dark">{totalBooked} / {totalCapacity} booked</span>
-            </div>
           </Link>
         );
       })}

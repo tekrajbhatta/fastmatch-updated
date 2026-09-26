@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Field, Input, Select, Button, Card } from '@/components/ui';
+import PhotoUploadField from '@/components/PhotoUploadField';
 import { fromDateTimeLocalValue } from '@/lib/datetime';
 
 interface City { id: string; name: string; }
@@ -16,7 +17,7 @@ export default function NewEventPage() {
   const [themes, setThemes] = useState<Theme[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [form, setForm] = useState({
-    name: '', description: '', themeId: '', cityId: '', venueId: '', startsAt: '',
+    name: '', description: '', photoUrl: '', themeId: '', cityId: '', venueId: '', startsAt: '',
     ageMin: '', ageMax: '', maxMen: '12', maxWomen: '12', cost: '', expenses: '',
     visibility: 'PUBLIC' as 'PUBLIC' | 'NOT_PUBLIC',
   });
@@ -99,8 +100,10 @@ export default function NewEventPage() {
           <Field label="Event description">
             <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={4}
               value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Shown to members on the event page, under the Book button." />
+              placeholder="Shown to members on the event page, under the photo." />
           </Field>
+          <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm((f) => ({ ...f, photoUrl: url }))}
+            hint="Optional. Shown at the top of the event page." />
           <div className="grid grid-cols-2 gap-3">
             <Field label="Start date & time">
               <Input type="datetime-local" required value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} />
