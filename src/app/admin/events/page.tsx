@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Button, Badge } from '@/components/ui';
-import { eventPeriod, type EventPeriod } from '@/lib/eventWeek';
+import { Button } from '@/components/ui';
+import { adminEventGroup, sortAdminEvents, GROUP_ORDER, type AdminEventGroup } from '@/lib/adminEventGroups';
 
 interface AdminEvent {
   id: string;
@@ -13,6 +13,8 @@ interface AdminEvent {
   startsAt: string;
   visibility: 'PUBLIC' | 'NOT_PUBLIC';
   status: string;
+  confirmed: boolean;
+  draft: boolean;
   seriesId: string | null;
   theme: { name: string };
   city: { name: string };
@@ -31,16 +33,31 @@ interface AdminEvent {
 const PER_PAGE = 10;
 
 /**
- * Row tint by how soon the event is. Past and far-off events stay white so
- * the two that need attention — this week and next — are the only things
- * that catch the eye. Brand amber and green at low opacity, so black text
- * stays perfectly legible on both.
+ * Gil's colour key, carried over from the old admin. Bright on purpose so the
+ * groups are obvious at a glance; all four are pale enough that the dark
+ * table text keeps well above AA contrast. Hover goes one step deeper.
  */
-const ROW_TINT: Record<EventPeriod, string> = {
-  past: 'hover:bg-cream/30',
-  thisWeek: 'bg-amber/15 hover:bg-amber/25',
-  nextWeek: 'bg-green/15 hover:bg-green/25',
-  later: 'hover:bg-cream/30',
+const GROUP_STYLE: Record<AdminEventGroup, { row: string; swatch: string; label: string }> = {
+  confirmedNextWeek: {
+    row: 'bg-[#FFF176] hover:bg-[#FFEE58]',
+    swatch: 'bg-[#FFF176]',
+    label: 'Confirmed event in the next week',
+  },
+  unconfirmedNextWeek: {
+    row: 'bg-[#FFB74D] hover:bg-[#FFA726]',
+    swatch: 'bg-[#FFB74D]',
+    label: 'Unconfirmed event in the next week',
+  },
+  upcoming: {
+    row: 'bg-[#AED581] hover:bg-[#9CCC65]',
+    swatch: 'bg-[#AED581]',
+    label: 'Upcoming event',
+  },
+  past: {
+    row: 'bg-white hover:bg-cream/40',
+    swatch: 'bg-white',
+    label: 'Past event',
+  },
 };
 
 export default function AdminEventsPage() {
@@ -55,15 +72,16 @@ export default function AdminEventsPage() {
     });
   }, []);
 
-  // One "now" for the whole render, so every row is bucketed against the same
-  // instant rather than each against a slightly later one.
+  // One "now" for the whole render, so grouping and sorting agree with each
+  // other and every row is judged against the same instant.
   const now = new Date();
+  const sorted = sortAdminEvents(events, now);
 
-  const pageCount = Math.max(1, Math.ceil(events.length / PER_PAGE));
+  const pageCount = Math.max(1, Math.ceil(sorted.length / PER_PAGE));
   // Deleting the last event on the final page would otherwise strand the
   // viewer on an empty one.
   const currentPage = Math.min(page, pageCount);
-  const visible = events.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
+  const visible = sorted.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
 
   return (
     <div>
@@ -73,27 +91,13 @@ export default function AdminEventsPage() {
           <p className="text-sm text-ink/60">Numbers assign automatically, starting at #1.</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/admin/venues"><Button variant="ghost">Manage venues</Button></Link>
           <Link href="/admin/events/new"><Button>+ New event</Button></Link>
         </div>
       </div>
 
-      {/* Without this the colours are a guessing game. */}
-      <div className="mb-4 flex flex-wrap items-center gap-4 text-xs text-ink/60">
-        <span className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded border border-ink/15 bg-amber/25" /> On this week
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded border border-ink/15 bg-green/25" /> On next week
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded border border-ink/15 bg-white" /> Past, or further ahead
-        </span>
-      </div>
-
       {loading && <p className="text-sm text-ink/50">Loading…</p>}
 
-      <div className="overflow-hidden rounded-xl border border-ink/10 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-ink/10 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-cream/50 text-left text-xs font-bold uppercase text-ink/50">
             <tr>
@@ -107,26 +111,27 @@ export default function AdminEventsPage() {
               <th className="px-4 py-3">Men</th>
               <th className="px-4 py-3">Women</th>
               <th className="px-4 py-3">Visibility</th>
+              <th className="px-4 py-3 text-right">Action</th>
             </tr>
           </thead>
           <tbody>
             {visible.map((e) => (
               <tr
                 key={e.id}
-                className={`cursor-pointer border-t border-ink/5 ${ROW_TINT[eventPeriod(new Date(e.startsAt), now)]}`}
+                className={`cursor-pointer border-t border-ink/10 ${GROUP_STYLE[adminEventGroup(new Date(e.startsAt), e.confirmed, now)].row}`}
                 onClick={() => (window.location.href = `/admin/events/${e.id}`)}
               >
-                <td className="px-4 py-3 text-ink/40">#{e.number}</td>
+                <td className="px-4 py-3 text-ink/60">#{e.number}</td>
                 <td className="px-4 py-3 font-bold text-ink">
                   {e.name}
                   {e.seriesId && (
-                    <Link href={`/admin/events/series/${e.seriesId}`} onClick={(ev) => ev.stopPropagation()} className="ml-2 rounded-full bg-plum/10 px-2 py-0.5 text-xs font-bold text-plum">
+                    <Link href={`/admin/events/series/${e.seriesId}`} onClick={(ev) => ev.stopPropagation()} className="ml-2 whitespace-nowrap rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold text-plum ring-1 ring-plum/20">
                       part of a series
                     </Link>
                   )}
                 </td>
                 {/* Cell order must mirror the <th> order above: Date & Time,
-                    Theme, City, Venue, Ages, Men, Women, Visibility. */}
+                    Theme, City, Venue, Ages, Men, Women, Visibility, Action. */}
                 <td className="whitespace-nowrap px-4 py-3">
                   {new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}, {new Date(e.startsAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}
                 </td>
@@ -139,7 +144,28 @@ export default function AdminEventsPage() {
                 <td className="whitespace-nowrap px-4 py-3">{e.ageMin}–{e.ageMax}</td>
                 <td className="px-4 py-3">{e.menBooked}/{e.maxMen}</td>
                 <td className="px-4 py-3">{e.womenBooked}/{e.maxWomen}</td>
-                <td className="px-4 py-3"><Badge tone={e.visibility === 'PUBLIC' ? 'green' : 'muted'}>{e.visibility === 'PUBLIC' ? 'Public' : 'Not public'}</Badge></td>
+                {/* A solid white chip rather than <Badge>: the badge's pale
+                    tint vanishes against the coloured rows. */}
+                <td className="px-4 py-3">
+                  {e.draft ? (
+                    <span className="inline-block whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-xs font-bold text-coral">Draft</span>
+                  ) : (
+                    <span className={`inline-block whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-xs font-bold ${e.visibility === 'PUBLIC' ? 'text-green-dark' : 'text-ink/60'}`}>
+                      {e.visibility === 'PUBLIC' ? 'Public' : 'Not public'}
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {/* Same destination as clicking the row — a visible target
+                      for people who don't think to click a table row. */}
+                  <Link
+                    href={`/admin/events/${e.id}`}
+                    onClick={(ev) => ev.stopPropagation()}
+                    className="inline-block rounded-lg border border-plum bg-white px-3 py-1.5 text-xs font-bold text-plum hover:bg-plum hover:text-white"
+                  >
+                    Manage
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -149,8 +175,21 @@ export default function AdminEventsPage() {
       {/* Hidden until there is a second page — a lone "Page 1 of 1" is just
           clutter on a short list. */}
       {pageCount > 1 && (
-        <Pager page={currentPage} pageCount={pageCount} total={events.length} onChange={setPage} />
+        <Pager page={currentPage} pageCount={pageCount} total={sorted.length} onChange={setPage} />
       )}
+
+      {/* The key sits under the table, as it did on the old admin, in the same
+          order the groups appear. */}
+      <div className="mt-6 overflow-hidden rounded-xl border border-ink/10 bg-white">
+        <div className="bg-cream/50 px-4 py-2 text-xs font-bold uppercase text-ink/50">Legend</div>
+        <div className="grid sm:grid-cols-4">
+          {GROUP_ORDER.map((g) => (
+            <div key={g} className={`border-t border-ink/10 px-4 py-2.5 text-sm font-semibold text-ink sm:border-l sm:first:border-l-0 ${GROUP_STYLE[g].swatch}`}>
+              {GROUP_STYLE[g].label}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

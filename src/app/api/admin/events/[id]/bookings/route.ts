@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
-import { sendBookingConfirmation } from '@/lib/sendBookingConfirmation';
+import { createAdminBooking, notifyBooked } from '@/lib/adminBooking';
+import { PAYMENT_METHOD_VALUES } from '@/lib/paymentMethod';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
 // NOTE ON THE SLUG NAME: this lives under [id], not [eventId] as in the client
@@ -10,11 +11,6 @@ import { withErrorHandling } from '@/lib/withErrorHandling';
 // and this folder's siblings ([id]/route.ts, [id]/close/route.ts) already use
 // [id]. The URL is unchanged — /api/admin/events/<eventId>/bookings still
 // resolves here, so the admin screens need no adjustment.
-
-const bodySchema = z.object({
-  memberId: z.string(),
-  markAsPaidCash: z.boolean().default(true),
-});
 
 // GET /api/admin/events/:id/bookings — the attendee list on the admin
 // Event Bookings screen (badge, name, email/mobile, paid status).
@@ -25,63 +21,61 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
 
   const bookings = await prisma.booking.findMany({
     where: { eventId: params.id },
-    include: { member: true },
+    // bookedBy: for a friend's booking, who brought (and paid for) them.
+    include: { member: true, bookedBy: { select: { member: { select: { name: true } } } } },
     orderBy: { badge: 'asc' },
   });
 
   return NextResponse.json(bookings);
 });
 
-// POST /api/admin/events/:id/bookings — "Add booking" on the walk-in
-// flow. Distinct from the member self-service /book route: no Stripe (cash
-// at the door instead), no email/mobile/T&Cs verification gate (the host is
-// standing there with them), and auto-checked-in immediately since they've
-// physically arrived — they shouldn't have to separately scan the venue QR
-// right after the host just booked them in.
+const addSchema = z.object({
+  memberIds: z.array(z.string().min(1)).min(1, 'Select at least one member.').max(50, 'Add at most 50 members at a time.'),
+  paymentMethod: z.enum(PAYMENT_METHOD_VALUES),
+  paidAmount: z.number().nonnegative(),
+  checkedIn: z.boolean().default(true),
+});
+
+// POST /api/admin/events/:id/bookings — "Add a new booking": book one or more
+// ALREADY-REGISTERED members into this event. Everyone gets the same payment
+// status and amount; individual bookings can be adjusted afterwards on the
+// Event bookings screen.
+//
+// Members are processed one at a time and each succeeds or fails on its own —
+// one person already booked, or the men's side filling up part-way through,
+// shouldn't stop everyone else being added. The response says who was added
+// and who wasn't, and why.
 export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
-  const parsed = bodySchema.safeParse(await req.json());
-  if (!parsed.success) return NextResponse.json({ error: 'A member must be selected.' }, { status: 400 });
+  const parsed = addSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Please check the booking details.' }, { status: 400 });
+  }
+  const { memberIds, paymentMethod, paidAmount, checkedIn } = parsed.data;
 
   const event = await prisma.event.findUniqueOrThrow({ where: { id: params.id } });
-  const member = await prisma.member.findUniqueOrThrow({ where: { id: parsed.data.memberId } });
+  const uniqueIds = [...new Set(memberIds)];
+  const members = await prisma.member.findMany({ where: { id: { in: uniqueIds } } });
 
-  const existing = await prisma.booking.findUnique({
-    where: { eventId_memberId: { eventId: params.id, memberId: member.id } },
-  });
-  if (existing) {
-    return NextResponse.json({ error: `${member.name} already has a booking for this event.` }, { status: 409 });
+  const added: { memberId: string; name: string; badge: number; notified: boolean }[] = [];
+  const skipped: { memberId: string; name: string | null; reason: string }[] = [];
+
+  for (const id of uniqueIds) {
+    const member = members.find((m) => m.id === id);
+    if (!member) {
+      skipped.push({ memberId: id, name: null, reason: 'The member is not registered yet.' });
+      continue;
+    }
+    const result = await createAdminBooking(prisma, event, member, { method: paymentMethod, paidAmount, checkedIn });
+    if (!result.ok) {
+      skipped.push({ memberId: id, name: member.name, reason: result.reason });
+      continue;
+    }
+    added.push({ memberId: id, name: member.name, badge: result.badge, notified: await notifyBooked(result.bookingId) });
   }
 
-  const bookedCount = await prisma.booking.count({
-    where: { eventId: params.id, status: { in: ['PENDING', 'CONFIRMED'] }, member: { gender: member.gender } },
-  });
-  const capacity = member.gender === 'MALE' ? event.maxMen : event.maxWomen;
-  if (bookedCount >= capacity) {
-    return NextResponse.json({ error: 'This event is full for that gender.' }, { status: 409 });
-  }
-
-  const highestBadge = await prisma.booking.aggregate({ where: { eventId: params.id }, _max: { badge: true } });
-  const badge = (highestBadge._max.badge ?? 0) + 1;
-
-  const booking = await prisma.booking.create({
-    data: {
-      eventId: params.id,
-      memberId: member.id,
-      badge,
-      paidAmount: parsed.data.markAsPaidCash ? event.cost : 0,
-      status: parsed.data.markAsPaidCash ? 'CONFIRMED' : 'PENDING',
-      checkedIn: true,
-      checkedInAt: new Date(),
-    },
-  });
-
-  if (booking.status === 'CONFIRMED') {
-    await sendBookingConfirmation(booking.id);
-  }
-
-  return NextResponse.json(booking);
+  return NextResponse.json({ added, skipped });
 });

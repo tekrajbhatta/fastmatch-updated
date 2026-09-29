@@ -50,6 +50,17 @@ enum BookingStatus {
   REFUNDED
 }
 
+// How an admin-added booking was paid — the "Payment Status" select on the
+// admin Add booking / Add member screens. NULL means the member booked and
+// paid online through Stripe themselves (and covers every booking made
+// before this column existed).
+enum PaymentMethod {
+  CASH
+  CARD
+  PAY_AT_DOOR
+  FRIEND_BOOKED_IN
+}
+
 model Member {
   id             String    @id @default(cuid())
   email          String    @unique
@@ -71,10 +82,21 @@ model Member {
   emailBounced   Boolean   @default(false)
   bounceReason   String?
   isAdmin        Boolean   @default(false)
+  // True for an account made for a friend someone else booked in: they never
+  // chose a password. Their booking email carries a one-time "set your
+  // password" link; using it clears this. See /set-password.
+  awaitingPasswordSetup Boolean @default(false)
+  // The member who invited them through "Tell A Friend". Their date of birth
+  // is then only worked out from an age the inviter typed, so /set-password
+  // asks them for the real one.
+  referredBy     Member?   @relation("Referrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referredById   String?
+  referrals      Member[]  @relation("Referrals")
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   bookings       Booking[]
+  feedback       Feedback[]
   ratingsGiven   Rating[]  @relation("RatingsGiven")
   ratingsReceived Rating[] @relation("RatingsReceived")
   matchesAsA     Match[]   @relation("MatchAsMemberA")
@@ -107,9 +129,15 @@ model Venue {
   address    String?
   phone      String?
   websiteUrl String?
-  // No photo here. The picture belongs to the Event now (Event.photoUrl):
-  // the same room is shot differently for a seniors night and a 20s night,
-  // and Gil wanted to choose the image per event rather than per place.
+  // Logo, image and description are the venue's own. Picking a venue on the
+  // event or blast forms COPIES the image and description into that event's
+  // or blast's own fields (Event.photoUrl / description, Campaign.photoUrl /
+  // eventDetailsText), where they can be changed for that one event —
+  // editing the venue later doesn't rewrite them. Uploaded through the same
+  // sharp pipeline as other photos (src/lib/uploads.ts); these hold URLs.
+  logoUrl     String?
+  imageUrl    String?
+  description String?  @db.Text
   city       City     @relation(fields: [cityId], references: [id])
   cityId     String
   createdAt  DateTime @default(now())
@@ -169,6 +197,22 @@ model Event {
   expenses      Decimal?        @db.Decimal(10, 2)
   visibility    EventVisibility @default(PUBLIC)
   status        EventStatus     @default(UPCOMING)
+  // Ticked by the admin on the event form once the venue is locked in and
+  // enough people are coming. Purely the admin's own call — nothing in the
+  // app sets it. Drives the yellow/orange split on /admin/events for events
+  // in the next seven days.
+  confirmed     Boolean         @default(false)
+  // Set on a copy made by "Duplicate event": hidden from the public site and
+  // unbookable until the admin opens the copy and saves it. Saving the edit
+  // form clears it.
+  draft         Boolean         @default(false)
+  // "FastMatch Discounts": when off, the discount-code box is hidden on the
+  // event page and the booking API refuses codes for this event.
+  fastmatchDiscounts Boolean    @default(true)
+  // "Group Discounts": when on, a member booking this event can bring
+  // friends, paying for them and getting GROUP_DISCOUNT_PER_FRIEND off per
+  // friend (see src/lib/bookingPrice.ts).
+  groupDiscounts     Boolean    @default(true)
   series        EventSeries?    @relation(fields: [seriesId], references: [id])
   seriesId      String?
 
@@ -182,6 +226,8 @@ model Event {
   bookings Booking[]
   ratings  Rating[]
   matches  Match[]
+  feedback Feedback[]
+  excludedFromCampaigns Campaign[] @relation("CampaignExcludeBooked")
 
   @@index([startsAt])
   @@index([themeId])
@@ -201,6 +247,17 @@ model Booking {
   discountCode   DiscountCode? @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
   discountCodeId String?
   stripePaymentIntentId String?
+  paymentMethod  PaymentMethod?
+  // A friend's booking points at the booking of the member who brought and
+  // paid for them. Confirmed together when that member's payment succeeds.
+  bookedBy       Booking?      @relation("FriendBookings", fields: [bookedById], references: [id], onDelete: SetNull)
+  bookedById     String?
+  friendBookings Booking[]     @relation("FriendBookings")
+  // Friends on a booking still waiting for payment: their details and the
+  // amount paid for each. Nothing is created for them — no account, no
+  // booking, no email — until the payment succeeds (confirmBookingGroup),
+  // because an unpaid booking holds no places. Cleared once they're created.
+  pendingFriends Json?
   checkedIn      Boolean       @default(false)
   checkedInAt    DateTime?
   reminderSent   Boolean       @default(false)
@@ -305,6 +362,12 @@ model Campaign {
 
   automated        Boolean @default(false) // sends automatically to unconfirmed members
   ignorePreference Boolean @default(false) // overrides marketingOptIn/contactMethod when true
+  // "Exclude booked members": skip anyone with a paid booking — for one event
+  // (excludeBookedEventId), or for any upcoming event when that's null — so a
+  // "book now" blast doesn't go to people already coming.
+  excludeBooked        Boolean @default(false)
+  excludeBookedEvent   Event?  @relation("CampaignExcludeBooked", fields: [excludeBookedEventId], references: [id], onDelete: SetNull)
+  excludeBookedEventId String?
   reusable         Boolean @default(true)  // "Stop re-using blast" sets this false
 
   sendEmail     Boolean @default(true)
@@ -325,6 +388,9 @@ model Campaign {
   bookingLink      String?
   photoUrl         String?
   bannerImageUrl   String?
+  // The venue's logo, copied in by "Fill from a venue"; shown under the
+  // event details in the email.
+  venueLogoUrl     String?
   emailBody     String? @db.Text
 
   sendSms       Boolean @default(false)
@@ -358,4 +424,20 @@ model CampaignSend {
   recipientIds    Json?              // locked in once sending starts — pause/resume continue against this exact list
   startedAt       DateTime           @default(now())
   completedAt     DateTime?
+}
+
+// "Member Feedback" — what members send from the Feedback page. Emailed to
+// Gil as it arrives and kept here so the admin can look back through it on
+// /admin/feedback (as on the old admin). eventId is null for a general
+// comment. A deleted event leaves its feedback behind as general comments.
+model Feedback {
+  id        String   @id @default(cuid())
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId  String
+  event     Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  eventId   String?
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }

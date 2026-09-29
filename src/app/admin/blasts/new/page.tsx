@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Field, Input, Select, Button, Card } from '@/components/ui';
 import PhotoUploadField from '@/components/PhotoUploadField';
 import VenuePickerField from '@/components/VenuePickerField';
+import ExcludeBookedField from '@/components/ExcludeBookedField';
 
 interface Template {
   id: string; title: string; subject: string | null; heading: string | null;
@@ -26,8 +27,10 @@ function NewBlastInner() {
     freeText: '', eventDetailsText: params.get('eventDetails') ?? '',
     bookingLink: params.get('bookingLink') ?? '',
     photoUrl: '',
-    smsFromNumber: '', smsBody: '',
+    venueLogoUrl: '',
+    smsBody: '',
     ignorePreference: false, automated: false,
+    excludeBooked: false, excludeBookedEventId: null as string | null,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,7 +131,7 @@ function NewBlastInner() {
                   value={form.freeText} onChange={(e) => setForm({ ...form, freeText: e.target.value })} />
               </Field>
               <VenuePickerField
-                hasExistingContent={Boolean(form.eventDetailsText.trim())}
+                hasExistingContent={Boolean(form.eventDetailsText.trim() || form.photoUrl)}
                 onApply={(patch) => setForm((f) => ({ ...f, ...patch }))}
               />
               <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm((f) => ({ ...f, photoUrl: url }))} />
@@ -137,6 +140,8 @@ function NewBlastInner() {
                 <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={3}
                   value={form.eventDetailsText} onChange={(e) => setForm({ ...form, eventDetailsText: e.target.value })} />
               </Field>
+              <PhotoUploadField label="Venue logo" value={form.venueLogoUrl} onChange={(url) => setForm((f) => ({ ...f, venueLogoUrl: url }))}
+                hint="Optional. Shown under the event details. Filled in from the venue." />
               <Field label="Booking link"><Input value={form.bookingLink} onChange={(e) => setForm({ ...form, bookingLink: e.target.value })} /></Field>
             </div>
           )}
@@ -146,7 +151,6 @@ function NewBlastInner() {
           </label>
           {form.sendSms && (
             <div className="mb-4 rounded-lg bg-cream/40 p-4">
-              <Field label="SMS from number"><Input value={form.smsFromNumber} onChange={(e) => setForm({ ...form, smsFromNumber: e.target.value })} /></Field>
               <Field label="SMS message">
                 <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={3}
                   value={form.smsBody} onChange={(e) => setForm({ ...form, smsBody: e.target.value })} />
@@ -158,6 +162,7 @@ function NewBlastInner() {
             <input type="checkbox" checked={form.ignorePreference} onChange={(e) => setForm({ ...form, ignorePreference: e.target.checked })} />
             Ignore preference — overrides each member's contact setting
           </label>
+          <ExcludeBookedField excludeBooked={form.excludeBooked} eventId={form.excludeBookedEventId} onChange={(patch) => setForm((f) => ({ ...f, ...patch }))} />
 
           {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
 

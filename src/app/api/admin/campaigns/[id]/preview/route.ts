@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { buildMemberWhere, MemberFilter } from '@/lib/memberFilter';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { recipientFilter } from '@/lib/campaigns/audience';
 
 // POST /api/admin/campaigns/:id/preview — the "Filter" button on the Send
 // tab. Accepts the filter currently being edited in the UI (not necessarily
@@ -17,17 +18,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   const body = await req.json().catch(() => ({}));
   const rawFilter = body.filter ?? (campaign.filter as MemberFilter);
 
-  const contactMethods: ('EMAIL_AND_SMS' | 'EMAIL' | 'SMS')[] = [];
-  if (campaign.sendEmail) contactMethods.push('EMAIL_AND_SMS', 'EMAIL');
-  if (campaign.sendSms) contactMethods.push('EMAIL_AND_SMS', 'SMS');
-
-  const filter: MemberFilter = {
-    ...rawFilter,
-    marketingOptInOnly: !campaign.ignorePreference,
-    contactMethods: campaign.ignorePreference ? undefined : [...new Set(contactMethods)],
-    excludeBounced: campaign.sendEmail && !campaign.ignorePreference,
-  };
-  const where = buildMemberWhere(filter);
+  const where = buildMemberWhere(recipientFilter(rawFilter as MemberFilter, campaign));
 
   const [count, members] = await Promise.all([
     prisma.member.count({ where }),

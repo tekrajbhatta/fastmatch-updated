@@ -6,12 +6,17 @@ import { getSessionMember } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { sendEmail } from '@/lib/emails/send';
 import { welcomeVerificationEmail } from '@/lib/emails/welcomeEmail';
+import { parseDateOfBirth } from '@/lib/friendBooking';
+import { calculateAge } from '@/lib/age';
 
 const schema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   mobile: z.string().min(1),
   cityId: z.string(),
+  // YYYY-MM-DD. Optional so an older copy of the page that doesn't send it
+  // still saves the rest. Age is always worked out from this, never stored.
+  dateOfBirth: z.string().optional(),
 });
 
 // GET/PATCH /api/account/profile — a member viewing/editing their own
@@ -35,7 +40,14 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
   const parsed = schema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: 'Please check your details.' }, { status: 400 });
 
-  const data = parsed.data;
+  const { dateOfBirth, ...data } = parsed.data;
+  let dob: Date | undefined;
+  if (dateOfBirth !== undefined) {
+    const d = parseDateOfBirth(dateOfBirth);
+    if (!d) return NextResponse.json({ error: 'Please enter a valid date of birth.' }, { status: 400 });
+    if (calculateAge(d) < 18) return NextResponse.json({ error: 'You must be at least 18 years old.' }, { status: 400 });
+    dob = d;
+  }
   const emailChanged = data.email.toLowerCase() !== member.email.toLowerCase();
 
   if (emailChanged) {
@@ -49,7 +61,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
 
   const updated = await prisma.member.update({
     where: { id: member.id },
-    data: { ...data, ...(emailChanged ? { emailVerified: false } : {}) },
+    data: { ...data, ...(dob ? { dateOfBirth: dob } : {}), ...(emailChanged ? { emailVerified: false } : {}) },
   });
 
   if (emailChanged) {

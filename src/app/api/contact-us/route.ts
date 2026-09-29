@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { sendEmail } from '@/lib/emails/send';
 import { emailLayout } from '@/lib/emails/layout';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { escapeHtml } from '@/lib/escapeHtml';
 
 const bodySchema = z.object({
   name: z.string().min(1),
@@ -16,10 +17,12 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   const data = parsed.data;
 
+  // Escaped: anyone on the site can fill this in, and without it they could
+  // put links or images into an email Gil trusts.
   const html = emailLayout(`
     <h1 style="color:#3D1E6D;">New Contact Us message</h1>
-    <p><strong>From:</strong> ${data.name} (${data.email})</p>
-    <p style="white-space:pre-wrap;">${data.message}</p>
+    <p><strong>From:</strong> ${escapeHtml(data.name)} (${escapeHtml(data.email)})</p>
+    <p style="white-space:pre-wrap;">${escapeHtml(data.message)}</p>
   `);
 
   await sendEmail({ to: 'gil@fastmatch.com.au', subject: `Contact Us: ${data.name}`, html });

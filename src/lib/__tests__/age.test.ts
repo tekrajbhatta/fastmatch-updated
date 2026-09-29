@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { calculateAge, suitsAge } from '@/lib/age';
+import { calculateAge, suitsAge, approximateDateOfBirth } from '@/lib/age';
 
 /**
  * The event age-range check and the 18+ registration check both hinge on
@@ -126,5 +126,17 @@ describe('suitsAge — events-page suggestions', () => {
     const age = 35;
     expect(suitsAge(event, age)).toBe(true);                       // suggested
     expect(age < event.ageMin || age > event.ageMax).toBe(true);   // but NOT bookable
+  });
+});
+
+describe('approximateDateOfBirth', () => {
+  it('gives a birthday that reads as the age typed — on any day of the year', () => {
+    for (const today of [new Date(2026, 8, 28), new Date(2026, 1, 10), new Date(2026, 0, 1), new Date(2026, 11, 31)]) {
+      for (const age of [18, 35, 70]) {
+        const dob = approximateDateOfBirth(age, today);
+        const years = today.getFullYear() - dob.getFullYear() - (new Date(today.getFullYear(), dob.getMonth(), dob.getDate()) > today ? 1 : 0);
+        expect(years).toBe(age);
+      }
+    }
   });
 });

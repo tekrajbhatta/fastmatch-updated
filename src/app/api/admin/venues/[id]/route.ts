@@ -17,6 +17,9 @@ const venueSchema = z.object({
   address: blankToNull,
   phone: blankToNull,
   websiteUrl: blankToNull,
+  logoUrl: blankToNull,
+  imageUrl: blankToNull,
+  description: z.string().max(5000).transform((v) => v.trim() || null).nullable().optional(),
 });
 
 // GET /api/admin/venues/:id — one venue, for the edit form.

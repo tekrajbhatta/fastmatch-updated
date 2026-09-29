@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { Field, Input, Select, Button, Card, Badge } from '@/components/ui';
+import BlastTestSend from '@/components/BlastTestSend';
 
 interface Campaign {
   id: string; title: string; hasBeenSent: boolean; subject: string; sendEmail: boolean; sendSms: boolean;
@@ -20,7 +21,6 @@ function ViewBlastInner() {
   const [tab, setTab] = useState<'details' | 'send' | 'history'>((search.get('tab') as any) ?? 'details');
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [sends, setSends] = useState<Send[]>([]);
-  const [testTo, setTestTo] = useState('');
   const [cities, setCities] = useState<City[]>([]);
   const [filter, setFilter] = useState({ ageMin: '', ageMax: '', gender: '', cityId: '', contactMethod: '' });
   const [previewCount, setPreviewCount] = useState<number | null>(null);
@@ -79,13 +79,6 @@ function ViewBlastInner() {
     setShowMembers(false);
   }
 
-  async function handleTestSend() {
-    await fetch(`/api/admin/campaigns/${id}/test-send`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testTo }),
-    });
-    alert(`Test sent to ${testTo}.`);
-  }
-
   // "Send Blast Now" no longer sends immediately — it opens one final review
   // (the actual rendered content plus the exact filtered count) that has to
   // be explicitly confirmed. This is the "preview final time" step in the
@@ -128,10 +121,11 @@ function ViewBlastInner() {
     }
   }
 
+  // Straight into editing the copy, as with Duplicate event.
   async function handleDuplicate() {
     const res = await fetch(`/api/admin/campaigns/${id}/duplicate`, { method: 'POST' });
     const data = await res.json();
-    router.push(`/admin/blasts/${data.id}`);
+    if (res.ok) router.push(`/admin/blasts/${data.id}/edit`);
   }
 
   async function handleStopReusing() {
@@ -163,11 +157,9 @@ function ViewBlastInner() {
       <h1 className="mb-2 text-2xl font-extrabold text-ink">{campaign.title}</h1>
 
       <div className="mb-4 flex gap-3 text-sm">
-        {campaign.hasBeenSent ? (
-          <button onClick={handleDuplicate} className="font-bold text-plum underline">Duplicate Blast</button>
-        ) : (
-          <button onClick={() => router.push(`/admin/blasts/${id}/edit`)} className="font-bold text-plum underline">Edit Blast</button>
-        )}
+        {/* Both, always: a sent blast can be edited and sent again (Gil). */}
+        <button onClick={() => router.push(`/admin/blasts/${id}/edit`)} className="font-bold text-plum underline">Edit Blast</button>
+        <button onClick={handleDuplicate} className="font-bold text-plum underline">Duplicate Blast</button>
         <button onClick={handleStopReusing} className="font-bold text-plum underline">Stop re-using blast</button>
       </div>
 
@@ -181,9 +173,8 @@ function ViewBlastInner() {
 
       {tab === 'details' && (
         <Card>
-          <div className="mb-4 flex items-end gap-2">
-            <div className="flex-1"><Field label="Send test to"><Input value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="you@email.com" /></Field></div>
-            <Button onClick={handleTestSend}>Send Test</Button>
+          <div className="mb-4 border-b border-ink/5 pb-2">
+            <BlastTestSend campaignId={id} />
           </div>
           <Row label="Send Email?" value={campaign.sendEmail ? 'Yes' : 'No'} />
           <Row label="Email subject" value={campaign.subject} />

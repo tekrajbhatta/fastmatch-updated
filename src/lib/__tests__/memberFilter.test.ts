@@ -59,3 +59,21 @@ describe('buildMemberWhere', () => {
     expect(buildMemberWhere({}).marketingOptIn).toBeUndefined();
   });
 });
+
+describe('excludeBookedIn — blasts’ “Exclude booked members”', () => {
+  it('one event: no paid booking for it', () => {
+    expect(buildMemberWhere({ excludeBookedIn: { eventId: 'ev1' } }).bookings).toEqual({
+      none: { status: 'CONFIRMED', eventId: 'ev1' },
+    });
+  });
+
+  it('any upcoming event: no paid booking for an event that hasn’t started', () => {
+    const where = buildMemberWhere({ excludeBookedIn: { eventId: null } }) as any;
+    expect(where.bookings.none.status).toBe('CONFIRMED');
+    expect(where.bookings.none.event.startsAt.gte).toBeInstanceOf(Date);
+  });
+
+  it('left out entirely when not asked for', () => {
+    expect(buildMemberWhere({ gender: 'MALE' }).bookings).toBeUndefined();
+  });
+});

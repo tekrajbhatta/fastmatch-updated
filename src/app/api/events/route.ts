@@ -4,12 +4,13 @@ import { getSessionMember } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
 // GET /api/events?cityId=&themeId= — public browse list: upcoming, public
-// events only, with a live booked-count per gender for the "spots left" bar.
+// events only, with a live count of PAID bookings per gender (used for "Sold out").
 //
 // Stays PUBLIC — logged-out visitors browse the same list. When there IS a
 // session, each event also reports `bookedByMe`, which the events page uses
 // to separate "events you have booked into" from the rest. Any booking row
-// counts, matching how the event detail page computes `alreadyBooked`.
+// except an unpaid (PENDING) one counts, matching how the event detail page
+// computes `alreadyBooked`.
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const params = req.nextUrl.searchParams;
   const cityId = params.get('cityId') ?? undefined;
@@ -19,6 +20,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     where: {
       visibility: 'PUBLIC',
       status: 'UPCOMING',
+      draft: false,
       startsAt: { gte: new Date() },
       ...(cityId ? { cityId } : {}),
       ...(themeId ? { themeId } : {}),
@@ -39,7 +41,8 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     ? new Set(
         (
           await prisma.booking.findMany({
-            where: { memberId: member.id, eventId: { in: events.map((e) => e.id) } },
+            // Unpaid bookings aren't bookings (see src/lib/pendingBooking.ts).
+            where: { memberId: member.id, eventId: { in: events.map((e) => e.id) }, status: { not: 'PENDING' } },
             select: { eventId: true },
           })
         ).map((b) => b.eventId)
@@ -50,8 +53,8 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const withCounts = await Promise.all(
     events.map(async (e) => {
       const [men, women] = await Promise.all([
-        prisma.booking.count({ where: { eventId: e.id, status: { in: ['PENDING', 'CONFIRMED'] }, member: { gender: 'MALE' } } }),
-        prisma.booking.count({ where: { eventId: e.id, status: { in: ['PENDING', 'CONFIRMED'] }, member: { gender: 'FEMALE' } } }),
+        prisma.booking.count({ where: { eventId: e.id, status: 'CONFIRMED', member: { gender: 'MALE' } } }),
+        prisma.booking.count({ where: { eventId: e.id, status: 'CONFIRMED', member: { gender: 'FEMALE' } } }),
       ]);
       return { ...e, menBooked: men, womenBooked: women, bookedByMe: bookedIds.has(e.id) };
     })

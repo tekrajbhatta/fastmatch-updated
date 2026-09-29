@@ -3,13 +3,14 @@ import jwt from 'jsonwebtoken';
 import { sendEmail } from './emails/send';
 import { bookingConfirmationEmail } from './emails/eventEmails';
 import { venueLine } from './venue';
+import { eventTimeFor } from './timezone';
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
 export async function sendBookingConfirmation(bookingId: string) {
   const booking = await prisma.booking.findUniqueOrThrow({
     where: { id: bookingId },
-    include: { member: true, event: { include: { venue: true } } },
+    include: { member: { include: { city: true } }, event: { include: { venue: true, city: true } } },
   });
 
   // The shared per-event QR/link — logging in identifies the attendee, so
@@ -21,6 +22,7 @@ export async function sendBookingConfirmation(bookingId: string) {
     eventName: booking.event.name,
     venue: venueLine(booking.event.venue),
     startsAt: booking.event.startsAt,
+    ...eventTimeFor(booking.event.startsAt, booking.event.city.name, booking.member.city.name),
     checkInUrl,
   });
 

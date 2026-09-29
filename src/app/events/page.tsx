@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui';
 import { venueLine } from '@/lib/venue';
-import { calculateAge, suitsAge, AGE_SUGGESTION_MARGIN } from '@/lib/age';
+import MemberEventsBrowser from '@/components/MemberEventsBrowser';
+import { formatEventForViewer } from '@/lib/timezone';
 
 interface EventListItem {
   id: string;
@@ -25,7 +26,6 @@ const THEME_TONES: Array<'green' | 'plum' | 'muted'> = ['green', 'plum', 'muted'
 
 export default function EventsPage() {
   const [events, setEvents] = useState<EventListItem[]>([]);
-  const [age, setAge] = useState<number | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -38,68 +38,27 @@ export default function EventsPage() {
     ])
       .then(([eventData, meData]) => {
         setEvents(Array.isArray(eventData) ? eventData : []);
-        if (meData?.member) {
-          setLoggedIn(true);
-          setAge(calculateAge(new Date(meData.member.dateOfBirth)));
-        }
+        if (meData?.member) setLoggedIn(true);
       })
       .finally(() => setLoading(false));
   }, []);
 
-  const booked = events.filter((e) => e.bookedByMe);
-  const rest = events.filter((e) => !e.bookedByMe);
-  // With no date of birth to go on, nothing is "suggested" — everything falls
-  // through to the general list rather than being hidden.
-  const suggested = age === null ? [] : rest.filter((e) => suitsAge(e, age));
-  const others = age === null ? rest : rest.filter((e) => !suitsAge(e, age));
-
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-extrabold text-ink">Upcoming events</h1>
+      <h1 className="mb-1 text-2xl font-extrabold text-ink">Upcoming Events</h1>
       <p className="mb-6 text-sm text-ink/60">Find a speed dating event near you.</p>
 
       {loading && <p className="text-sm text-ink/50">Loading events…</p>}
-      {!loading && events.length === 0 && (
+      {!loading && !loggedIn && events.length === 0 && (
         <p className="text-sm text-ink/50">No upcoming events right now — check back soon.</p>
       )}
 
       {/* Logged-out visitors get the plain list they always had. Members get
-          the same events grouped: what they're going to, then what suits them,
-          then everything else — so nothing is hidden either way. */}
-      {!loading && !loggedIn && <EventGrid events={events} />}
-
-      {!loading && loggedIn && (
-        <>
-          {booked.length > 0 && (
-            <Section title="Events you have booked into" events={booked} highlight />
-          )}
-          {suggested.length > 0 && (
-            <Section
-              title="Other upcoming events you may be interested in"
-              subtitle={age !== null ? `Matching your age (${age}), give or take ${AGE_SUGGESTION_MARGIN} years.` : undefined}
-              events={suggested}
-            />
-          )}
-          {others.length > 0 && (
-            <Section title="All other upcoming events" events={others} />
-          )}
-        </>
-      )}
+          the old site's layout: the events they're booked into, then a table
+          of what's on in their city, booked events first. */}
+      {!loading && !loggedIn && events.length > 0 && <EventGrid events={events} />}
+      {!loading && loggedIn && <MemberEventsBrowser showBookedList />}
     </div>
-  );
-}
-
-function Section({ title, subtitle, events, highlight = false }: { title: string; subtitle?: string; events: EventListItem[]; highlight?: boolean }) {
-  // The booked section sits on a tinted, bordered panel so it reads as "yours"
-  // at a glance rather than as just another heading in a long scroll.
-  return (
-    <section className={highlight ? 'mb-8 rounded-2xl border border-green/30 bg-green/5 p-4 sm:p-5' : 'mb-8'}>
-      <h2 className="mb-1 text-lg font-extrabold text-ink">{title}</h2>
-      {subtitle && <p className="mb-3 text-sm text-ink/50">{subtitle}</p>}
-      <div className={subtitle ? '' : 'mt-3'}>
-        <EventGrid events={events} />
-      </div>
-    </section>
   );
 }
 
@@ -107,7 +66,7 @@ function EventGrid({ events }: { events: EventListItem[] }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {events.map((event, i) => {
-        const date = new Date(event.startsAt);
+        const when = formatEventForViewer(event.startsAt, event.city.name);
 
         return (
           <Link key={event.id} href={`/events/${event.id}`} className="block rounded-xl border border-ink/10 bg-white p-4 hover:border-green">
@@ -120,8 +79,7 @@ function EventGrid({ events }: { events: EventListItem[] }) {
               {venueLine(event.venue)}, {event.city.name}
               <br />
               <strong className="text-ink">
-                {date.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })},{' '}
-                {date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}
+                {when.shortDate}, {when.time}{when.note ? ` (${when.note})` : ''}
               </strong>
               <br />
               <span className="text-xs">Ages {event.ageMin}–{event.ageMax}</span>

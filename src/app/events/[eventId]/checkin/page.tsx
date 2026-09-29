@@ -198,8 +198,8 @@ export default function CheckinPage() {
       <div className="mx-auto max-w-sm text-center">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green/15 text-3xl text-green-dark">✓</div>
         <h1 className="mb-2 text-2xl font-extrabold text-ink">Matches submitted</h1>
-        <p className="mb-6 text-sm text-ink/60">Your matches are processed automatically at midnight tonight — you'll get an email, and it'll show on the My Matches page too.</p>
-        <a href="/matches"><Button className="w-full">Go to My Matches</Button></a>
+        <p className="mb-6 text-sm text-ink/60">Your matches are processed automatically at midnight tonight — you'll get an email, and it'll show on your My Match History page too.</p>
+        <a href="/matches"><Button className="w-full">Go to My Match History</Button></a>
       </div>
     );
   }

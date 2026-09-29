@@ -25,6 +25,7 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
       bookingLink: campaign.bookingLink,
       photoUrl: campaign.photoUrl,
       bannerImageUrl: campaign.bannerImageUrl,
+      venueLogoUrl: campaign.venueLogoUrl,
     },
     // Preview only — a real send signs a per-member unsubscribe token.
     `${process.env.APP_URL}/unsubscribe?token=preview`

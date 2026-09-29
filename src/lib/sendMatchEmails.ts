@@ -12,9 +12,10 @@
 import { prisma } from './prisma';
 import { sendEmail } from './emails/send';
 import { matchResultsEmail } from './emails/matchResultsEmail';
+import { timeZoneForCity } from './timezone';
 
 export async function sendMatchEmails(eventId: string) {
-  const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId } });
+  const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId }, include: { city: true } });
   const matches = await prisma.match.findMany({ where: { eventId, emailSent: false } });
 
   // Group matches by member so each attendee gets one email listing all their matches
@@ -41,6 +42,8 @@ export async function sendMatchEmails(eventId: string) {
       memberName: member.name,
       eventName: event.name,
       eventDate: event.startsAt,
+      // The event's own date, wherever the member lives.
+      timeZone: timeZoneForCity(event.city.name),
       dateMatches: dateMatches.map((m) => ({ name: m.name, email: m.email, mobile: m.mobile })),
       friendMatches: friendMatches.map((m) => ({ name: m.name, email: m.email, mobile: m.mobile })),
     });

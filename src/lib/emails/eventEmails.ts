@@ -1,5 +1,5 @@
 import { emailLayout } from './layout';
-import { formatEventWhen, formatEventShort } from '../datetime';
+import { formatEventShort, EVENT_TIME_ZONE } from '../datetime';
 
 export function bookingConfirmationEmail(opts: {
   memberName: string;
@@ -7,13 +7,20 @@ export function bookingConfirmationEmail(opts: {
   venue: string;
   startsAt: Date;
   checkInUrl: string;
+  /** The EVENT's timezone — times are always the event's local time. */
+  timeZone: string;
+  /** "Perth time" when the recipient's own clock reads differently — see zoneNote. */
+  zoneNote?: string | null;
 }) {
   const dateStr = opts.startsAt.toLocaleDateString('en-AU', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
+    timeZone: opts.timeZone,
   });
-  const timeStr = opts.startsAt.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+  const timeStr =
+    opts.startsAt.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: opts.timeZone }) +
+    (opts.zoneNote ? ` (${opts.zoneNote})` : '');
 
   const html = emailLayout(`
     <h1 style="color:#3D1E6D;">You're booked in!</h1>
@@ -32,9 +39,11 @@ export function bookingConfirmationEmail(opts: {
 }
 
 // Tone matches the real old-system reminder ("Teo, you are Speed dating on...")
-export function eventReminderEmail(opts: { memberName: string; eventName: string; startsAt: Date; venue: string }) {
-  const dateStr = opts.startsAt.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
-  const timeStr = opts.startsAt.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+export function eventReminderEmail(opts: { memberName: string; eventName: string; startsAt: Date; venue: string; timeZone: string; zoneNote?: string | null }) {
+  const dateStr = opts.startsAt.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: opts.timeZone });
+  const timeStr =
+    opts.startsAt.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: opts.timeZone }) +
+    (opts.zoneNote ? ` (${opts.zoneNote})` : '');
 
   const html = emailLayout(`
     <h1 style="color:#3D1E6D;">${opts.memberName}, you're speed dating on ${dateStr}!</h1>
@@ -69,6 +78,10 @@ export interface EventChange {
   venueChanged: boolean;
   timeChanged: boolean;
   cancelled: boolean;
+  /** The EVENT's timezone; defaults to EVENT_TIME_ZONE. */
+  timeZone?: string;
+  /** "Perth time" when the recipient's own clock reads differently. */
+  zoneNote?: string | null;
 }
 
 
@@ -86,7 +99,10 @@ export interface EventChange {
  * silently raised.
  */
 export function eventChangeSms(c: EventChange): string {
-  const from = `Your fastmatch event on ${formatEventShort(c.oldStartsAt)} at ${c.oldVenue}`;
+  // The note goes once, after the first time — every time in the message is
+  // in the same zone, and it keeps a cross-city message as short as possible.
+  const note = c.zoneNote ? ` (${c.zoneNote})` : '';
+  const from = `Your fastmatch event on ${formatEventShort(c.oldStartsAt, c.timeZone)}${note} at ${c.oldVenue}`;
   // Gil doesn't want replies to the number, so every event-change message
   // carries his address instead. Note the cancellation dropped "We will
   // contact you shortly by email" when this was added: with the address
@@ -103,17 +119,19 @@ export function eventChangeSms(c: EventChange): string {
   // is going somewhere they may not know. A time-only change doesn't repeat
   // the address, since they already know where it is.
   if (c.venueChanged) {
-    return `${from} has been moved to ${formatEventShort(c.newStartsAt)} at ${c.newVenueFull}. ${contact}`;
+    return `${from} has been moved to ${formatEventShort(c.newStartsAt, c.timeZone)} at ${c.newVenueFull}. ${contact}`;
   }
 
-  return `${from} has been changed to ${formatEventShort(c.newStartsAt)} at ${c.newVenue}. ${contact}`;
+  return `${from} has been changed to ${formatEventShort(c.newStartsAt, c.timeZone)} at ${c.newVenue}. ${contact}`;
 }
 
 export function eventChangeEmail(c: EventChange & { memberName: string }) {
+  const timeZone = c.timeZone ?? EVENT_TIME_ZONE;
   const fmt = (d: Date) =>
-    d.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) +
+    d.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone }) +
     ', ' +
-    d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+    d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone }) +
+    (c.zoneNote ? ` (${c.zoneNote})` : '');
 
   const P = 'margin:0 0 16px;';
 

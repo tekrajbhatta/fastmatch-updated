@@ -4,11 +4,13 @@ export default function AdminDashboard() {
   return (
     <div>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Admin dashboard</h1>
-      <p className="mb-6 text-sm text-ink/60">Manage events, members, discounts, blasts, and reports.</p>
+      <p className="mb-6 text-sm text-ink/60">Manage events, venues, members, discounts, blasts, and reports.</p>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <DashCard href="/admin/events" title="Events" desc="Create and manage events" />
+        <DashCard href="/admin/venues" title="Venues" desc="The venue directory used by events and blasts" />
         <DashCard href="/admin/members" title="Members" desc="Search, add, and export members" />
+        <DashCard href="/admin/feedback" title="Member Feedback" desc="Everything members have sent from the Feedback page" />
         <DashCard href="/admin/discounts" title="Discount codes" desc="Create and edit promo codes" />
         <DashCard href="/admin/blasts" title="Blasts" desc="Newsletters and SMS campaigns" />
         <DashCard href="/admin/reports" title="Reports" desc="Attendance, revenue, and matches" />

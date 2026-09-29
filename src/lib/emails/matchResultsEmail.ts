@@ -4,10 +4,11 @@ export function matchResultsEmail(opts: {
   memberName: string;
   eventName: string;
   eventDate: Date;
+  timeZone: string;
   dateMatches: { name: string; email: string; mobile: string }[];
   friendMatches: { name: string; email: string; mobile: string }[];
 }) {
-  const dateStr = opts.eventDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+  const dateStr = opts.eventDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: opts.timeZone });
 
   const listItem = (m: { name: string; email: string; mobile: string }) =>
     `<li>${m.name} — ${m.email} — ${m.mobile}</li>`;

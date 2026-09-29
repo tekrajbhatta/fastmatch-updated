@@ -28,7 +28,18 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
-  await prisma.member.update({ where: { id: payload.memberId }, data: { passwordHash } });
+  const member = await prisma.member.findUnique({ where: { id: payload.memberId } });
+  if (!member) return NextResponse.json({ error: 'Reset link is invalid or has expired.' }, { status: 400 });
+  await prisma.member.update({
+    where: { id: member.id },
+    data: {
+      passwordHash,
+      // A friend whose "set your password" link expired can come in this way
+      // instead: treat it exactly as setting their first password — the
+      // welcome link then stops working, and the email is proven theirs.
+      ...(member.awaitingPasswordSetup ? { awaitingPasswordSetup: false, emailVerified: true } : {}),
+    },
+  });
 
   return NextResponse.json({ ok: true });
 });

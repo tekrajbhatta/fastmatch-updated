@@ -3,11 +3,14 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { PAYMENT_METHOD_VALUES } from '@/lib/paymentMethod';
 
 const patchSchema = z.object({
   status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'REFUNDED']),
   paidAmount: z.number().nonnegative(),
   checkedIn: z.boolean(),
+  // Optional so older callers keep working; null = booked online.
+  paymentMethod: z.enum(PAYMENT_METHOD_VALUES).nullable().optional(),
 });
 
 // PATCH /api/admin/bookings/:id — corrections the host needs to make from the
@@ -40,6 +43,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
       status: data.status,
       paidAmount: data.paidAmount,
       checkedIn: data.checkedIn,
+      ...(data.paymentMethod !== undefined ? { paymentMethod: data.paymentMethod } : {}),
       // Stamp the time on the transition into checked-in, and clear it on the
       // way back out, so the timestamp can never describe a state the booking
       // isn't in.

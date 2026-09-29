@@ -19,6 +19,9 @@ const baseEventSchema = z.object({
   cost: z.number().nonnegative(),
   expenses: z.number().nonnegative().optional(),
   visibility: z.enum(['PUBLIC', 'NOT_PUBLIC']).default('PUBLIC'),
+  confirmed: z.boolean().default(false),
+  fastmatchDiscounts: z.boolean().default(true),
+  groupDiscounts: z.boolean().default(true),
   repeat: z
     .object({
       frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY']),
@@ -43,8 +46,8 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const withGenderSplit = await Promise.all(
     events.map(async (e) => {
       const [men, women] = await Promise.all([
-        prisma.booking.count({ where: { eventId: e.id, status: { in: ['PENDING', 'CONFIRMED'] }, member: { gender: 'MALE' } } }),
-        prisma.booking.count({ where: { eventId: e.id, status: { in: ['PENDING', 'CONFIRMED'] }, member: { gender: 'FEMALE' } } }),
+        prisma.booking.count({ where: { eventId: e.id, status: 'CONFIRMED', member: { gender: 'MALE' } } }),
+        prisma.booking.count({ where: { eventId: e.id, status: 'CONFIRMED', member: { gender: 'FEMALE' } } }),
       ]);
       return { ...e, menBooked: men, womenBooked: women };
     })
@@ -88,6 +91,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
           cost: data.cost,
           expenses: data.expenses,
           visibility: data.visibility,
+          confirmed: data.confirmed,
+          fastmatchDiscounts: data.fastmatchDiscounts,
+          groupDiscounts: data.groupDiscounts,
           seriesId: series?.id,
         },
       })

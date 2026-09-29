@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Field, Input, Select, Button, Card, Badge } from '@/components/ui';
+import { memberFilterFromParams, memberFilterToParams, describeMemberFilter } from '@/lib/memberFilterParams';
 
 interface Member { id: string; name: string; email: string; mobile: string; city: { name: string }; gender: string; dateOfBirth: string; _count: { bookings: number }; }
 interface Totals { count: number; male: number; female: number; totalMatches: number; }
@@ -16,6 +17,11 @@ export default function AdminMembersPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [filters, setFilters] = useState({ search: '', gender: '', cityId: '', ageMin: '', ageMax: '' });
+  // The filter the list on screen was actually loaded with. Export and Blast
+  // use THIS, not the boxes above — someone who edits a box without pressing
+  // "Apply filters" must not export or blast a different set from the one
+  // they're looking at.
+  const [applied, setApplied] = useState('');
 
   // One place to build the query string, so the CSV export can never drift
   // out of sync with what's on screen — an export that silently ignored the
@@ -30,8 +36,9 @@ export default function AdminMembersPage() {
     return params;
   }
 
-  function loadMembers(pageNum = 1) {
-    const params = filterParams();
+  function loadMembers(pageNum: number, query: string) {
+    const params = new URLSearchParams(query);
+    setApplied(query);
     params.set('page', String(pageNum));
 
     fetch(`/api/admin/members?${params}`).then((r) => r.json()).then((data) => {
@@ -43,13 +50,23 @@ export default function AdminMembersPage() {
   }
 
   useEffect(() => {
-    loadMembers(1);
+    // Start from a filter in the URL — "Back to members" from the blast page
+    // returns to the same filtered list rather than everyone.
+    const f = memberFilterFromParams(new URLSearchParams(window.location.search));
+    setFilters({
+      search: f.search ?? '', gender: f.gender ?? '', cityId: f.cityId ?? '',
+      ageMin: f.ageMin != null ? String(f.ageMin) : '', ageMax: f.ageMax != null ? String(f.ageMax) : '',
+    });
+    loadMembers(1, memberFilterToParams(f).toString());
     fetch('/api/cities').then((r) => r.json()).then(setCities);
   }, []);
 
   function handleExport() {
-    window.open(`/api/admin/members/export?${filterParams()}`, '_blank');
+    window.open(`/api/admin/members/export?${applied}`, '_blank');
   }
+
+  const appliedFilter = memberFilterFromParams(new URLSearchParams(applied));
+  const appliedSummary = describeMemberFilter(appliedFilter, cities.find((c) => c.id === appliedFilter.cityId)?.name);
 
   return (
     <div>
@@ -73,9 +90,22 @@ export default function AdminMembersPage() {
           <Field label="Age from"><Input type="number" value={filters.ageMin} onChange={(e) => setFilters({ ...filters, ageMin: e.target.value })} /></Field>
           <Field label="Age to"><Input type="number" value={filters.ageMax} onChange={(e) => setFilters({ ...filters, ageMax: e.target.value })} /></Field>
         </div>
-        <Button onClick={() => loadMembers(1)} className="mt-2">Apply filters</Button>
+        <Button onClick={() => loadMembers(1, filterParams().toString())} className="mt-2">Apply filters</Button>
         <Button variant="ghost" className="mt-2 ml-2" onClick={handleExport}>Export CSV</Button>
       </Card>
+
+      {/* As on the old admin: once a list is showing, blast exactly that list. */}
+      {totals && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-plum/20 bg-white p-3">
+          <div className="text-sm">
+            <span className="font-bold text-ink">Filter currently applied: </span>
+            <span className="text-ink/70">{appliedSummary.length ? appliedSummary.join(' · ') : 'none — every member'}</span>
+          </div>
+          <Button onClick={() => router.push(`/admin/members/blast?${applied}`)} disabled={totals.count === 0}>
+            Click here to blast these filtered members
+          </Button>
+        </div>
+      )}
 
       {totals && (
         <div className="mb-4 grid grid-cols-3 gap-3">
@@ -107,9 +137,9 @@ export default function AdminMembersPage() {
       </div>
 
       <div className="mt-4 flex items-center justify-center gap-3 text-sm">
-        <Button variant="ghost" disabled={page <= 1} onClick={() => loadMembers(page - 1)}>Previous</Button>
+        <Button variant="ghost" disabled={page <= 1} onClick={() => loadMembers(page - 1, applied)}>Previous</Button>
         <span className="text-ink/60">Page {page} of {totalPages}</span>
-        <Button variant="ghost" disabled={page >= totalPages} onClick={() => loadMembers(page + 1)}>Next</Button>
+        <Button variant="ghost" disabled={page >= totalPages} onClick={() => loadMembers(page + 1, applied)}>Next</Button>
       </div>
     </div>
   );

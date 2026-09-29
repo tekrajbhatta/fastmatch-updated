@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma, type Campaign } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
+import { CONTENT_FIELDS } from '@/lib/campaigns/fields';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
-// POST /api/admin/campaigns/:id/duplicate — "Duplicate Blast", the action
-// shown once a blast has been sent at least once (replaces Edit/Delete).
-// Creates a fresh, fully-editable, Unused copy.
+// POST /api/admin/campaigns/:id/duplicate — "Duplicate Blast". A new, Unused
+// blast with the same value in every field (Gil) — content, channels,
+// preferences, template link and who it goes to. Only its title gets
+// "(copy)", so the two can be told apart on the Blasts list.
+//
+// Not copied: send history (a copy has never been sent), the last test-send
+// details, and "Stop re-using" — the copy starts reusable.
 export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
@@ -13,21 +19,13 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
 
   const original = await prisma.campaign.findUniqueOrThrow({ where: { id: params.id } });
 
+  const copied = Object.fromEntries(CONTENT_FIELDS.map((f) => [f, original[f]])) as Pick<Campaign, (typeof CONTENT_FIELDS)[number]>;
   const copy = await prisma.campaign.create({
     data: {
+      ...copied,
       title: `${original.title} (copy)`,
       templateId: original.templateId,
-      automated: original.automated,
-      ignorePreference: original.ignorePreference,
-      sendEmail: original.sendEmail,
-      fromName: original.fromName,
-      fromEmail: original.fromEmail,
-      subject: original.subject,
-      emailBody: original.emailBody,
-      sendSms: original.sendSms,
-      smsFromNumber: original.smsFromNumber,
-      smsBody: original.smsBody,
-      filter: original.filter as any,
+      filter: original.filter as Prisma.InputJsonValue,
     },
   });
 

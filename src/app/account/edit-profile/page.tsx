@@ -9,7 +9,7 @@ interface City { id: string; name: string; }
 export default function EditProfilePage() {
   const router = useRouter();
   const [cities, setCities] = useState<City[]>([]);
-  const [form, setForm] = useState({ name: '', email: '', mobile: '', cityId: '' });
+  const [form, setForm] = useState({ name: '', email: '', mobile: '', cityId: '', dateOfBirth: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -18,7 +18,8 @@ export default function EditProfilePage() {
   useEffect(() => {
     fetch('/api/cities').then((r) => r.json()).then(setCities);
     fetch('/api/account/profile').then((r) => r.json()).then((m) => {
-      setForm({ name: m.name, email: m.email, mobile: m.mobile, cityId: m.cityId });
+      // Stored as UTC midnight, so the first 10 characters are the date itself.
+      setForm({ name: m.name, email: m.email, mobile: m.mobile, cityId: m.cityId, dateOfBirth: m.dateOfBirth ? String(m.dateOfBirth).slice(0, 10) : '' });
     });
   }, []);
 
@@ -38,6 +39,9 @@ export default function EditProfilePage() {
     setEmailChanged(!!data.emailChanged);
   }
 
+  // Nobody under 18.
+  const maxDob = (() => { const d = new Date(); d.setFullYear(d.getFullYear() - 18); return d.toISOString().slice(0, 10); })();
+
   return (
     <div className="mx-auto max-w-sm">
       <h1 className="mb-6 text-2xl font-extrabold text-ink">Edit profile</h1>
@@ -46,6 +50,11 @@ export default function EditProfilePage() {
           <Field label="Name"><Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
           <Field label="Email"><Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
           <Field label="Mobile"><Input required value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} /></Field>
+          {/* Your age on the site — for suggested events and age ranges — is
+              worked out from this, so it's always current. */}
+          <Field label="Date of birth">
+            <Input type="date" required max={maxDob} value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} />
+          </Field>
           <Field label="City">
             <Select value={form.cityId} onChange={(e) => setForm({ ...form, cityId: e.target.value })}>
               {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}

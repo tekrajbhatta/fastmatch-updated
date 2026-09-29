@@ -29,10 +29,9 @@
  * timezone. The production droplet runs UTC, so a 7:00pm Sydney event would
  * be texted to attendees as 9:00am. Formatting is pinned here instead.
  *
- * LIMITATION: one timezone for the whole site. Every venue in the directory
- * is currently in Sydney, so this is correct today, but a Perth event would
- * be described in Sydney time. Fixing that properly means storing a timezone
- * per City — worth doing before the first interstate event, not before.
+ * This is only the DEFAULT. Anything sent to a particular member passes
+ * their own zone instead (timeZoneForCity in src/lib/timezone.ts), so each
+ * person reads times in the timezone of the city they registered with.
  */
 export const EVENT_TIME_ZONE = process.env.EVENT_TIME_ZONE || 'Australia/Sydney';
 
@@ -41,17 +40,17 @@ export const EVENT_TIME_ZONE = process.env.EVENT_TIME_ZONE || 'Australia/Sydney'
  * change SMS, the change email and the Stripe payment page, so they can't
  * disagree with each other.
  */
-export function formatEventWhen(d: Date): string {
+export function formatEventWhen(d: Date, timeZone: string = EVENT_TIME_ZONE): string {
   // en-AU renders "Tue, 23 Sept 2025"; the comma reads badly mid-sentence in
   // "...on Tue, 23 Sept 2025 at 7:20pm has now been changed to...", and it
   // costs a character in a message already spanning two SMS segments.
   const date = d
     .toLocaleDateString('en-AU', {
-      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: EVENT_TIME_ZONE,
+      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone,
     })
     .replace(',', '');
   const time = d
-    .toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: EVENT_TIME_ZONE })
+    .toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone })
     .replace(/\s?(am|pm)/i, (m) => m.trim().toLowerCase());
   return `${date} at ${time}`;
 }
@@ -87,11 +86,11 @@ export function fromDateTimeLocalValue(local: string): string {
  * Note the DOT in the time ("7.30pm", not "7:30pm") — that is how Gil writes
  * it, and it is what the approved wording uses.
  */
-export function formatEventShort(d: Date): string {
+export function formatEventShort(d: Date, timeZone: string = EVENT_TIME_ZONE): string {
   const parts = new Intl.DateTimeFormat('en-AU', {
     day: '2-digit', month: '2-digit', year: '2-digit',
     hour: 'numeric', minute: '2-digit', hour12: true,
-    timeZone: EVENT_TIME_ZONE,
+    timeZone,
   }).formatToParts(d);
   const get = (t: string) => parts.find((x) => x.type === t)?.value ?? '';
   const ampm = get('dayPeriod').toLowerCase().replace(/[^apm]/g, '');

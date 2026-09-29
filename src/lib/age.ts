@@ -33,3 +33,26 @@ export const AGE_SUGGESTION_MARGIN = 10;
 export function suitsAge(event: { ageMin: number; ageMax: number }, age: number): boolean {
   return age >= event.ageMin - AGE_SUGGESTION_MARGIN && age <= event.ageMax + AGE_SUGGESTION_MARGIN;
 }
+
+/**
+ * A date of birth for someone we only have an age for (Tell A Friend asks the
+ * inviter for the friend's age, as the old site did). Six months before
+ * their latest possible birthday, so the age reads correctly today and stays
+ * right on average. Only a placeholder: the friend is asked for their real
+ * date of birth when they accept the invitation.
+ */
+export function approximateDateOfBirth(age: number, today: Date = new Date()): Date {
+  const d = new Date(today);
+  d.setHours(0, 0, 0, 0);
+  d.setFullYear(d.getFullYear() - age);
+  d.setMonth(d.getMonth() - 6);
+  return d;
+}
+
+/** Age on a given day (e.g. the day of an event, or the day they signed up). */
+export function ageAt(dob: Date, at: Date): number {
+  let age = at.getUTCFullYear() - dob.getUTCFullYear();
+  const m = at.getUTCMonth() - dob.getUTCMonth();
+  if (m < 0 || (m === 0 && at.getUTCDate() < dob.getUTCDate())) age--;
+  return age;
+}

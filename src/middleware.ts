@@ -21,7 +21,7 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 
 // Prefix match, so /account also covers /account/edit-profile etc.
-const PROTECTED_PREFIXES = ['/account', '/matches', '/verify-mobile'];
+const PROTECTED_PREFIXES = ['/account', '/matches', '/verify-mobile', '/feedback', '/tell-a-friend'];
 
 // Per-event member-only pages: /events/<id>/checkin and /events/<id>/booked.
 // The events list and an event's public detail page stay open — browsing is

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import type Stripe from 'stripe';
 import { getStripe, getStripeWebhookSecret } from '@/lib/stripe';
-import { sendBookingConfirmation } from '@/lib/sendBookingConfirmation';
+import { confirmBookingGroup } from '@/lib/memberBooking';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
 // Per the Terms & Conditions: "Your credit card will not be debited until
@@ -24,18 +23,10 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     const session = event.data.object as Stripe.Checkout.Session;
     const bookingId = session.metadata?.bookingId;
     if (bookingId) {
-      const booking = await prisma.booking.update({
-        where: { id: bookingId },
-        data: { status: 'CONFIRMED' },
-      });
-      if (booking.discountCodeId) {
-        await prisma.discountCode.update({
-          where: { id: booking.discountCodeId },
-          data: { usedCount: { increment: 1 } },
-        });
-      }
-      // TODO: send confirmation email with check-in QR link
-      await sendBookingConfirmation(bookingId);
+      // Confirms the member AND any friends they paid for, counts the
+      // discount code once, and emails everyone. Idempotent, so Stripe's
+      // retries can't double-count a code or re-send confirmations.
+      await confirmBookingGroup(bookingId);
     }
   }
 

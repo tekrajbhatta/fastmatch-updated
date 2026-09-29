@@ -15,6 +15,9 @@ export interface MemberFilter {
   // different groups — pass both values to reach everyone who can receive SMS.
   contactMethods?: ('EMAIL_AND_SMS' | 'EMAIL' | 'SMS')[];
   excludeBounced?: boolean; // default true for campaign sends — see buildMemberWhere
+  // Blasts' "Exclude booked members": leave out anyone with a paid booking
+  // for this event — or, with eventId null, for any upcoming event.
+  excludeBookedIn?: { eventId: string | null };
 }
 
 export function buildMemberWhere(filter: MemberFilter): Prisma.MemberWhereInput {
@@ -32,6 +35,13 @@ export function buildMemberWhere(filter: MemberFilter): Prisma.MemberWhereInput 
   if (filter.marketingOptInOnly) where.marketingOptIn = true;
   if (filter.contactMethods?.length) where.contactMethod = { in: filter.contactMethods };
   if (filter.excludeBounced) where.emailBounced = false;
+  if (filter.excludeBookedIn) {
+    // Paid bookings only — an unpaid one isn't a booking (see pendingBooking.ts).
+    const eventId = filter.excludeBookedIn.eventId;
+    where.bookings = {
+      none: { status: 'CONFIRMED', ...(eventId ? { eventId } : { event: { startsAt: { gte: new Date() } } }) },
+    };
+  }
 
   if (filter.ageMin != null || filter.ageMax != null) {
     const today = new Date();

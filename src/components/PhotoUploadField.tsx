@@ -17,12 +17,15 @@ export default function PhotoUploadField({
   value,
   onChange,
   hint = 'Optional. Resized automatically to fit the email.',
+  label = 'Photo',
 }: {
   value: string;
   onChange: (url: string) => void;
   /** Shown under an empty picker. Blasts and events size their images
       differently, so each screen says what its own photo is for. */
   hint?: string;
+  /** Field label — venues have two of these (logo and image). */
+  label?: string;
 }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,20 +46,21 @@ export default function PhotoUploadField({
   }
 
   return (
-    <Field label="Photo">
+    <Field label={label}>
       {value ? (
         <div className="flex items-start gap-3">
           {/* Plain <img>, not next/image: this is a runtime-uploaded file
               served from outside public/, so there is nothing for the image
               optimiser to know about at build time. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={value} alt="" className="h-24 w-24 rounded-lg object-cover" />
+          {/* Logos are shown whole on white; photos are cropped to fill. */}
+          <img src={value} alt="" className={`h-24 w-24 rounded-lg ${/logo/i.test(label) ? 'border border-ink/10 bg-white object-contain p-1' : 'object-cover'}`} />
           <button
             type="button"
             onClick={() => { onChange(''); setError(null); }}
             className="text-sm font-bold text-coral hover:underline"
           >
-            Remove photo
+            Remove {label.toLowerCase()}
           </button>
         </div>
       ) : (

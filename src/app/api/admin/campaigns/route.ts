@@ -9,6 +9,8 @@ const campaignSchema = z.object({
   templateId: z.string().optional(),
   automated: z.boolean().default(false),
   ignorePreference: z.boolean().default(false),
+  excludeBooked: z.boolean().default(false),
+  excludeBookedEventId: z.string().min(1).nullable().optional(),
 
   sendEmail: z.boolean().default(true),
   fromName: z.string().default('FastMatch'),
@@ -20,6 +22,7 @@ const campaignSchema = z.object({
   bookingLink: z.string().optional(),
   photoUrl: z.string().optional(),
   bannerImageUrl: z.string().optional(),
+  venueLogoUrl: z.string().optional(),
   emailBody: z.string().optional(),
 
   sendSms: z.boolean().default(false),

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { buildMemberWhere, MemberFilter } from '@/lib/memberFilter';
+import { memberFilterFromParams } from '@/lib/memberFilterParams';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
 // GET /api/admin/members/export — CSV of the currently filtered member set,
@@ -12,13 +13,8 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
   const params = req.nextUrl.searchParams;
-  const filter: MemberFilter = {
-    search: params.get('search') ?? undefined,
-    gender: (params.get('gender') as 'MALE' | 'FEMALE') ?? undefined,
-    cityId: params.get('cityId') ?? undefined,
-    ageMin: params.get('ageMin') ? Number(params.get('ageMin')) : undefined,
-    ageMax: params.get('ageMax') ? Number(params.get('ageMax')) : undefined,
-  };
+  // Same parsing as the members screen and its blast page — see memberFilterFromParams.
+  const filter: MemberFilter = memberFilterFromParams(params);
   const where = buildMemberWhere(filter);
 
   const members = await prisma.member.findMany({

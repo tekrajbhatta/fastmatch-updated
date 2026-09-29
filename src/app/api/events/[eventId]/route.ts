@@ -12,18 +12,22 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     include: { theme: true, city: true, venue: true },
   });
 
+  // A copy made by "Duplicate event" isn't public until the admin saves it.
+  const member = await getSessionMember(req);
+  if (event.draft && !member?.isAdmin) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
   const [menBooked, womenBooked] = await Promise.all([
-    prisma.booking.count({ where: { eventId: event.id, status: { in: ['PENDING', 'CONFIRMED'] }, member: { gender: 'MALE' } } }),
-    prisma.booking.count({ where: { eventId: event.id, status: { in: ['PENDING', 'CONFIRMED'] }, member: { gender: 'FEMALE' } } }),
+    prisma.booking.count({ where: { eventId: event.id, status: 'CONFIRMED', member: { gender: 'MALE' } } }),
+    prisma.booking.count({ where: { eventId: event.id, status: 'CONFIRMED', member: { gender: 'FEMALE' } } }),
   ]);
 
-  const member = await getSessionMember(req);
   let alreadyBooked = false;
   if (member) {
     const existing = await prisma.booking.findUnique({
       where: { eventId_memberId: { eventId: event.id, memberId: member.id } },
     });
-    alreadyBooked = !!existing;
+    // An unpaid booking doesn't count — the member can simply book again.
+    alreadyBooked = !!existing && existing.status !== 'PENDING';
   }
 
   return NextResponse.json({ ...event, menBooked, womenBooked, alreadyBooked });

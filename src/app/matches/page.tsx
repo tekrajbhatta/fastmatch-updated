@@ -3,30 +3,31 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, Button } from '@/components/ui';
-import { venueLine } from '@/lib/venue';
+import MemberEventsBrowser from '@/components/MemberEventsBrowser';
+import { formatEventForViewer } from '@/lib/timezone';
 
-interface Person { id: string; name: string; email: string; mobile: string; }
-interface EventMatches {
-  event: { id: string; name: string; venue: { name: string; address: string | null }; startsAt: string };
+interface Person { id: string; name: string; email: string; mobile: string; badge: number | null }
+interface HistoryItem {
+  event: { id: string; name: string; startsAt: string; venue: { name: string; address: string | null }; city: { name: string } };
+  matchesCalculated: boolean;
   dateMatches: Person[];
   friendMatches: Person[];
 }
+interface MatchHistory { months: number; history: HistoryItem[]; welcomeOffer: { code: string; description: string } | null }
 
-export default function MatchesPage() {
-  const [groups, setGroups] = useState<EventMatches[]>([]);
-  const [loading, setLoading] = useState(true);
+/**
+ * My Match History, laid out as on the old site: the last six months of
+ * events with each one's Date and Friend matches, then the events table
+ * (booked first, then what's coming up) to view and book from.
+ */
+export default function MatchHistoryPage() {
+  const [data, setData] = useState<MatchHistory | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
 
   useEffect(() => {
     fetch('/api/matches').then(async (r) => {
-      if (r.status === 401) {
-        setNeedsLogin(true);
-        setLoading(false);
-        return;
-      }
-      const data = await r.json();
-      setGroups(Array.isArray(data) ? data : []);
-      setLoading(false);
+      if (r.status === 401) { setNeedsLogin(true); return; }
+      setData(await r.json());
     });
   }, []);
 
@@ -44,41 +45,72 @@ export default function MatchesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg">
-      <h1 className="mb-1 text-2xl font-extrabold text-ink">My matches</h1>
-      <p className="mb-6 text-sm text-ink/60">Contact details are only shown for people you both matched with.</p>
+    <div>
+      <h1 className="mb-4 text-2xl font-extrabold text-ink">My Match History</h1>
 
-      {loading && <p className="text-sm text-ink/50">Loading…</p>}
-      {!loading && groups.length === 0 && <p className="text-sm text-ink/50">No matches yet — they'll appear here after your next event.</p>}
+      {!data && <p className="text-sm text-ink/50">Loading…</p>}
 
-      {groups.map((g) => (
-        <Card key={g.event.id} className="mb-4">
-          <h2 className="mb-3 font-extrabold text-ink">{g.event.name}</h2>
-          <p className="mb-4 text-xs text-ink/50">{venueLine(g.event.venue)} · {new Date(g.event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+      {data && data.history.length > 0 && (
+        <>
+          <p className="mb-3 text-sm text-ink/70">
+            Fast Match keeps a record of your matches for the last {data.months} months, so no need for a super memory,
+            saved emails, or lots of little pieces of paper in your wallet, handbag or desk drawer.
+          </p>
+          <p className="mb-4 text-sm font-bold text-ink">Here are your matches for the past {data.months} months:</p>
+          <div className="mb-10 space-y-4">
+            {data.history.map((h) => (
+              <Card key={h.event.id}>
+                <h2 className="text-lg font-extrabold text-ink">
+                  {h.event.venue.name} — {formatEventForViewer(h.event.startsAt, h.event.city.name).dateWithYear}
+                </h2>
+                <p className="mb-3 text-xs text-ink/50">{h.event.name} · {h.event.city.name}</p>
+                <MatchList title="Date Matches" tone="text-green-dark" calculated={h.matchesCalculated} people={h.dateMatches} />
+                <MatchList title="Friend Matches" tone="text-amber" calculated={h.matchesCalculated} people={h.friendMatches} />
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
 
-          {g.dateMatches.length > 0 && (
-            <div className="mb-3">
-              <h3 className="mb-1.5 text-sm font-extrabold text-green-dark">Date matches</h3>
-              {g.dateMatches.map((p) => <PersonRow key={p.id} person={p} />)}
-            </div>
+      {data && data.history.length === 0 && (
+        <div className="mb-10 space-y-3 text-sm text-ink/70">
+          <p className="font-bold text-ink">You have not attended any events recently.</p>
+          {data.welcomeOffer && (
+            <p>
+              We&apos;d love you to attend one of our Fast Match events&hellip; and as a special offer, we&apos;ll give you{' '}
+              <strong className="text-ink">{data.welcomeOffer.description}</strong> your first event. Simply enter{' '}
+              <strong className="text-ink">{data.welcomeOffer.code}</strong> in the discount code box when you book.
+            </p>
           )}
-          {g.friendMatches.length > 0 && (
-            <div>
-              <h3 className="mb-1.5 text-sm font-extrabold text-amber">Friend matches</h3>
-              {g.friendMatches.map((p) => <PersonRow key={p.id} person={p} />)}
-            </div>
-          )}
-        </Card>
-      ))}
+          <p>Hope to see you at a Fast Match soon!</p>
+        </div>
+      )}
+
+      {data && <MemberEventsBrowser showBookedList={false} />}
     </div>
   );
 }
 
-function PersonRow({ person }: { person: Person }) {
+function MatchList({ title, tone, calculated, people }: { title: string; tone: string; calculated: boolean; people: Person[] }) {
   return (
-    <div className="mb-1.5 rounded-lg bg-cream/40 p-2.5">
-      <div className="text-sm font-bold text-ink">{person.name}</div>
-      <div className="text-xs text-ink/50">{person.email} · {person.mobile}</div>
+    <div className="mb-3 last:mb-0">
+      <h3 className={`text-sm font-extrabold ${tone}`}>{title}</h3>
+      {!calculated ? (
+        <p className="text-sm text-ink/50">Information not available yet</p>
+      ) : people.length === 0 ? (
+        <p className="text-sm text-ink/50">No {title.toLowerCase()} from this event.</p>
+      ) : (
+        <ul className="mt-1 list-inside list-disc text-sm text-ink">
+          {people.map((p) => (
+            <li key={p.id}>
+              <strong>{p.name}</strong> (
+              {p.badge != null && <>badge: {p.badge}, </>}
+              <a href={`tel:${p.mobile.replace(/\s/g, '')}`} className="text-plum hover:underline">{p.mobile}</a>,{' '}
+              <a href={`mailto:${p.email}`} className="text-plum hover:underline">{p.email}</a>)
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

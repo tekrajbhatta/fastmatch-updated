@@ -5,11 +5,13 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Field, Input, Select, Button, Card } from '@/components/ui';
 import PhotoUploadField from '@/components/PhotoUploadField';
+import EventFlagFields from '@/components/EventFlagFields';
+import VenueInfoPanel, { venueFillPatch } from '@/components/VenueInfoPanel';
 import { toDateTimeLocalValue, fromDateTimeLocalValue } from '@/lib/datetime';
 
 interface City { id: string; name: string; }
 interface Theme { id: string; name: string; }
-interface Venue { id: string; name: string; city: { id: string; name: string }; }
+interface Venue { id: string; name: string; logoUrl: string | null; imageUrl: string | null; description: string | null; city: { id: string; name: string }; }
 
 export default function EditEventPage() {
   const { eventId } = useParams<{ eventId: string }>();
@@ -24,6 +26,13 @@ export default function EditEventPage() {
   // without failing the save, so the admin is told who to chase manually
   // instead of the failures only reaching the server log.
   const [notifyFailures, setNotifyFailures] = useState<{ member: string; channel: string }[]>([]);
+  // Set when arriving from "Duplicate event". Read from the URL directly
+  // rather than useSearchParams, which would need a Suspense boundary.
+  const [copiedFrom, setCopiedFrom] = useState<string | null>(null);
+  const [isDraft, setIsDraft] = useState(false);
+  useEffect(() => {
+    setCopiedFrom(new URLSearchParams(window.location.search).get('copiedFrom'));
+  }, []);
 
   useEffect(() => {
     fetch('/api/cities').then((r) => r.json()).then(setCities);
@@ -32,11 +41,13 @@ export default function EditEventPage() {
     fetch('/api/admin/events').then((r) => r.json()).then((events: any[]) => {
       const e = events.find((ev) => ev.id === eventId);
       if (e) {
+        setIsDraft(!!e.draft);
         setForm({
           name: e.name, description: e.description ?? '', photoUrl: e.photoUrl ?? '', themeId: e.themeId, cityId: e.cityId, venueId: e.venueId,
           startsAt: toDateTimeLocalValue(e.startsAt), ageMin: e.ageMin, ageMax: e.ageMax,
           maxMen: e.maxMen, maxWomen: e.maxWomen, cost: e.cost,
-          expenses: e.expenses ?? '', visibility: e.visibility,
+          expenses: e.expenses ?? '', visibility: e.visibility, confirmed: !!e.confirmed,
+          fastmatchDiscounts: e.fastmatchDiscounts ?? true, groupDiscounts: e.groupDiscounts ?? true,
         });
       }
     });
@@ -58,6 +69,8 @@ export default function EditEventPage() {
         maxMen: Number(form.maxMen), maxWomen: Number(form.maxWomen),
         cost: Number(form.cost), expenses: form.expenses ? Number(form.expenses) : undefined,
         startsAt: fromDateTimeLocalValue(form.startsAt),
+        // Saving this form is what takes a duplicated event out of draft.
+        draft: false,
       }),
     });
     const data = await res.json();
@@ -80,6 +93,12 @@ export default function EditEventPage() {
         ← Back to event
       </Link>
       <h1 className="mb-6 text-2xl font-extrabold text-ink">Edit event</h1>
+      {isDraft && (
+        <p className="mb-4 rounded-lg bg-amber/15 p-3 text-sm text-ink">
+          <strong>{copiedFrom ? `This is a copy of event #${copiedFrom}, saved as a draft.` : 'This event is a draft.'}</strong>{' '}
+          It isn&apos;t visible to the public or bookable until you save this form — change the date and anything else first.
+        </p>
+      )}
       <Card>
         <form onSubmit={handleSave}>
           <Field label="Event theme">
@@ -108,7 +127,11 @@ export default function EditEventPage() {
             </Field>
           </div>
           <Field label="Venue">
-            <Select required value={form.venueId} onChange={(e) => setForm({ ...form, venueId: e.target.value })}>
+            <Select required value={form.venueId} onChange={(e) => {
+              const venueId = e.target.value;
+              // Fills only the event's EMPTY photo/description — see VenueInfoPanel.
+              setForm((f: any) => ({ ...f, venueId, ...venueFillPatch(f, venues.find((v) => v.id === venueId)) }));
+            }}>
               <option value="">Select a venue…</option>
               {venues.filter((v) => v.city.id === form.cityId).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
             </Select>
@@ -116,6 +139,8 @@ export default function EditEventPage() {
               Only venues in the selected city are listed.{' '}
               <Link href="/admin/venues" className="font-bold text-plum hover:underline">Manage venues</Link>
             </p>
+            <VenueInfoPanel venue={venues.find((v) => v.id === form.venueId)} photoUrl={form.photoUrl} description={form.description}
+              onUse={(patch) => setForm((f: any) => ({ ...f, ...patch }))} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Age min"><Input type="number" required value={form.ageMin} onChange={(e) => setForm({ ...form, ageMin: e.target.value })} /></Field>
@@ -132,6 +157,7 @@ export default function EditEventPage() {
             <input type="checkbox" checked={form.visibility === 'PUBLIC'} onChange={(e) => setForm({ ...form, visibility: e.target.checked ? 'PUBLIC' : 'NOT_PUBLIC' })} />
             Visible to the public
           </label>
+          <EventFlagFields value={form} onChange={(patch) => setForm({ ...form, ...patch })} />
 
           {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
           {notifyFailures.length > 0 && (

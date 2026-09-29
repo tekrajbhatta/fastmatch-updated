@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import { sendEmail } from '@/lib/emails/send';
+import { passwordResetEmail } from '@/lib/emails/passwordEmail';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
+const RESET_LINK_MINUTES = 30;
 
 const bodySchema = z.object({ email: z.string().email() });
 
@@ -18,12 +21,16 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // endpoint be used to check which emails are registered.
   if (member) {
     const resetToken = jwt.sign({ memberId: member.id, purpose: 'password_reset' }, JWT_SECRET, {
-      expiresIn: '30m',
+      expiresIn: `${RESET_LINK_MINUTES}m`,
     });
     const resetUrl = `${process.env.APP_URL}/reset-password?token=${resetToken}`;
-
-    // TODO: send via the email provider — see sendMatchEmails.ts for the pattern.
-    console.log(`[stub] Password reset link for ${member.email}: ${resetUrl}`);
+    const { subject, html } = passwordResetEmail({ memberName: member.name, resetUrl, validMinutes: RESET_LINK_MINUTES });
+    try {
+      await sendEmail({ to: member.email, subject, html });
+    } catch (err) {
+      // Logged, not returned: an error here would reveal the address exists.
+      console.error(`Password reset email to member ${member.id} failed`, err);
+    }
   }
 
   return NextResponse.json({ ok: true });

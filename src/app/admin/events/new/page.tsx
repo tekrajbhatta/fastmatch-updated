@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Field, Input, Select, Button, Card } from '@/components/ui';
 import PhotoUploadField from '@/components/PhotoUploadField';
+import EventFlagFields from '@/components/EventFlagFields';
+import VenueInfoPanel, { venueFillPatch } from '@/components/VenueInfoPanel';
 import { fromDateTimeLocalValue } from '@/lib/datetime';
 
 interface City { id: string; name: string; }
 interface Theme { id: string; name: string; }
-interface Venue { id: string; name: string; city: { id: string; name: string }; }
+interface Venue { id: string; name: string; logoUrl: string | null; imageUrl: string | null; description: string | null; city: { id: string; name: string }; }
 
 export default function NewEventPage() {
   const router = useRouter();
@@ -20,6 +22,7 @@ export default function NewEventPage() {
     name: '', description: '', photoUrl: '', themeId: '', cityId: '', venueId: '', startsAt: '',
     ageMin: '', ageMax: '', maxMen: '12', maxWomen: '12', cost: '', expenses: '',
     visibility: 'PUBLIC' as 'PUBLIC' | 'NOT_PUBLIC',
+    confirmed: false, fastmatchDiscounts: true, groupDiscounts: true,
   });
   const [repeatOn, setRepeatOn] = useState(false);
   const [repeat, setRepeat] = useState({ frequency: 'WEEKLY' as 'DAILY' | 'WEEKLY' | 'MONTHLY', interval: '1', endDate: '' });
@@ -115,7 +118,11 @@ export default function NewEventPage() {
             </Field>
           </div>
           <Field label="Venue">
-            <Select required value={form.venueId} onChange={(e) => setForm({ ...form, venueId: e.target.value })}>
+            <Select required value={form.venueId} onChange={(e) => {
+              const venueId = e.target.value;
+              // Pulls the venue's image and description into the event's own empty fields.
+              setForm((f) => ({ ...f, venueId, ...venueFillPatch(f, venues.find((v) => v.id === venueId)) }));
+            }}>
               <option value="">Select a venue…</option>
               {venuesInCity.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
             </Select>
@@ -128,6 +135,8 @@ export default function NewEventPage() {
                 : 'Somewhere new? '}
               <Link href="/admin/venues" className="font-bold text-plum hover:underline">add a venue</Link> first.
             </p>
+            <VenueInfoPanel venue={venues.find((v) => v.id === form.venueId)} photoUrl={form.photoUrl} description={form.description}
+              onUse={(patch) => setForm((f) => ({ ...f, ...patch }))} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Age min">
@@ -156,6 +165,7 @@ export default function NewEventPage() {
             <input type="checkbox" checked={form.visibility === 'PUBLIC'} onChange={(e) => setForm({ ...form, visibility: e.target.checked ? 'PUBLIC' : 'NOT_PUBLIC' })} />
             Visible to the public
           </label>
+          <EventFlagFields value={form} onChange={(patch) => setForm((f) => ({ ...f, ...patch }))} />
 
           <div className="mb-4 rounded-lg bg-cream/40 p-4">
             <label className="mb-2 flex items-center gap-2 text-sm font-bold text-ink">

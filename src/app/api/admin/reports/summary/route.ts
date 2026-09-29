@@ -14,6 +14,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const params = req.nextUrl.searchParams;
   const themeId = params.get('themeId') || undefined;
   const cityId = params.get('cityId') || undefined;
+  const venueId = params.get('venueId') || undefined;
   const gender = (params.get('gender') as 'MALE' | 'FEMALE') || undefined;
   const ageMin = params.get('ageMin') ? Number(params.get('ageMin')) : undefined;
   const ageMax = params.get('ageMax') ? Number(params.get('ageMax')) : undefined;
@@ -23,6 +24,9 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const eventWhere: Prisma.EventWhereInput = {
     ...(themeId ? { themeId } : {}),
     ...(cityId ? { cityId } : {}),
+    ...(venueId ? { venueId } : {}),
+    // Unsaved duplicates carry their original's expenses — never count them.
+    draft: false,
     ...(dateFrom || dateTo ? { startsAt: { ...(dateFrom ? { gte: dateFrom } : {}), ...(dateTo ? { lte: dateTo } : {}) } } : {}),
   };
 

@@ -17,6 +17,7 @@ export function resolveCampaignEmailHtml(
     bookingLink?: string | null;
     photoUrl?: string | null;
     bannerImageUrl?: string | null;
+    venueLogoUrl?: string | null;
   },
   unsubscribeUrl: string
 ) {
@@ -28,6 +29,7 @@ export function resolveCampaignEmailHtml(
     bookingLink: campaign.bookingLink,
     photoUrl: campaign.photoUrl,
     bannerImageUrl: campaign.bannerImageUrl,
+    venueLogoUrl: campaign.venueLogoUrl,
     unsubscribeUrl,
   });
 }
@@ -62,12 +64,17 @@ function campaignBanner(bannerImageUrl?: string | null) {
     <div style="height:6px;background-color:${BRAND_COLORS.green};"></div>`;
 }
 
+// "Update your details" (as on the old site): the member's Edit profile page.
+// Logged-out readers are sent to log in first, then straight on to it.
 function campaignFooter(unsubscribeUrl: string) {
+  const updateUrl = `${(process.env.APP_URL ?? '').replace(/\/+$/, '')}/account/edit-profile`;
   return `
     <div style="background-color:${BRAND_COLORS.plumDark};color:#fff;text-align:center;padding:24px;font-size:12px;line-height:1.7;margin-top:8px;">
       <p style="margin:0;">&copy; ${new Date().getFullYear()} fastmatch. All rights reserved.</p>
       <p style="margin:4px 0 0;">
         <a href="mailto:gil@fastmatch.com.au" style="color:#fff;text-decoration:underline;">Contact us</a>
+        &nbsp;&middot;&nbsp;
+        <a href="${updateUrl}" style="color:#fff;text-decoration:underline;">Update your details</a>
         &nbsp;&middot;&nbsp;
         <a href="${unsubscribeUrl}" style="color:#fff;text-decoration:underline;">Unsubscribe</a>
       </p>
@@ -84,6 +91,7 @@ export function renderCampaignEmailHtml(fields: {
   bookingLink?: string | null;
   photoUrl?: string | null;
   bannerImageUrl?: string | null;
+  venueLogoUrl?: string | null;
   unsubscribeUrl: string;
 }) {
   const paragraphs = (fields.freeText || '')
@@ -107,6 +115,12 @@ export function renderCampaignEmailHtml(fields: {
     ? `<img src="${fields.photoUrl}" alt="" width="330" style="width:70%;max-width:330px;height:auto;border-radius:12px;margin:18px auto;display:block;" />`
     : '';
 
+  // The venue's logo, centred just under the event details (Gil). Width
+  // capped so a large upload can't dominate the email.
+  const venueLogoHtml = fields.venueLogoUrl
+    ? `<img src="${fields.venueLogoUrl}" alt="" width="160" style="width:160px;max-width:50%;height:auto;margin:4px auto 18px;display:block;" />`
+    : '';
+
   // ALWAYS rendered. It used to appear only when the blast had a booking link,
   // so leaving that field blank silently shipped a marketing email with no
   // call to action at all. An empty field now falls back to the events page.
@@ -122,6 +136,7 @@ export function renderCampaignEmailHtml(fields: {
         ${photoHtml}
         ${paragraphs}
         ${eventDetailsHtml}
+        ${venueLogoHtml}
         ${bookingButtonHtml}
       </div>
       ${campaignFooter(fields.unsubscribeUrl)}

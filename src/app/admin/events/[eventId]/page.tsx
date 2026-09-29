@@ -18,6 +18,8 @@ export default function AdminEventDetailPage() {
   const [closing, setClosing] = useState(false);
   const [closeResult, setCloseResult] = useState<{ matchesCreated?: number; alreadyCalculated?: boolean } | null>(null);
   const [closeError, setCloseError] = useState<string | null>(null);
+  const [duplicating, setDuplicating] = useState(false);
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/admin/events`).then((r) => r.json()).then((events: any[]) => {
@@ -44,6 +46,21 @@ export default function AdminEventDetailPage() {
     router.push(`/admin/blasts/new?${params.toString()}`);
   }
 
+  // Copies the event and drops the admin straight into editing the copy —
+  // almost always it's only the date that needs changing.
+  async function handleDuplicate() {
+    setDuplicating(true);
+    setDuplicateError(null);
+    const res = await fetch(`/api/admin/events/${eventId}/duplicate`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setDuplicating(false);
+      setDuplicateError(typeof data.error === 'string' ? data.error : 'Could not duplicate this event.');
+      return;
+    }
+    router.push(`/admin/events/${data.id}/edit?copiedFrom=${data.copiedFrom}`);
+  }
+
   async function handleCloseEventNow() {
     setClosing(true);
     setCloseError(null);
@@ -63,14 +80,29 @@ export default function AdminEventDetailPage() {
 
       <Card className="mb-3">
         <Link href={`/admin/events/${event.id}/bookings`} className="block font-bold text-ink hover:text-plum">View bookings</Link>
-        <p className="mt-0.5 text-sm text-ink/50">Attendee list, walk-ins, payments</p>
+        <p className="mt-0.5 text-sm text-ink/50">Attendee list, payments, check-ins</p>
       </Card>
       <Card className="mb-3">
         <Link href={`/admin/events/${event.id}/edit`} className="block font-bold text-ink hover:text-plum">Edit event</Link>
       </Card>
       <Card className="mb-3">
+        <button onClick={handleDuplicate} disabled={duplicating} className="block text-left font-bold text-ink hover:text-plum disabled:opacity-50">
+          {duplicating ? 'Duplicating…' : 'Duplicate event'}
+        </button>
+        <p className="mt-0.5 text-sm text-ink/50">Makes a copy with the same details, then opens it for editing</p>
+        {duplicateError && <p className="mt-2 text-sm font-medium text-coral">{duplicateError}</p>}
+      </Card>
+      <Card className="mb-3">
         <button onClick={createBlastForEvent} className="block text-left font-bold text-ink hover:text-plum">Create blast for this event</button>
         <p className="mt-0.5 text-sm text-ink/50">Auto-fills subject, details, and booking link — nothing to retype</p>
+      </Card>
+      <Card className="mb-3">
+        <Link href={`/admin/events/${event.id}/bookings/new`} className="block font-bold text-ink hover:text-plum">Add a new booking</Link>
+        <p className="mt-0.5 text-sm text-ink/50">Book one or more registered members into this event</p>
+      </Card>
+      <Card className="mb-3">
+        <Link href={`/admin/events/${event.id}/members/new`} className="block font-bold text-ink hover:text-plum">Add a new member</Link>
+        <p className="mt-0.5 text-sm text-ink/50">Register someone new and book them into this event</p>
       </Card>
 
       <Card className="mb-3">

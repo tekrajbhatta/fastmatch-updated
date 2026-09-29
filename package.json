@@ -10,6 +10,7 @@
     "prisma:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "seed": "tsx prisma/seed.ts",
+    "dummy-data": "tsx prisma/dummy-data.ts",
     "calculate-matches": "tsx src/scripts/calculateMatches.ts",
     "process-campaign-sends": "tsx src/scripts/processCampaignSends.ts",
     "import-members": "tsx src/scripts/importMembers.ts",

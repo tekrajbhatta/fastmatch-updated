@@ -6,6 +6,7 @@ import { sendSms } from '@/lib/sms/send';
 import { eventChangeEmail, eventChangeSms } from '@/lib/emails/eventEmails';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { venueLine } from '@/lib/venue';
+import { eventTimeFor } from '@/lib/timezone';
 
 // PATCH /api/admin/events/:id — edit any field. Attendees are notified by
 // email and SMS ONLY when the date/time, the venue, or the event's public
@@ -18,12 +19,12 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   const updates = await req.json();
   const before = await prisma.event.findUniqueOrThrow({
     where: { id: params.id },
-    include: { venue: true, theme: true },
+    include: { venue: true, theme: true, city: true },
   });
   const event = await prisma.event.update({
     where: { id: params.id },
     data: updates,
-    include: { venue: true, theme: true },
+    include: { venue: true, theme: true, city: true },
   });
 
   let notified = 0;
@@ -63,7 +64,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
 
     const bookings = await prisma.booking.findMany({
       where: { eventId: event.id, status: 'CONFIRMED' },
-      include: { member: true },
+      include: { member: { include: { city: true } } },
     });
 
     // The event is already saved by this point, so a single bad number or a
@@ -72,7 +73,10 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
     // notified. Each send is isolated and failures are reported back so the
     // admin can follow up.
     for (const booking of bookings) {
-      const { subject, html } = eventChangeEmail({ ...change, memberName: booking.member.name });
+      // Times are the event's local time; an attendee registered somewhere
+      // the clock reads differently is told whose time it is.
+      const theirs = { ...change, ...eventTimeFor(new Date(event.startsAt), event.city.name, booking.member.city.name) };
+      const { subject, html } = eventChangeEmail({ ...theirs, memberName: booking.member.name });
       try {
         await sendEmail({ to: booking.member.email, subject, html });
       } catch (err) {
@@ -80,7 +84,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
         notifyFailures.push({ member: booking.member.name, channel: 'email' });
       }
       try {
-        await sendSms({ to: booking.member.mobile, body: eventChangeSms(change) });
+        await sendSms({ to: booking.member.mobile, body: eventChangeSms(theirs) });
       } catch (err) {
         console.error(`Event ${event.id}: change SMS to ${booking.member.mobile} failed`, err);
         notifyFailures.push({ member: booking.member.name, channel: 'sms' });

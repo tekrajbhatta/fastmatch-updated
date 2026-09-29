@@ -3,6 +3,7 @@ import { buildMemberWhere, MemberFilter } from '../memberFilter';
 import { sendEmail } from '../emails/send';
 import { sendSmsBulk, withOptOut } from '../sms/send';
 import { resolveCampaignEmailHtml } from '../emails/campaignEmail';
+import { recipientFilter } from './audience';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
@@ -25,17 +26,7 @@ const BATCH_SIZE = 100;
 export async function startCampaignSend(campaignId: string) {
   const campaign = await prisma.campaign.findUniqueOrThrow({ where: { id: campaignId } });
 
-  const contactMethods: ('EMAIL_AND_SMS' | 'EMAIL' | 'SMS')[] = [];
-  if (campaign.sendEmail) contactMethods.push('EMAIL_AND_SMS', 'EMAIL');
-  if (campaign.sendSms) contactMethods.push('EMAIL_AND_SMS', 'SMS');
-
-  const filter: MemberFilter = {
-    ...(campaign.filter as MemberFilter),
-    marketingOptInOnly: !campaign.ignorePreference,
-    contactMethods: campaign.ignorePreference ? undefined : [...new Set(contactMethods)],
-    excludeBounced: campaign.sendEmail && !campaign.ignorePreference,
-  };
-  const where = buildMemberWhere(filter);
+  const where = buildMemberWhere(recipientFilter(campaign.filter as MemberFilter, campaign));
   const recipients = await prisma.member.findMany({ where, select: { id: true } });
   const recipientIds = recipients.map((r) => r.id);
 
@@ -94,6 +85,7 @@ export async function processCampaignSendBatch(sendId: string) {
               bookingLink: campaign.bookingLink,
               photoUrl: campaign.photoUrl,
               bannerImageUrl: campaign.bannerImageUrl,
+              venueLogoUrl: campaign.venueLogoUrl,
             },
             unsubscribeUrl
           );

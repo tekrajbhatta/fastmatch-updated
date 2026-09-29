@@ -1,0 +1,159 @@
+'use client';
+
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Field, Input, Button, Card, Select } from '@/components/ui';
+
+interface Prefill {
+  name: string; email: string; mobile: string; gender: 'MALE' | 'FEMALE'; cityId: string;
+  dateOfBirth: string | null; canChangeGender: boolean; invitedBy: string | null;
+}
+interface City { id: string; name: string }
+
+/**
+ * Where the "Set your password" button lands for someone another member put
+ * on FastMatch — a friend booked into an event, or a "Tell A Friend" invitee.
+ * Their registration, worded as a welcome: password, then the profile details
+ * someone else typed for them, checked and completed by them.
+ */
+function SetPasswordInner() {
+  const params = useSearchParams();
+  const router = useRouter();
+  const token = params.get('token') ?? '';
+  const [prefill, setPrefill] = useState<Prefill | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [cities, setCities] = useState<City[]>([]);
+  const [form, setForm] = useState({
+    password: '', confirm: '', name: '', mobile: '', dateOfBirth: '', cityId: '',
+    gender: 'MALE' as 'MALE' | 'FEMALE', marketingOptIn: true, agreedTerms: false,
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<'idle' | 'saving' | 'done'>('idle');
+
+  useEffect(() => {
+    fetch('/api/cities').then((r) => r.json()).then(setCities).catch(() => {});
+    if (!token) { setLinkError('This link is incomplete — please use the button in your email.'); return; }
+    fetch(`/api/auth/set-password?token=${encodeURIComponent(token)}`).then(async (r) => {
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setLinkError(typeof d.error === 'string' ? d.error : 'This link is invalid or has expired.'); return; }
+      setPrefill(d);
+      setForm((f) => ({ ...f, name: d.name, mobile: d.mobile, dateOfBirth: d.dateOfBirth ?? '', cityId: d.cityId, gender: d.gender }));
+    });
+  }, [token]);
+
+  const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (form.password !== form.confirm) { setError("The two passwords don't match."); return; }
+    setStatus('saving');
+    const { confirm, gender, ...rest } = form;
+    const res = await fetch('/api/auth/set-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, ...rest, ...(prefill?.canChangeGender ? { gender } : {}) }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(typeof data.error === 'string' ? data.error : 'This link may have expired.');
+      setStatus('idle');
+      return;
+    }
+    setStatus('done');
+    // Logged in by the API. Next stop is confirming their mobile, exactly as
+    // after registering — they need it to book an event themselves.
+    const next = data.mobileVerified ? '/events' : data.smsSent === false ? '/verify-mobile?smsFailed=1' : '/verify-mobile';
+    setTimeout(() => router.push(next), 1500);
+  }
+
+  // No future dates, and nobody under 18.
+  const maxDob = (() => { const d = new Date(); d.setFullYear(d.getFullYear() - 18); return d.toISOString().slice(0, 10); })();
+
+  return (
+    <div className="mx-auto max-w-md">
+      <h1 className="mb-2 text-2xl font-extrabold text-ink">Welcome to FastMatch</h1>
+      <p className="mb-6 text-sm text-ink/60">
+        {prefill?.invitedBy ? <><strong className="text-ink">{prefill.invitedBy}</strong> registered you with FastMatch. </> : null}
+        Choose a password and check your details. You&apos;ll log in with your email to book events, check in on the
+        night and see your matches.
+      </p>
+      <Card>
+        {linkError ? (
+          <p className="text-sm text-coral">
+            {linkError} <Link href="/forgot-password" className="font-bold underline">Get a new link</Link>
+          </p>
+        ) : !prefill ? (
+          <p className="text-sm text-ink/50">Loading…</p>
+        ) : status === 'done' ? (
+          <p className="text-sm font-bold text-green-dark">All set — you&apos;re logged in. One last step: confirming your mobile…</p>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <Field label="Email"><Input value={prefill.email} disabled className="bg-ink/5 text-ink/60" /></Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Password">
+                <Input type="password" required minLength={8} autoComplete="new-password" value={form.password} onChange={(e) => set({ password: e.target.value })} />
+              </Field>
+              <Field label="Confirm password">
+                <Input type="password" required minLength={8} autoComplete="new-password" value={form.confirm} onChange={(e) => set({ confirm: e.target.value })} />
+              </Field>
+            </div>
+            <p className="mb-4 -mt-2 text-xs text-ink/50">At least 8 characters.</p>
+
+            <h2 className="mb-3 mt-2 border-t border-ink/5 pt-4 font-extrabold text-ink">Your details</h2>
+            <Field label="Name"><Input required value={form.name} onChange={(e) => set({ name: e.target.value })} /></Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Mobile"><Input type="tel" required value={form.mobile} onChange={(e) => set({ mobile: e.target.value })} /></Field>
+              <Field label="Date of birth"><Input type="date" required max={maxDob} value={form.dateOfBirth} onChange={(e) => set({ dateOfBirth: e.target.value })} /></Field>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="City">
+                <Select required value={form.cityId} onChange={(e) => set({ cityId: e.target.value })}>
+                  {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </Select>
+              </Field>
+              <Field label="Gender">
+                {prefill.canChangeGender ? (
+                  <Select value={form.gender} onChange={(e) => set({ gender: e.target.value as 'MALE' | 'FEMALE' })}>
+                    <option value="MALE">Male</option><option value="FEMALE">Female</option>
+                  </Select>
+                ) : (
+                  <Input value={form.gender === 'MALE' ? 'Male' : 'Female'} disabled className="bg-ink/5 text-ink/60" />
+                )}
+              </Field>
+            </div>
+
+            <label className="mb-3 flex items-start gap-2 text-xs text-ink/60">
+              <input type="checkbox" className="mt-0.5" checked={form.marketingOptIn} onChange={(e) => set({ marketingOptIn: e.target.checked })} />
+              <span>Email and text me about upcoming FastMatch events and offers. You can unsubscribe any time.</span>
+            </label>
+            {/* Same agreement as the registration form. */}
+            <label className="mb-4 flex items-start gap-2 text-xs text-ink/60">
+              <input type="checkbox" className="mt-0.5" checked={form.agreedTerms} onChange={(e) => set({ agreedTerms: e.target.checked })} />
+              <span>
+                I&apos;m 18+ and I agree to the <Link href="/terms" className="font-bold text-plum">Terms &amp; Conditions</Link> and{' '}
+                <Link href="/privacy" className="font-bold text-plum">Privacy Policy</Link>
+              </span>
+            </label>
+            {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
+            <Button type="submit" disabled={status === 'saving' || !form.agreedTerms} className="w-full">
+              {status === 'saving' ? 'Saving…' : 'Save and continue'}
+            </Button>
+          </form>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// useSearchParams() forces this into client-side rendering, which Next
+// requires to sit behind a Suspense boundary — without one, `next build`
+// fails while prerendering this page. Same as /reset-password.
+export default function SetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <SetPasswordInner />
+    </Suspense>
+  );
+}

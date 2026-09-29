@@ -12,7 +12,7 @@ import { BRAND_NAME } from '@/lib/brand';
 // This used to be decided by pathname — a hardcoded list of "marketing"
 // paths got the public nav and everything else got the member nav. That was
 // wrong in both directions: a logged-out visitor browsing /events or /contact
-// was shown "My Events / My Matches / My Account" (links that only 401 for
+// was shown the member links (links that only 401 for
 // them), and the public pages were unreachable from the member nav.
 // `isLoggedIn` is resolved in the root layout, server-side, so the correct
 // nav is in the very first HTML response.
@@ -53,7 +53,9 @@ export default function SiteChrome({
     ? [
         { href: '/admin', label: 'Dashboard' },
         { href: '/admin/events', label: 'Events' },
+        { href: '/admin/venues', label: 'Venues' },
         { href: '/admin/members', label: 'Members' },
+        { href: '/admin/feedback', label: 'Member Feedback' },
         { href: '/admin/discounts', label: 'Discount codes' },
         { href: '/admin/blasts', label: 'Blasts' },
         { href: '/admin/reports', label: 'Reports' },
@@ -61,8 +63,11 @@ export default function SiteChrome({
       ]
     : isLoggedIn
       ? [
-          { href: '/events', label: 'My Events' },
-          { href: '/matches', label: 'My Matches' },
+          // Gil's names, from the old site's "My FastMatch" menu.
+          { href: '/events', label: 'Upcoming Events' },
+          { href: '/matches', label: 'My Match History' },
+          { href: '/feedback', label: 'Feedback' },
+          { href: '/tell-a-friend', label: 'Tell A Friend' },
           { href: '/account', label: 'My Account' },
         ]
       : [
@@ -73,16 +78,17 @@ export default function SiteChrome({
   const container = isAdminRoute ? ADMIN_CONTAINER : SITE_CONTAINER;
   const closeMobile = () => setMobileOpen(false);
 
-  // The admin nav is seven items wide and won't fit beside the logo on a
-  // tablet, so it collapses into the burger later than the two- and
-  // three-item navs do. Full class strings, not interpolated fragments —
+  // The admin (nine items) and member (five) navs won't fit beside the logo
+  // on a tablet, so they collapse into the burger later than the two-item
+  // public nav does — the admin one latest of all. Full class strings, not interpolated fragments —
   // Tailwind only generates classes it can find literally in the source.
-  const navVisible = isAdmin ? 'hidden lg:flex' : 'hidden sm:flex';
-  const burgerVisible = isAdmin ? 'lg:hidden' : 'sm:hidden';
+  const navVisible = isAdmin ? 'hidden xl:flex' : isLoggedIn ? 'hidden lg:flex' : 'hidden sm:flex';
+  const burgerVisible = isAdmin ? 'xl:hidden' : isLoggedIn ? 'lg:hidden' : 'sm:hidden';
 
   return (
     <>
-      <header className="border-b-4 border-green bg-white">
+      {/* print:hidden — printed reports are just the report. */}
+      <header className="border-b-4 border-green bg-white print:hidden">
         <div className={`mx-auto flex ${container} items-center justify-between gap-4 px-5 py-3`}>
           {/* Always the homepage. The logo used to point at /events, which
               sent a logged-out visitor into the app rather than to the page
@@ -164,7 +170,7 @@ function SiteFooter({
   container: string;
 }) {
   return (
-    <footer className="bg-plum-dark px-5 py-10 text-white">
+    <footer className="bg-plum-dark px-5 py-10 text-white print:hidden">
       <div className={`mx-auto ${container}`}>
         <div className="mb-6 flex flex-wrap gap-x-8 gap-y-2 text-sm font-bold">
           {/* An admin gets no navigation duplicated down here. All seven admin
@@ -174,8 +180,10 @@ function SiteFooter({
               footer uniquely carries is Contact and the two legal pages. */}
           {!isAdmin && (
             <>
-              <Link href="/events" className="hover:text-green">{isLoggedIn ? 'My Events' : 'Upcoming Events'}</Link>
-              {isLoggedIn && <Link href="/matches" className="hover:text-green">My Matches</Link>}
+              <Link href="/events" className="hover:text-green">Upcoming Events</Link>
+              {isLoggedIn && <Link href="/matches" className="hover:text-green">My Match History</Link>}
+              {isLoggedIn && <Link href="/feedback" className="hover:text-green">Feedback</Link>}
+              {isLoggedIn && <Link href="/tell-a-friend" className="hover:text-green">Tell A Friend</Link>}
               {isLoggedIn && <Link href="/account" className="hover:text-green">My Account</Link>}
             </>
           )}

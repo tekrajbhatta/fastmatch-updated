@@ -1,17 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { z } from 'zod';
 import { getStripe } from '@/lib/stripe';
 import { getSessionMember } from '@/lib/auth';
 import { calculateAge } from '@/lib/age';
 import { venueLine } from '@/lib/venue';
 import { formatEventWhen } from '@/lib/datetime';
-import { sendBookingConfirmation } from '@/lib/sendBookingConfirmation';
+import { eventTimeFor } from '@/lib/timezone';
+import {
+  bookingBodySchema,
+  prepareMemberBooking,
+  createMemberBooking,
+  discardMemberBooking,
+  confirmBookingGroup,
+} from '@/lib/memberBooking';
+import { releasePendingBooking } from '@/lib/pendingBooking';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
-const bodySchema = z.object({ discountCode: z.string().optional() });
-
-// POST /api/events/:eventId/book
+// POST /api/events/:eventId/book — a member books themselves, plus any
+// friends they're bringing (paying for all of them, less the group discount).
 export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ eventId: string }> }) => {
   const params = await ctx.params;
   const member = await getSessionMember(req);
@@ -36,7 +42,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
     where: { id: params.eventId },
     include: { venue: true, city: true },
   });
-  if (event.visibility !== 'PUBLIC' || event.status !== 'UPCOMING') {
+  if (event.draft || event.visibility !== 'PUBLIC' || event.status !== 'UPCOMING') {
     return NextResponse.json({ error: 'This event is not open for booking.' }, { status: 400 });
   }
 
@@ -53,101 +59,89 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
     );
   }
 
+  // An earlier booking that was never paid doesn't count — it's replaced
+  // below, once this one has passed its checks. Anything else does.
   const existing = await prisma.booking.findUnique({
     where: { eventId_memberId: { eventId: params.eventId, memberId: member.id } },
   });
-  if (existing) {
+  if (existing && existing.status !== 'PENDING') {
     return NextResponse.json({ error: 'You already have a booking for this event.' }, { status: 409 });
   }
 
-  // Capacity check — "first come, first served", per the Terms & Conditions
-  const bookedCount = await prisma.booking.count({
-    where: { eventId: params.eventId, status: { in: ['PENDING', 'CONFIRMED'] }, member: { gender: member.gender } },
-  });
-  const capacity = member.gender === 'MALE' ? event.maxMen : event.maxWomen;
-  if (bookedCount >= capacity) {
-    return NextResponse.json({ error: 'This event is full for your gender.' }, { status: 409 });
+  const parsed = bookingBodySchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) return NextResponse.json({ error: 'Please check your booking details.' }, { status: 400 });
+
+  // Discount code, friends, and capacity for everyone. Only PAID places count
+  // — per the old site's note, a place isn't reserved until the money is in.
+  const prepared = await prepareMemberBooking(member, event, parsed.data);
+  if (!prepared.ok) {
+    return NextResponse.json({ error: prepared.error, fieldErrors: prepared.fieldErrors }, { status: prepared.status });
   }
 
-  const { discountCode } = bodySchema.parse(await req.json().catch(() => ({})));
-  let finalAmount = Number(event.cost);
-  let discount = null;
-
-  if (discountCode) {
-    discount = await prisma.discountCode.findUnique({ where: { code: discountCode } });
-    const now = new Date();
-    const valid =
-      discount &&
-      discount.validFrom <= now &&
-      discount.validTo >= now &&
-      (!discount.scopeThemeId || discount.scopeThemeId === event.themeId);
-
-    if (!valid) {
-      return NextResponse.json({ error: 'This discount code is not valid for this event.' }, { status: 400 });
+  if (existing) {
+    // Closes the old payment page too, so it can't be paid afterwards.
+    const released = await releasePendingBooking(existing);
+    if (released === 'paid') {
+      return NextResponse.json(
+        { error: 'Your payment for this event has already gone through — your confirmation email is on its way.' },
+        { status: 409 }
+      );
     }
-
-    if (discount!.type === 'PERCENT_OFF') finalAmount *= 1 - Number(discount!.amount) / 100;
-    if (discount!.type === 'FIXED_REDUCTION') finalAmount = Math.max(0, finalAmount - Number(discount!.amount));
-    if (discount!.type === 'FREE') finalAmount = 0;
   }
 
-  // Badge = next sequential number for this event, across both genders,
-  // in booking order (matches the old system's model exactly)
-  const highestBadge = await prisma.booking.aggregate({
-    where: { eventId: params.eventId },
-    _max: { badge: true },
-  });
-  const badge = (highestBadge._max.badge ?? 0) + 1;
+  const bookingId = await createMemberBooking(member, event, prepared);
 
-  const booking = await prisma.booking.create({
-    data: {
-      eventId: params.eventId,
-      memberId: member.id,
-      badge,
-      paidAmount: finalAmount,
-      status: 'PENDING',
-      discountCodeId: discount?.id,
-    },
-  });
-
-  // Free events skip Stripe entirely and confirm immediately
-  if (finalAmount === 0) {
-    await prisma.booking.update({ where: { id: booking.id }, data: { status: 'CONFIRMED' } });
-    if (discount) await prisma.discountCode.update({ where: { id: discount.id }, data: { usedCount: { increment: 1 } } });
-    await sendBookingConfirmation(booking.id);
-    return NextResponse.json({ booking, checkoutUrl: null });
+  // Nothing to pay (e.g. a free code, booking alone): confirm straight away.
+  if (prepared.quote.total === 0) {
+    await confirmBookingGroup(bookingId);
+    return NextResponse.json({ bookingId, checkoutUrl: null });
   }
 
-  const session = await getStripe().checkout.sessions.create({
-    mode: 'payment',
-    line_items: [
-      {
-        price_data: {
-          currency: 'aud',
-          // Shown under the product name on Stripe's payment page, so the
-          // member sees exactly which event they're paying for before
-          // entering card details. (The logo on that page is a Stripe
-          // Dashboard branding setting, not something set from here.)
-          product_data: {
-            name: event.name,
-            description: [
-              venueLine(event.venue),
-              event.city.name,
-              formatEventWhen(event.startsAt),
-              `Ages ${event.ageMin}-${event.ageMax}`,
-            ].join(' \u00b7 '),
+  const friendCount = prepared.friends.length;
+  // The event's local time, noted if the member's own clock reads differently.
+  const memberCity = await prisma.city.findUnique({ where: { id: member.cityId } });
+  const when = eventTimeFor(event.startsAt, event.city.name, memberCity?.name);
+  let session;
+  try {
+    session = await getStripe().checkout.sessions.create({
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: 'aud',
+            // Shown under the product name on Stripe's payment page, so the
+            // member sees exactly which event — and for how many people —
+            // they're paying before entering card details. (The logo on that
+            // page is a Stripe Dashboard branding setting, not set from here.)
+            product_data: {
+              name: event.name,
+              description: [
+                friendCount ? `You + ${friendCount} friend${friendCount === 1 ? '' : 's'}` : null,
+                venueLine(event.venue),
+                event.city.name,
+                formatEventWhen(event.startsAt, when.timeZone) + (when.zoneNote ? ` (${when.zoneNote})` : ''),
+                `Ages ${event.ageMin}-${event.ageMax}`,
+              ].filter(Boolean).join(' · '),
+            },
+            // One line for the whole booking at the agreed total — the
+            // per-person breakdown and discounts are on our page right
+            // before this, and Stripe line items can't be negative.
+            unit_amount: Math.round(prepared.quote.total * 100),
           },
-          unit_amount: Math.round(finalAmount * 100),
+          quantity: 1,
         },
-        quantity: 1,
-      },
-    ],
-    metadata: { bookingId: booking.id },
-    success_url: `${process.env.APP_URL}/events/${event.id}/booked?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.APP_URL}/events/${event.id}`,
-  });
+      ],
+      metadata: { bookingId },
+      success_url: `${process.env.APP_URL}/events/${event.id}/booked?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.APP_URL}/events/${event.id}`,
+    });
+  } catch (err) {
+    // No payment page, so no booking.
+    await discardMemberBooking(bookingId);
+    throw err;
+  }
 
-  await prisma.booking.update({ where: { id: booking.id }, data: { stripePaymentIntentId: session.id } });
+  await prisma.booking.update({ where: { id: bookingId }, data: { stripePaymentIntentId: session.id } });
 
-  return NextResponse.json({ booking, checkoutUrl: session.url });
+  return NextResponse.json({ bookingId, checkoutUrl: session.url });
 });
