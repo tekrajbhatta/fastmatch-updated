@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Button, Card } from '@/components/ui';
+import { Container, DecorRing, FormCard, LoadingNote, SplitLayout } from '@/components/site/layout';
+import { FormError } from '@/components/site/form';
+import { Button, ButtonLink, buttonClass, linkClass } from '@/components/site/button';
 
 interface Me { id: string; name: string; email: string; mobile: string; }
 interface RosterEntry { badge: number; memberId: string; name: string; }
@@ -91,7 +93,7 @@ export default function CheckinPage() {
     setStep('submitted');
   }
 
-  if (!loaded) return <p className="text-sm text-ink/50">Loading…</p>;
+  if (!loaded) return <Container className="py-16"><LoadingNote /></Container>;
 
   // Middleware keeps logged-out visitors off this route, so reaching here with
   // no member means an expired or rejected session. ?next= brings them back to
@@ -99,110 +101,131 @@ export default function CheckinPage() {
   // shouldn't have to find their way back.
   if (!me) {
     return (
-      <div className="mx-auto max-w-sm text-center">
-        <Card>
-          <p className="mb-4 text-sm text-ink/60">Please log in to check in for tonight&apos;s event.</p>
-          <Link href={`/login?next=${encodeURIComponent(`/events/${eventId}/checkin`)}`}>
-            <Button className="w-full">Log in</Button>
-          </Link>
-        </Card>
-      </div>
+      <Container className="flex justify-center py-[clamp(48px,7vw,96px)]">
+        <FormCard className="text-center">
+          <p className="text-base text-ink-600">Please log in to check in for tonight&apos;s event.</p>
+          <ButtonLink href={`/login?next=${encodeURIComponent(`/events/${eventId}/checkin`)}`} block>Log in</ButtonLink>
+        </FormCard>
+      </Container>
     );
   }
 
   if (step === 'confirm' && me) {
     return (
-      <div className="mx-auto max-w-sm">
-        <h1 className="mb-1 text-2xl font-extrabold text-ink">Welcome, {me.name.split(' ')[0]}</h1>
-        <p className="mb-6 text-sm text-ink/60">Please confirm your details before you check in for tonight's event.</p>
-        <Card className="mb-5 space-y-2 text-sm">
-          <div><span className="text-ink/50">Name:</span> <span className="font-bold">{me.name}</span></div>
-          <div><span className="text-ink/50">Mobile:</span> <span className="font-bold">{me.mobile}</span></div>
-          <div><span className="text-ink/50">Email:</span> <span className="font-bold">{me.email}</span></div>
-        </Card>
-        {error && (
-          <div className="mb-4 rounded-lg border border-coral/30 bg-coral/10 p-3 text-sm">
-            <p className="font-bold text-coral">{error}</p>
-            <p className="mt-1 text-ink/60">
-              Checking in needs a confirmed booking on the account you&apos;re signed in as
-              ({me.email}). If that isn&apos;t you,{' '}
-              <Link href={`/login?next=${encodeURIComponent(`/events/${eventId}/checkin`)}`} className="font-bold text-plum hover:underline">
-                log in as the right member
-              </Link>.
-            </p>
-          </div>
-        )}
-        <Button onClick={handleCheckIn} disabled={checkingIn} className="w-full">
-          {checkingIn ? 'Checking in…' : 'Confirm & check in'}
-        </Button>
-      </div>
+      <SplitLayout
+        title={`Welcome, ${me.name.split(' ')[0]}`}
+        lead="Please confirm your details before you check in for tonight's event."
+      >
+        <FormCard>
+          <dl className="divide-y divide-line">
+            <DetailRow label="Name" value={me.name} />
+            <DetailRow label="Mobile" value={me.mobile} />
+            <DetailRow label="Email" value={me.email} />
+          </dl>
+          {error && (
+            <FormError>
+              <p>{error}</p>
+              <p className="mt-1 font-normal text-ink-600">
+                Checking in needs a confirmed booking on the account you&apos;re signed in as
+                ({me.email}). If that isn&apos;t you,{' '}
+                <Link href={`/login?next=${encodeURIComponent(`/events/${eventId}/checkin`)}`} className={linkClass}>
+                  log in as the right member
+                </Link>.
+              </p>
+            </FormError>
+          )}
+          <Button onClick={handleCheckIn} disabled={checkingIn} block>
+            {checkingIn ? 'Checking in…' : 'Confirm & check in'}
+          </Button>
+        </FormCard>
+      </SplitLayout>
     );
   }
 
   if (step === 'roster') {
     return (
-      <div className="mx-auto max-w-lg">
-        <div className="mb-5 rounded-xl bg-gradient-to-br from-plum to-plum-dark p-5 text-center text-white">
-          <div className="text-xs font-bold uppercase tracking-wide text-white/70">Your number tonight</div>
-          <div className="text-4xl font-extrabold">{String(myBadge).padStart(2, '0')}</div>
-        </div>
-
-        <div className="mb-3 flex items-center gap-2 text-sm text-ink/60">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-green" />
-          <span className="font-bold text-green-dark">{roster.length} checked in</span>
-          <span>— tap a name once you've met them.</span>
-        </div>
-
-        <div className="space-y-2">
-          {roster.filter((r) => r.memberId !== me?.id).map((person) => (
-            <button
-              key={person.memberId}
-              onClick={() => setActivePerson(person)}
-              className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left ${ratings[person.memberId] ? 'border-green bg-green/10' : 'border-ink/10 bg-white'}`}
-            >
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-plum/10 font-extrabold text-plum">{String(person.badge).padStart(2, '0')}</span>
-              <span className="flex-1 font-bold text-ink">{person.name}</span>
-              <span className="text-xs font-bold uppercase text-ink/40">{ratings[person.memberId] ?? 'Tap to rate'}</span>
-            </button>
-          ))}
-        </div>
-
-        {activePerson && (
-          <div className="fixed inset-0 flex items-end justify-center bg-ink/40 sm:items-center" onClick={() => setActivePerson(null)}>
-            <div className="w-full max-w-sm rounded-t-2xl bg-white p-6 sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
-              <h2 className="mb-4 text-xl font-extrabold text-ink">{activePerson.name}</h2>
-              {(['DATE', 'FRIEND', 'NO'] as Choice[]).map((choice) => (
-                <button
-                  key={choice}
-                  onClick={() => { selectRating(activePerson.memberId, choice); setActivePerson(null); }}
-                  className="mb-2 w-full rounded-xl border border-ink/10 p-3 text-left font-bold hover:border-green"
-                >
-                  {choice === 'DATE' ? 'Date' : choice === 'FRIEND' ? 'Friend' : 'No'}
-                </button>
-              ))}
-            </div>
+      <Container className="py-[clamp(24px,4vw,56px)]">
+        <div className="mx-auto max-w-[560px]">
+          <div className="relative overflow-hidden rounded-bubble bg-plum-900 px-6 py-7 text-center">
+            <DecorRing className="-right-10 -top-16 w-40 opacity-60" />
+            <p className="relative text-[13px] font-extrabold uppercase tracking-[0.1em] text-plum-200">Your number tonight</p>
+            <p className="relative mt-1 font-display text-[64px] font-extrabold leading-none tracking-[-0.03em] text-match-300">{String(myBadge).padStart(2, '0')}</p>
           </div>
-        )}
 
-        {error && <p className="mt-4 text-sm font-medium text-coral">{error}</p>}
-        <Button onClick={handleSubmitMatches} disabled={submitting} className="mt-5 w-full">
-          {submitting ? 'Submitting…' : 'Submit matches'}
-        </Button>
-        <p className="mt-2 text-center text-xs text-ink/40">Your matches will be processed automatically at midnight tonight.</p>
-      </div>
+          <div className="mb-3 mt-6 flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-ink-600">
+            <span aria-hidden="true" className="h-2.5 w-2.5 animate-pulse rounded-full bg-match-400" />
+            <span className="font-bold text-plum-700">{roster.length} checked in</span>
+            <span>— tap a name once you've met them.</span>
+          </div>
+
+          <div className="space-y-2.5">
+            {roster.filter((r) => r.memberId !== me?.id).map((person) => (
+              <button
+                key={person.memberId}
+                onClick={() => setActivePerson(person)}
+                className={`flex w-full items-center gap-3 rounded-[20px] border-[1.5px] p-3 text-left transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-plum-700 ${ratings[person.memberId] ? 'border-plum-700 bg-plum-50' : 'border-line bg-white hover:border-plum-700'}`}
+              >
+                <span className="flex h-10 w-10 flex-none items-center justify-center rounded-[20px_20px_20px_5px] bg-plum-100 font-display font-extrabold text-plum-700">{String(person.badge).padStart(2, '0')}</span>
+                <span className="min-w-0 flex-1 font-bold text-ink-900">{person.name}</span>
+                <span className={ratings[person.memberId]
+                  ? 'rounded-[999px_999px_999px_4px] bg-match-400 px-2.5 py-1 text-xs font-extrabold uppercase text-plum-900'
+                  : 'text-xs font-bold uppercase text-ink-500'}
+                >
+                  {ratings[person.memberId] ?? 'Tap to rate'}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {activePerson && (
+            <div className="fixed inset-0 z-50 flex items-end justify-center bg-plum-950/60 sm:items-center" onClick={() => setActivePerson(null)}>
+              <div className="w-full max-w-sm rounded-t-[28px] bg-white p-6 pb-8 sm:rounded-[28px] sm:pb-6" onClick={(e) => e.stopPropagation()}>
+                <h2 className="mb-4 font-display text-2xl font-extrabold tracking-[-0.02em] text-ink-900">{activePerson.name}</h2>
+                {(['DATE', 'FRIEND', 'NO'] as Choice[]).map((choice) => (
+                  <button
+                    key={choice}
+                    onClick={() => { selectRating(activePerson.memberId, choice); setActivePerson(null); }}
+                    className="mb-2.5 w-full rounded-field border-[1.5px] border-field p-4 text-left text-[17px] font-bold text-ink-900 transition-colors hover:border-plum-700 hover:bg-plum-50 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-plum-700"
+                  >
+                    {choice === 'DATE' ? 'Date' : choice === 'FRIEND' ? 'Friend' : 'No'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {error && <FormError className="mt-4">{error}</FormError>}
+          <Button onClick={handleSubmitMatches} disabled={submitting} block className="mt-6">
+            {submitting ? 'Submitting…' : 'Submit matches'}
+          </Button>
+          <p className="mt-3 text-center text-sm text-ink-600">Your matches will be processed automatically at midnight tonight.</p>
+        </div>
+      </Container>
     );
   }
 
   if (step === 'submitted') {
     return (
-      <div className="mx-auto max-w-sm text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green/15 text-3xl text-green-dark">✓</div>
-        <h1 className="mb-2 text-2xl font-extrabold text-ink">Matches submitted</h1>
-        <p className="mb-6 text-sm text-ink/60">Your matches are processed automatically at midnight tonight — you'll get an email, and it'll show on your My Match History page too.</p>
-        <a href="/matches"><Button className="w-full">Go to My Match History</Button></a>
-      </div>
+      <Container className="py-[clamp(40px,6vw,88px)]">
+        <div className="relative mx-auto flex max-w-[640px] flex-col items-center gap-4 overflow-hidden rounded-[clamp(28px,3.3vw,48px)_clamp(28px,3.3vw,48px)_clamp(28px,3.3vw,48px)_10px] bg-plum-900 px-[clamp(24px,4.4vw,64px)] py-[clamp(40px,5vw,72px)] text-center">
+          <DecorRing className="-right-16 -top-20 w-[clamp(160px,20vw,240px)] opacity-60" />
+          <span aria-hidden="true" className="relative flex h-16 w-16 items-center justify-center rounded-[32px_32px_32px_8px] bg-match-400 font-display text-3xl font-extrabold text-plum-900">✓</span>
+          <h1 className="relative font-display text-[clamp(34px,4vw,52px)] font-extrabold leading-[1.05] tracking-[-0.03em] text-white">Matches submitted</h1>
+          <p className="relative max-w-[460px] text-[17px] leading-normal text-plum-200 text-pretty">Your matches are processed automatically at midnight tonight — you'll get an email, and it'll show on your My Match History page too.</p>
+          <a href="/matches" className={`relative mt-2 ${buttonClass({ onDark: true })}`}>Go to My Match History</a>
+        </div>
+      </Container>
     );
   }
 
   return null;
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-4 py-3 text-[15px] first:pt-0">
+      <dt className="text-ink-600">{label}</dt>
+      <dd className="min-w-0 break-words text-right font-bold text-ink-900">{value}</dd>
+    </div>
+  );
 }

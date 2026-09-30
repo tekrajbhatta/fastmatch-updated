@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { Badge } from '@/components/ui';
 import { venueLine } from '@/lib/venue';
 import MemberEventsBrowser from '@/components/MemberEventsBrowser';
+import EventCard from '@/components/site/EventCard';
+import { Container, LoadingNote, PageHero } from '@/components/site/layout';
 import { formatEventForViewer } from '@/lib/timezone';
 
 interface EventListItem {
@@ -21,8 +21,6 @@ interface EventListItem {
   theme: { name: string };
   city: { name: string };
 }
-
-const THEME_TONES: Array<'green' | 'plum' | 'muted'> = ['green', 'plum', 'muted'];
 
 export default function EventsPage() {
   const [events, setEvents] = useState<EventListItem[]>([]);
@@ -44,47 +42,62 @@ export default function EventsPage() {
   }, []);
 
   return (
-    <div>
-      <h1 className="mb-1 text-2xl font-extrabold text-ink">Upcoming Events</h1>
-      <p className="mb-6 text-sm text-ink/60">Find a speed dating event near you.</p>
+    <>
+      <PageHero title="Upcoming Events" lead="Find a speed dating event near you." />
 
-      {loading && <p className="text-sm text-ink/50">Loading events…</p>}
-      {!loading && !loggedIn && events.length === 0 && (
-        <p className="text-sm text-ink/50">No upcoming events right now — check back soon.</p>
-      )}
+      <section className="pb-[clamp(56px,6.7vw,96px)] pt-[clamp(24px,3.9vw,56px)]">
+        {loading && (
+          <Container>
+            <LoadingNote>Loading events…</LoadingNote>
+          </Container>
+        )}
+        {!loading && !loggedIn && events.length === 0 && (
+          <Container>
+            <p className="text-base leading-relaxed text-ink-600">No upcoming events right now — check back soon.</p>
+          </Container>
+        )}
 
-      {/* Logged-out visitors get the plain list they always had. Members get
-          the old site's layout: the events they're booked into, then a table
-          of what's on in their city, booked events first. */}
-      {!loading && !loggedIn && events.length > 0 && <EventGrid events={events} />}
-      {!loading && loggedIn && <MemberEventsBrowser showBookedList />}
-    </div>
+        {/* Logged-out visitors get the plain list they always had. Members get
+            the old site's layout: the events they're booked into, then a table
+            of what's on in their city, booked events first. */}
+        {!loading && !loggedIn && events.length > 0 && <EventGrid events={events} />}
+        {!loading && loggedIn && (
+          <Container>
+            <MemberEventsBrowser showBookedList />
+          </Container>
+        )}
+      </section>
+    </>
   );
 }
 
 function EventGrid({ events }: { events: EventListItem[] }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {events.map((event, i) => {
+    // Three across on a desktop, two on a tablet, one on a phone — each card
+    // at least 340px. A little closer to the screen edge than the page text
+    // on phones (16px), as the cards carry their own border.
+    <div className="mx-auto grid w-full max-w-[1264px] grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))] gap-[clamp(14px,1.7vw,24px)] px-[clamp(16px,2.2vw,32px)]">
+      {events.map((event) => {
         const when = formatEventForViewer(event.startsAt, event.city.name);
 
         return (
-          <Link key={event.id} href={`/events/${event.id}`} className="block rounded-xl border border-ink/10 bg-white p-4 hover:border-green">
-            <div className="flex items-start justify-between gap-2">
-              <Badge tone={THEME_TONES[i % THEME_TONES.length]}>{event.theme.name}</Badge>
-              {event.bookedByMe && <Badge tone="green">Booked</Badge>}
-            </div>
-            <h2 className="mt-2 font-extrabold text-ink">{event.name}</h2>
-            <p className="mt-1 text-sm text-ink/60">
-              {venueLine(event.venue)}, {event.city.name}
-              <br />
-              <strong className="text-ink">
-                {when.shortDate}, {when.time}{when.note ? ` (${when.note})` : ''}
-              </strong>
-              <br />
-              <span className="text-xs">Ages {event.ageMin}–{event.ageMax}</span>
-            </p>
-          </Link>
+          <EventCard
+            key={event.id}
+            href={`/events/${event.id}`}
+            tag={event.theme.name}
+            title={event.name}
+            venue={`${venueLine(event.venue)}, ${event.city.name}`}
+            date={`${when.shortDate}, ${when.time}`}
+            zone={when.note ? `(${when.note})` : undefined}
+            ages={`Ages ${event.ageMin}–${event.ageMax}`}
+            badge={
+              event.bookedByMe ? (
+                <span className="whitespace-nowrap rounded-[999px_999px_999px_4px] bg-match-400 px-3 py-[5px] text-[13px] font-extrabold leading-[1.3] text-plum-900">
+                  Booked
+                </span>
+              ) : undefined
+            }
+          />
         );
       })}
     </div>

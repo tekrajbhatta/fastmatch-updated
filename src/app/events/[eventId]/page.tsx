@@ -3,7 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Button, Card, Field, Input, Select } from '@/components/ui';
+import { Card, Container, LoadingNote, PageHero } from '@/components/site/layout';
+import { Field, FieldError, FormError, FormSuccess, SelectInput, TextInput } from '@/components/site/form';
+import { Button, linkClass } from '@/components/site/button';
 import { venueLine } from '@/lib/venue';
 import { formatEventForViewer } from '@/lib/timezone';
 import { priceBooking, GROUP_DISCOUNT_PER_FRIEND, MAX_FRIENDS_PER_GENDER, type CouponType } from '@/lib/bookingPrice';
@@ -92,8 +94,8 @@ export default function EventDetailPage() {
     return () => clearTimeout(timer);
   }, [discountCode, me, event, eventId]);
 
-  if (notFound) return <p className="text-sm text-ink/50">This event isn&apos;t available.</p>;
-  if (!event) return <p className="text-sm text-ink/50">Loading…</p>;
+  if (notFound) return <Container className="py-16"><p className="text-base text-ink-600">This event isn&apos;t available.</p></Container>;
+  if (!event) return <Container className="py-16"><LoadingNote /></Container>;
 
   // The event's own local time, with "(Perth time)" if the viewer's differs.
   const when = formatEventForViewer(event.startsAt, event.city.name);
@@ -172,193 +174,215 @@ export default function EventDetailPage() {
     }
   }
 
+  // The main column holds the photo and blurb, plus — for a member who can
+  // book — the details check and the friends form. With none of those the
+  // booking card centres itself.
+  const hasMain = !!event.photoUrl || !!event.description || (!!me && canBook);
+
   return (
-    <div className="mx-auto max-w-lg">
-      <div className="mb-5 rounded-xl bg-gradient-to-br from-plum to-plum-dark p-6 text-white">
-        {/* Plain text, not the pill <Badge>: on this purple panel the muted
-            badge rendered dark grey on near-transparent grey (unreadable),
-            and its pill padding pushed it out of line with the heading and
-            venue below. White, and flush with them. */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-wide text-white/80">{event.theme.name}</p>
-            <h1 className="mt-2 text-xl font-extrabold">{event.name}</h1>
-            <p className="mt-1 text-sm text-white/80">{venueLine(event.venue)}, {event.city.name}</p>
-          </div>
-          {/* The venue's logo beside its name, on a white tile — logos are
-              drawn for white backgrounds and vanish on the purple. */}
-          {event.venue.logoUrl && (
+    <>
+      <PageHero
+        size="event"
+        eyebrow={event.theme.name}
+        title={event.name}
+        lead={`${venueLine(event.venue)}, ${event.city.name}`}
+        aside={
+          // The venue's logo beside its name, on a white tile — logos are
+          // drawn for white backgrounds and vanish on the purple.
+          event.venue.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={event.venue.logoUrl} alt={event.venue.name} className="h-16 w-16 shrink-0 rounded-lg bg-white object-contain p-1.5 sm:h-20 sm:w-20" />
-          )}
-        </div>
-      </div>
+            <img src={event.venue.logoUrl} alt={event.venue.name} className="h-16 w-16 shrink-0 rounded-2xl bg-white object-contain p-2 md:h-24 md:w-24" />
+          ) : undefined
+        }
+      />
 
-      {/* The event's own photo, uploaded on the event form. Nothing renders
-          if this event has none, so the page still reads correctly. */}
-      {event.photoUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={event.photoUrl}
-          alt={event.name}
-          className="mb-5 h-48 w-full rounded-xl object-cover sm:h-56"
-        />
-      )}
-
-      {/* Directly under the photo, where Gil asked for it — the blurb sells
-          the night, so it belongs above the price and the button rather than
-          below them. whitespace-pre-line keeps the admin's line breaks: the
-          field is a textarea and people write in paragraphs. */}
-      {event.description && (
-        <div className="mb-5 whitespace-pre-line text-sm leading-relaxed text-ink/70">
-          {event.description}
-        </div>
-      )}
-
-      <Card className="mb-4">
-        <Row label="Date & time" value={`${when.longDate}, ${when.time}${when.note ? ` (${when.note})` : ''}`} />
-        <Row label="Ages" value={`${event.ageMin}–${event.ageMax}`} />
-      </Card>
-
-      {/* "Book" in the members' events table lands here (/events/:id#book). */}
-      <div id="book" className="scroll-mt-4" />
-      <Card className="mb-5 flex items-center justify-between">
-        <div>
-          <div className="text-xs font-bold uppercase text-ink/50">Ticket price</div>
-          <div className="text-2xl font-extrabold text-plum">${event.cost}</div>
-        </div>
-        {/* "FastMatch Discounts" on the event decides whether codes apply. */}
-        {event.fastmatchDiscounts && canBook && (
-          <div className="w-44">
-            <Field label="Discount code">
-              <Input value={discountCode} onChange={(e) => setDiscountCode(e.target.value.toUpperCase())} placeholder="Optional" />
-            </Field>
-            {checkingCode && <p className="-mt-3 text-xs text-ink/50">Checking…</p>}
-            {couponError && <p className="-mt-3 text-xs font-medium text-coral">{couponError}</p>}
-            {coupon && !coupon.alreadyUsed && <p className="-mt-3 text-xs font-bold text-green-dark">Code applied</p>}
-            {coupon?.alreadyUsed && <p className="-mt-3 text-xs font-medium text-coral">You&apos;ve already used this code</p>}
-          </div>
-        )}
-      </Card>
-
-      {me && canBook && (
-        <Card className="mb-5">
-          <h2 className="mb-1 font-extrabold text-ink">Please confirm your details</h2>
-          <p className="mb-3 text-xs text-ink/50">This is who we&apos;re booking in.</p>
-          <Row label="Name" value={me.name} />
-          <Row label="Email" value={me.email} />
-          <Row label="Mobile" value={me.mobile} />
-          <Row label="Date of birth" value={new Date(me.dateOfBirth).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })} />
-          <Row label="Gender" value={me.gender === 'MALE' ? 'Male' : 'Female'} />
-          <p className="mt-3 text-xs text-ink/50">
-            Something wrong? <Link href="/account/edit-profile" className="font-bold text-plum hover:underline">Update your details</Link> before booking.
-          </p>
-        </Card>
-      )}
-
-      {showFriends && (
-        <Card className="mb-5">
-          <h2 className="mb-1 font-extrabold text-ink">Would you like to bring any friends?</h2>
-          <p className="mb-4 text-sm text-ink/60">
-            Every friend you bring gives <strong>you</strong> a ${GROUP_DISCOUNT_PER_FRIEND} discount. You pay for your friends as part of this booking.
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Male friends">
-              <Select value={males.length} onChange={(e) => setCount('MALE', Number(e.target.value))}>
-                {Array.from({ length: MAX_FRIENDS_PER_GENDER + 1 }, (_, n) => <option key={n} value={n}>{n}</option>)}
-              </Select>
-            </Field>
-            <Field label="Female friends">
-              <Select value={females.length} onChange={(e) => setCount('FEMALE', Number(e.target.value))}>
-                {Array.from({ length: MAX_FRIENDS_PER_GENDER + 1 }, (_, n) => <option key={n} value={n}>{n}</option>)}
-              </Select>
-            </Field>
-          </div>
-
-          {([['MALE', males], ['FEMALE', females]] as const).map(([g, list]) =>
-            list.map((f, i) => (
-              <div key={`${g}-${i}`} className="mt-2 rounded-lg border border-ink/10 bg-cream/30 p-4">
-                <h3 className="mb-3 text-sm font-extrabold text-ink">{g === 'MALE' ? 'Male' : 'Female'} friend {i + 1}</h3>
-                {/* autoComplete off: otherwise the browser offers the MEMBER's
-                    own saved name, email and mobile for their friend. */}
-                <div className="grid gap-x-3 sm:grid-cols-2">
-                  <FriendField label="Name" error={fieldError(g, i, 'name')}>
-                    <Input autoComplete="off" value={f.name} onChange={(e) => editFriend(g, i, { name: e.target.value })} onBlur={() => touch(g, i, 'name')} />
-                  </FriendField>
-                  <FriendField label="Mobile" error={fieldError(g, i, 'mobile')}>
-                    <Input type="tel" autoComplete="off" placeholder="e.g. 0412345678" value={f.mobile} onChange={(e) => editFriend(g, i, { mobile: e.target.value })} onBlur={() => touch(g, i, 'mobile')} />
-                  </FriendField>
-                  <FriendField label="Email" error={fieldError(g, i, 'email')}>
-                    <Input type="email" autoComplete="off" value={f.email} onChange={(e) => editFriend(g, i, { email: e.target.value })} onBlur={() => touch(g, i, 'email')} />
-                  </FriendField>
-                  {/* Their age is worked out from this and checked against the
-                      event's age range as soon as a date is picked. */}
-                  <FriendField label="Date of birth" error={fieldError(g, i, 'dateOfBirth')}>
-                    <Input type="date" max={todayIso()} autoComplete="off" value={f.dateOfBirth}
-                      onChange={(e) => { editFriend(g, i, { dateOfBirth: e.target.value }); touch(g, i, 'dateOfBirth'); }} />
-                  </FriendField>
+      <section className="pb-[clamp(56px,6.7vw,96px)] pt-[clamp(20px,3.9vw,56px)]">
+        <Container className="flex flex-wrap items-start justify-center gap-[clamp(24px,4.4vw,64px)]">
+          {hasMain && (
+            <div className="flex min-w-0 flex-[1_1_520px] flex-col gap-[clamp(20px,2.2vw,32px)]">
+              {/* The event's own photo, uploaded on the event form. Nothing renders
+                  if this event has none, so the page still reads correctly. */}
+              {event.photoUrl && (
+                <div className="aspect-[16/7] overflow-hidden rounded-bubble bg-[#E9E0EF]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={event.photoUrl} alt={event.name} className="block h-full w-full object-cover" />
                 </div>
-              </div>
-            )),
+              )}
+
+              {/* Directly under the photo, where Gil asked for it — the blurb sells
+                  the night, so it belongs above the price and the button rather than
+                  below them. whitespace-pre-line keeps the admin's line breaks: the
+                  field is a textarea and people write in paragraphs. */}
+              {event.description && (
+                <div className="max-w-[660px] whitespace-pre-line text-[clamp(17px,1.3vw,19px)] leading-[1.65] text-[#3E3548] text-pretty">
+                  {event.description}
+                </div>
+              )}
+
+              {me && canBook && (
+                <Card>
+                  <h2 className={CARD_TITLE}>Please confirm your details</h2>
+                  <p className="mt-1 text-[15px] text-ink-600">This is who we&apos;re booking in.</p>
+                  <dl className="mt-3 divide-y divide-line">
+                    <Row label="Name" value={me.name} />
+                    <Row label="Email" value={me.email} />
+                    <Row label="Mobile" value={me.mobile} />
+                    <Row label="Date of birth" value={new Date(me.dateOfBirth).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })} />
+                    <Row label="Gender" value={me.gender === 'MALE' ? 'Male' : 'Female'} />
+                  </dl>
+                  <p className="mt-4 text-sm text-ink-600">
+                    Something wrong? <Link href="/account/edit-profile" className={linkClass}>Update your details</Link> before booking.
+                  </p>
+                </Card>
+              )}
+
+              {showFriends && (
+                <Card>
+                  <h2 className={CARD_TITLE}>Would you like to bring any friends?</h2>
+                  <p className="mt-1 text-[15px] leading-relaxed text-ink-600">
+                    Every friend you bring gives <strong className="text-ink-900">you</strong> a ${GROUP_DISCOUNT_PER_FRIEND} discount. You pay for your friends as part of this booking.
+                  </p>
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    <Field label="Male friends">
+                      <SelectInput value={males.length} onChange={(e) => setCount('MALE', Number(e.target.value))}>
+                        {Array.from({ length: MAX_FRIENDS_PER_GENDER + 1 }, (_, n) => <option key={n} value={n}>{n}</option>)}
+                      </SelectInput>
+                    </Field>
+                    <Field label="Female friends">
+                      <SelectInput value={females.length} onChange={(e) => setCount('FEMALE', Number(e.target.value))}>
+                        {Array.from({ length: MAX_FRIENDS_PER_GENDER + 1 }, (_, n) => <option key={n} value={n}>{n}</option>)}
+                      </SelectInput>
+                    </Field>
+                  </div>
+
+                  {([['MALE', males], ['FEMALE', females]] as const).map(([g, list]) =>
+                    list.map((f, i) => (
+                      <div key={`${g}-${i}`} className="mt-4 rounded-[20px] border border-line bg-cream-50 p-4 sm:p-5">
+                        <h3 className="mb-4 text-base font-extrabold text-ink-900">{g === 'MALE' ? 'Male' : 'Female'} friend {i + 1}</h3>
+                        {/* autoComplete off: otherwise the browser offers the MEMBER's
+                            own saved name, email and mobile for their friend. */}
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <Field label="Name" error={fieldError(g, i, 'name')}>
+                            <TextInput autoComplete="off" value={f.name} onChange={(e) => editFriend(g, i, { name: e.target.value })} onBlur={() => touch(g, i, 'name')} />
+                          </Field>
+                          <Field label="Mobile" error={fieldError(g, i, 'mobile')}>
+                            <TextInput type="tel" autoComplete="off" placeholder="e.g. 0412345678" value={f.mobile} onChange={(e) => editFriend(g, i, { mobile: e.target.value })} onBlur={() => touch(g, i, 'mobile')} />
+                          </Field>
+                          <Field label="Email" error={fieldError(g, i, 'email')}>
+                            <TextInput type="email" autoComplete="off" value={f.email} onChange={(e) => editFriend(g, i, { email: e.target.value })} onBlur={() => touch(g, i, 'email')} />
+                          </Field>
+                          {/* Their age is worked out from this and checked against the
+                              event's age range as soon as a date is picked. */}
+                          <Field label="Date of birth" error={fieldError(g, i, 'dateOfBirth')}>
+                            <TextInput type="date" max={todayIso()} autoComplete="off" value={f.dateOfBirth}
+                              onChange={(e) => { editFriend(g, i, { dateOfBirth: e.target.value }); touch(g, i, 'dateOfBirth'); }} />
+                          </Field>
+                        </div>
+                      </div>
+                    )),
+                  )}
+                </Card>
+              )}
+            </div>
           )}
-        </Card>
-      )}
 
-      {quote && canBook && (
-        <Card className="mb-5">
-          <h2 className="mb-3 font-extrabold text-ink">Booking details</h2>
-          <div className="text-sm">
-            {quote.lines.map((l, i) => (
-              <div key={i} className="flex justify-between py-1">
-                <span className={l.amount == null ? 'font-medium text-coral' : 'text-ink/70'}>{l.label}</span>
-                {l.amount != null && <span className={l.amount < 0 ? 'text-green-dark' : 'text-ink'}>{money(l.amount)}</span>}
+          {/* "Book" in the members' events table lands here (/events/:id#book). */}
+          <aside id="book" className="sticky top-6 min-w-0 flex-[0_1_420px] scroll-mt-6">
+            <div className="flex flex-col gap-5 rounded-[28px] border border-line bg-white p-[clamp(20px,2vw,28px)] shadow-[0_24px_48px_-28px_rgba(45,24,72,0.4)]">
+              <dl className="flex flex-col">
+                <div className="border-b border-line pb-4">
+                  <dt className="text-sm font-semibold text-ink-600">Date &amp; time</dt>
+                  <dd className="mt-1 text-lg font-bold leading-[1.4] text-ink-900">
+                    {when.longDate}, {when.time}
+                    {when.note && <> <span className="whitespace-nowrap">({when.note})</span></>}
+                  </dd>
+                </div>
+                <div className="pt-4">
+                  <dt className="text-sm font-semibold text-ink-600">Ages</dt>
+                  <dd className="mt-1 text-lg font-bold leading-[1.4] text-ink-900">{event.ageMin}–{event.ageMax}</dd>
+                </div>
+              </dl>
+
+              <div className="flex flex-wrap items-end gap-x-5 gap-y-4 rounded-[20px] bg-plum-50 p-5">
+                <div className="flex-[1_1_110px]">
+                  <p className="text-sm font-semibold text-ink-600">Ticket price</p>
+                  <p className="mt-1 font-display text-[44px] font-extrabold leading-none tracking-[-0.02em] text-plum-700">${event.cost}</p>
+                </div>
+                {/* "FastMatch Discounts" on the event decides whether codes apply. */}
+                {event.fastmatchDiscounts && canBook && (
+                  <div className="flex flex-[1_1_170px] flex-col gap-2">
+                    <label htmlFor="discount-code" className="text-sm font-semibold text-ink-600">Discount code</label>
+                    <TextInput
+                      id="discount-code"
+                      value={discountCode}
+                      onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+                      placeholder="Optional"
+                      aria-describedby="discount-status"
+                      aria-invalid={couponError || coupon?.alreadyUsed ? true : undefined}
+                      className="!h-12 !px-3.5"
+                    />
+                    <div id="discount-status" aria-live="polite">
+                      {checkingCode && <p className="text-sm text-ink-600">Checking…</p>}
+                      {couponError && <FieldError>{couponError}</FieldError>}
+                      {coupon && !coupon.alreadyUsed && <p className="text-sm font-bold text-plum-700">✓ Code applied</p>}
+                      {coupon?.alreadyUsed && <FieldError>You&apos;ve already used this code</FieldError>}
+                    </div>
+                  </div>
+                )}
               </div>
-            ))}
-            <div className="mt-2 flex justify-between border-t-2 border-ink/80 pt-2 font-extrabold text-ink">
-              <span>Total</span><span>{money(quote.total)}</span>
-            </div>
-            <div className="flex justify-between py-1 text-xs text-ink/50">
-              <span>GST inc.</span><span>{money(quote.gstIncluded)}</span>
-            </div>
-          </div>
-        </Card>
-      )}
 
-      {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
+              {quote && canBook && (
+                <div>
+                  <h2 className="mb-2 text-base font-extrabold text-ink-900">Booking details</h2>
+                  <div className="text-[15px]">
+                    {quote.lines.map((l, i) => (
+                      <div key={i} className="flex justify-between gap-4 py-1">
+                        <span className={l.amount == null ? 'font-semibold text-coral-700' : 'text-ink-600'}>{l.label}</span>
+                        {l.amount != null && <span className={l.amount < 0 ? 'font-semibold text-plum-700' : 'text-ink-900'}>{money(l.amount)}</span>}
+                      </div>
+                    ))}
+                    <div className="mt-2 flex justify-between border-t-2 border-ink-900 pt-2 font-extrabold text-ink-900">
+                      <span>Total</span><span>{money(quote.total)}</span>
+                    </div>
+                    <div className="flex justify-between py-1 text-sm text-ink-600">
+                      <span>GST inc.</span><span>{money(quote.gstIncluded)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-      {event.alreadyBooked ? (
-        <p className="rounded-lg bg-green/15 p-3 text-center text-sm font-bold text-green-dark">You're already booked in for this event.</p>
-      ) : (
-        <Button onClick={handleBook} disabled={booking || spotsLeft <= 0 || checkingCode} className="w-full">
-          {spotsLeft <= 0
-            ? 'Sold out'
-            : booking
-              ? 'Booking…'
-              : !quote
-                ? 'Book this event'
-                : quote.total > 0
-                  ? `Continue to payment — ${money(quote.total)}`
-                  : 'Confirm booking'}
-        </Button>
-      )}
-    </div>
+              {error && <FormError>{error}</FormError>}
+
+              {event.alreadyBooked ? (
+                <FormSuccess>You&apos;re already booked in for this event.</FormSuccess>
+              ) : (
+                <Button onClick={handleBook} disabled={booking || spotsLeft <= 0 || checkingCode} block size="hero">
+                  {spotsLeft <= 0
+                    ? 'Sold out'
+                    : booking
+                      ? 'Booking…'
+                      : !quote
+                        ? 'Book this event'
+                        : quote.total > 0
+                          ? `Continue to payment — ${money(quote.total)}`
+                          : 'Confirm booking'}
+                </Button>
+              )}
+            </div>
+          </aside>
+        </Container>
+      </section>
+    </>
   );
 }
+
+const CARD_TITLE = 'font-display text-[clamp(22px,1.8vw,26px)] font-extrabold leading-tight tracking-[-0.02em] text-ink-900';
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between border-b border-ink/5 py-2.5 text-sm last:border-0">
-      <span className="text-ink/50">{label}</span>
-      <span className="font-bold text-ink">{value}</span>
+    <div className="flex justify-between gap-4 py-2.5 text-[15px]">
+      <dt className="text-ink-600">{label}</dt>
+      <dd className="min-w-0 break-words text-right font-bold text-ink-900">{value}</dd>
     </div>
-  );
-}
-
-function FriendField({ label, error, children }: { label: string; error: string | null; children: React.ReactNode }) {
-  return (
-    <Field label={label}>
-      {children}
-      {error && <p className="mt-1 text-xs font-medium text-coral">{error}</p>}
-    </Field>
   );
 }

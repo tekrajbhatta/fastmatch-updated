@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Field, Input, Select, Button, Card } from '@/components/ui';
+import { FormCard, SplitLayout } from '@/components/site/layout';
+import { Button } from '@/components/site/button';
+import { Field, FormError, FormSuccess, SelectInput, TextInput } from '@/components/site/form';
 
 interface City { id: string; name: string; }
 
@@ -43,33 +45,37 @@ export default function EditProfilePage() {
   const maxDob = (() => { const d = new Date(); d.setFullYear(d.getFullYear() - 18); return d.toISOString().slice(0, 10); })();
 
   return (
-    <div className="mx-auto max-w-sm">
-      <h1 className="mb-6 text-2xl font-extrabold text-ink">Edit profile</h1>
-      <Card>
-        <form onSubmit={handleSave}>
-          <Field label="Name"><Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-          <Field label="Email"><Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-          <Field label="Mobile"><Input required value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} /></Field>
-          {/* Your age on the site — for suggested events and age ranges — is
-              worked out from this, so it's always current. */}
-          <Field label="Date of birth">
-            <Input type="date" required max={maxDob} value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} />
-          </Field>
+    <SplitLayout title="Edit profile">
+      <FormCard>
+        <form onSubmit={handleSave} className="flex flex-col gap-5">
+          <Field label="Name"><TextInput required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+          <Field label="Email"><TextInput type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
+          {/* Side by side when there's room, as on sign up. */}
+          <div className="flex flex-wrap gap-x-3.5 gap-y-5">
+            <Field label="Mobile" className="flex-[1_1_150px]">
+              <TextInput required value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
+            </Field>
+            {/* Your age on the site — for suggested events and age ranges — is
+                worked out from this, so it's always current. */}
+            <Field label="Date of birth" className="flex-[1_1_150px]">
+              <TextInput type="date" required max={maxDob} value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} />
+            </Field>
+          </div>
           <Field label="City">
-            <Select value={form.cityId} onChange={(e) => setForm({ ...form, cityId: e.target.value })}>
+            <SelectInput value={form.cityId} onChange={(e) => setForm({ ...form, cityId: e.target.value })}>
               {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
+            </SelectInput>
           </Field>
-          {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
+          {error && <FormError>{error}</FormError>}
           {saved && (
-            <p className="mb-4 text-sm font-bold text-green-dark">
+            <FormSuccess>
               Profile updated.{emailChanged ? ' Check your new email for a link to verify it — booking is paused until you do.' : ''}
-            </p>
+            </FormSuccess>
           )}
-          <Button type="submit" disabled={saving} className="w-full">{saving ? 'Saving…' : 'Save changes'}</Button>
+          <Button type="submit" disabled={saving} block className="mt-1">{saving ? 'Saving…' : 'Save changes'}</Button>
         </form>
-      </Card>
-      <Button variant="ghost" onClick={() => router.push('/account')} className="mt-3 w-full">Back to account</Button>
-    </div>
+        <Button variant="secondary" onClick={() => router.push('/account')} block>Back to account</Button>
+      </FormCard>
+    </SplitLayout>
   );
 }

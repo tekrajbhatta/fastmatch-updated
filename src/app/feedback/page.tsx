@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button, Card, Field, Select } from '@/components/ui';
+import { FormCard, SplitLayout } from '@/components/site/layout';
+import { Button } from '@/components/site/button';
+import { Field, FormError, FormSuccess, SelectInput, TextArea } from '@/components/site/form';
 import { formatEventForViewer } from '@/lib/timezone';
 
 interface FeedbackEvent { id: string; name: string; startsAt: string; venue: { name: string }; city: { name: string } }
@@ -38,46 +40,44 @@ export default function FeedbackPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg">
-      <h1 className="mb-2 text-2xl font-extrabold text-ink">Feedback</h1>
-      <p className="mb-6 text-sm text-ink/60">
-        At Fast Match we want to give you the best event experience possible, so we&apos;re always keen to hear your feedback.
-      </p>
-      <Card>
+    <SplitLayout
+      title="Feedback"
+      lead={<>At Fast Match we want to give you the best event experience possible, so we&apos;re always keen to hear your feedback.</>}
+    >
+      <FormCard>
         {status === 'sent' ? (
-          <div>
-            <p className="mb-4 text-sm font-bold text-green-dark">Thanks — your feedback has been sent to the Fast Match team.</p>
-            <Button variant="ghost" onClick={() => { setMessage(''); setEventId(''); setStatus('idle'); }}>Send more feedback</Button>
-          </div>
+          <>
+            <FormSuccess>Thanks — your feedback has been sent to the Fast Match team.</FormSuccess>
+            <Button variant="secondary" block onClick={() => { setMessage(''); setEventId(''); setStatus('idle'); }}>Send more feedback</Button>
+          </>
         ) : (
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <Field label="My feedback is about the event">
-              <Select value={eventId} onChange={(e) => setEventId(e.target.value)}>
+              <SelectInput value={eventId} onChange={(e) => setEventId(e.target.value)}>
                 <option value="">None — general comment</option>
                 {events.map((ev) => (
                   <option key={ev.id} value={ev.id}>
                     {formatEventForViewer(ev.startsAt, ev.city.name).dateWithYear} — {ev.name} at {ev.venue.name}
                   </option>
                 ))}
-              </Select>
+              </SelectInput>
             </Field>
             <Field label="Your feedback">
-              <textarea
+              <TextArea
                 required
                 rows={6}
                 maxLength={5000}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum"
               />
             </Field>
-            {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
-            <Button type="submit" disabled={status === 'sending' || !message.trim()} className="w-full">
+            {error && <FormError>{error}</FormError>}
+            <Button type="submit" disabled={status === 'sending' || !message.trim()} block className="mt-1">
               {status === 'sending' ? 'Sending…' : 'Submit my feedback'}
             </Button>
           </form>
         )}
-      </Card>
-    </div>
+      </FormCard>
+    </SplitLayout>
   );
 }

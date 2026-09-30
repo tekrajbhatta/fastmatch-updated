@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { BRAND_NAME } from '@/lib/brand';
+import { BRAND_NAME, BRAND_TAGLINE } from '@/lib/brand';
 
-// Header, footer and page container for every non-admin route.
+// Header, footer and page frame for every route.
 //
 // WHICH NAV IS SHOWN DEPENDS ON WHO IS ASKING, NOT WHICH PAGE THEY ARE ON.
 // This used to be decided by pathname — a hardcoded list of "marketing"
@@ -17,16 +17,17 @@ import { BRAND_NAME } from '@/lib/brand';
 // `isLoggedIn` is resolved in the root layout, server-side, so the correct
 // nav is in the very first HTML response.
 //
-// The homepage runs its hero and CTA bands edge to edge, so it opts out of
-// the centred <main> container that every other member-facing page uses.
-const FULL_BLEED_PATHS = ['/'];
+// Member-facing pages run edge to edge — most open with a full-width plum
+// band — so each one lays out its own container (see components/site).
 
 // Admin screens use a wider container than the rest of the site
 // (admin/layout.tsx: max-w-[1400px]). The header matches it on those routes
 // so the right-aligned nav lines up with the edge of the content below it
 // rather than stopping short of it.
-const ADMIN_CONTAINER = 'max-w-[1400px]';
-const SITE_CONTAINER = 'max-w-6xl';
+const ADMIN_CONTAINER = 'max-w-[1400px] px-6 md:px-10';
+const SITE_CONTAINER = 'max-w-[1264px] px-5 md:px-8';
+
+interface NavLink { href: string; label: string }
 
 export default function SiteChrome({
   children,
@@ -40,16 +41,25 @@ export default function SiteChrome({
       everywhere, including on the public homepage. */
   isAdmin: boolean;
 }) {
-  const pathname = usePathname();
-  const isAdminRoute = pathname?.startsWith('/admin') ?? false;
-  const isFullBleed = pathname != null && FULL_BLEED_PATHS.includes(pathname);
+  const pathname = usePathname() ?? '';
+  const isAdminRoute = pathname.startsWith('/admin');
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Following a link from the open menu lands on a new page with the menu
+  // shut, and Escape closes it without choosing anything.
+  useEffect(() => setMobileOpen(false), [pathname]);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMobileOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mobileOpen]);
 
   // Three audiences, one header. The admin nav lives here rather than in
   // admin/layout.tsx so it travels with the admin onto every page — an admin
   // who clicked the logo through to the homepage previously got the member
   // menu and had to type /admin to get back.
-  const navLinks = isAdmin
+  const navLinks: NavLink[] = isAdmin
     ? [
         { href: '/admin', label: 'Dashboard' },
         { href: '/admin/events', label: 'Events' },
@@ -75,66 +85,113 @@ export default function SiteChrome({
           { href: '/contact', label: 'Contact' },
         ];
 
+  // The dashboard is the prefix of every admin path, so it only counts as
+  // the current page when it IS the page; everything else also covers the
+  // pages beneath it (an event's page sits under Upcoming Events).
+  const isCurrent = (href: string) =>
+    href === '/admin' ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+
   const container = isAdminRoute ? ADMIN_CONTAINER : SITE_CONTAINER;
   const closeMobile = () => setMobileOpen(false);
 
   // The admin (nine items) and member (five) navs won't fit beside the logo
-  // on a tablet, so they collapse into the burger later than the two-item
-  // public nav does — the admin one latest of all. Full class strings, not interpolated fragments —
+  // on a tablet, so they collapse into the menu button later than the
+  // two-item public nav does — the admin one latest of all. The header's own
+  // size switches at the same point, so the compact header is always the one
+  // with the menu button. Full class strings, not interpolated fragments —
   // Tailwind only generates classes it can find literally in the source.
-  const navVisible = isAdmin ? 'hidden xl:flex' : isLoggedIn ? 'hidden lg:flex' : 'hidden sm:flex';
-  const burgerVisible = isAdmin ? 'xl:hidden' : isLoggedIn ? 'lg:hidden' : 'sm:hidden';
+  const bp = isAdmin
+    ? { nav: 'hidden xl:flex', burger: 'xl:hidden', bar: 'h-[68px] xl:h-[88px]', logo: 'w-[150px] xl:w-[200px]', links: 'gap-5 text-[15px]' }
+    : isLoggedIn
+      ? { nav: 'hidden lg:flex', burger: 'lg:hidden', bar: 'h-[68px] lg:h-[88px]', logo: 'w-[150px] lg:w-[200px]', links: 'gap-8 text-base' }
+      : { nav: 'hidden md:flex', burger: 'md:hidden', bar: 'h-[68px] md:h-[88px]', logo: 'w-[150px] md:w-[200px]', links: 'gap-8 text-base' };
 
   return (
     <>
       {/* print:hidden — printed reports are just the report. */}
-      <header className="border-b-4 border-green bg-white print:hidden">
-        <div className={`mx-auto flex ${container} items-center justify-between gap-4 px-5 py-3`}>
+      <header className="relative z-40 border-b border-line bg-white print:hidden">
+        <div className={`mx-auto flex ${container} ${bp.bar} items-center justify-between gap-6`}>
           {/* Always the homepage. The logo used to point at /events, which
               sent a logged-out visitor into the app rather than to the page
               that explains what FastMatch is. For members it is still one
               click to their events via the nav. */}
-          <Link href="/" className="flex items-center gap-2">
-            <Image src="/logo.png" alt={BRAND_NAME} width={210} height={64} priority />
+          <Link href="/" className="flex shrink-0 rounded-md focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-4 focus-visible:outline-plum-700">
+            <Image src="/logo.png" alt={`${BRAND_NAME} — ${BRAND_TAGLINE}`} width={200} height={61} priority className={`h-auto ${bp.logo}`} />
           </Link>
 
-          <nav className={`${navVisible} items-center gap-1 text-sm font-bold text-plum`}>
-            {navLinks.map((l) => (
-              <Link key={l.href} href={l.href} className="rounded-lg px-3 py-2 hover:bg-plum/5">{l.label}</Link>
-            ))}
+          <nav aria-label="Main" className={`${bp.nav} items-center ${bp.links}`}>
+            {navLinks.map((l) => {
+              const current = isCurrent(l.href);
+              return (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  aria-current={current ? 'page' : undefined}
+                  className="relative whitespace-nowrap rounded-sm py-1.5 font-bold text-plum-900 hover:text-plum-700 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-4 focus-visible:outline-plum-700"
+                >
+                  {l.label}
+                  {current && <span aria-hidden="true" className="absolute inset-x-0 -bottom-1 h-1 rounded bg-match-400" />}
+                </Link>
+              );
+            })}
             {!isLoggedIn && (
-              <>
-                <Link href="/login" className="ml-2 rounded-lg border border-plum px-3 py-2 hover:bg-plum/5">Log In</Link>
-                <Link href="/register" className="rounded-lg bg-coral px-4 py-2 text-white hover:bg-coral/90">Sign Up</Link>
-              </>
+              <div className="flex gap-2.5">
+                <Link href="/login" className="flex h-11 items-center rounded-full border-[1.5px] border-plum-700 px-5 font-bold text-plum-700 transition-colors hover:bg-plum-700 hover:text-white focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-plum-700">Log In</Link>
+                <Link href="/register" className="flex h-11 items-center rounded-full bg-coral-600 px-5 font-bold text-white transition-colors hover:bg-coral-700 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-plum-700">Sign Up</Link>
+              </div>
             )}
           </nav>
 
           <button
             type="button"
-            className={`text-plum ${burgerVisible}`}
+            className={`${bp.burger} relative -mr-1.5 flex h-12 w-12 flex-col items-center justify-center gap-[5px] rounded-field bg-[#F3EDF9] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-plum-700`}
             onClick={() => setMobileOpen((open) => !open)}
             aria-expanded={mobileOpen}
+            aria-controls="site-menu"
             aria-label="Menu"
           >
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 6h18M3 12h18M3 18h18" />
-            </svg>
+            {mobileOpen ? (
+              <>
+                <span aria-hidden="true" className="absolute h-[2.5px] w-[22px] rotate-45 rounded-sm bg-plum-900" />
+                <span aria-hidden="true" className="absolute h-[2.5px] w-[22px] -rotate-45 rounded-sm bg-plum-900" />
+              </>
+            ) : (
+              <>
+                <span aria-hidden="true" className="h-[2.5px] w-[22px] rounded-sm bg-plum-900" />
+                <span aria-hidden="true" className="h-[2.5px] w-[22px] rounded-sm bg-plum-900" />
+                <span aria-hidden="true" className="mr-2 h-[2.5px] w-[14px] rounded-sm bg-plum-900" />
+              </>
+            )}
           </button>
         </div>
 
         {mobileOpen && (
-          <nav className={`flex flex-col gap-1 border-t border-ink/10 bg-white px-5 py-3 text-sm font-bold text-plum ${burgerVisible}`}>
-            {navLinks.map((l) => (
-              <Link key={l.href} href={l.href} className="rounded-lg px-3 py-2 hover:bg-plum/5" onClick={closeMobile}>{l.label}</Link>
-            ))}
+          <div
+            id="site-menu"
+            className={`${bp.burger} absolute inset-x-0 top-full flex min-h-[calc(100dvh-68px)] flex-col bg-plum-900 px-5 pb-8 pt-3`}
+          >
+            <nav aria-label="Main" className="flex flex-col">
+              {navLinks.map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  onClick={closeMobile}
+                  aria-current={isCurrent(l.href) ? 'page' : undefined}
+                  className={`border-b border-white/15 font-display font-bold tracking-[-0.02em] text-white hover:text-match-300 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-match-400 aria-[current=page]:text-match-300 ${
+                    isAdmin ? 'py-3.5 text-[22px]' : 'py-5 text-[28px]'
+                  }`}
+                >
+                  {l.label}
+                </Link>
+              ))}
+            </nav>
             {!isLoggedIn && (
-              <>
-                <Link href="/login" className="rounded-lg border border-plum px-3 py-2 text-center hover:bg-plum/5" onClick={closeMobile}>Log In</Link>
-                <Link href="/register" className="rounded-lg bg-coral px-4 py-2 text-center text-white hover:bg-coral/90" onClick={closeMobile}>Sign Up</Link>
-              </>
+              <div className="mt-7 flex flex-col gap-3">
+                <Link href="/login" onClick={closeMobile} className="flex h-[54px] items-center justify-center rounded-full border-[1.5px] border-white text-[17px] font-bold text-white transition-colors hover:bg-white hover:text-plum-900 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-match-400">Log In</Link>
+                <Link href="/register" onClick={closeMobile} className="flex h-[54px] items-center justify-center rounded-full bg-coral-600 text-[17px] font-bold text-white transition-colors hover:bg-coral-700 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-match-400">Sign Up</Link>
+              </div>
             )}
-          </nav>
+          </div>
         )}
       </header>
 
@@ -142,14 +199,15 @@ export default function SiteChrome({
           the footer below it sits at the bottom of the screen rather than
           immediately under short content.
 
-          Admin routes and the homepage both opt out of the centred max-w-5xl
-          <main>: admin/layout.tsx owns its own wider max-w-[1400px] container
-          (nesting it inside this one silently squeezed it back to 1024px),
-          and the homepage runs its hero edge to edge. */}
-      {isAdminRoute || isFullBleed ? (
-        <div className="flex-1">{children}</div>
+          Admin keeps the frame it had: admin/layout.tsx owns its own
+          max-w-[1400px] container, on the same faint lavender page
+          background as before (a white base under cream/30). */}
+      {isAdminRoute ? (
+        <div className="flex flex-1 flex-col bg-white">
+          <div className="flex-1 bg-cream/30">{children}</div>
+        </div>
       ) : (
-        <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8">{children}</main>
+        <main className="flex flex-1 flex-col">{children}</main>
       )}
 
       <SiteFooter isLoggedIn={isLoggedIn} isAdmin={isAdmin} container={container} />
@@ -169,10 +227,11 @@ function SiteFooter({
   isAdmin: boolean;
   container: string;
 }) {
+  const link = 'rounded-sm font-bold text-white hover:text-match-300 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-match-400';
   return (
-    <footer className="bg-plum-dark px-5 py-10 text-white print:hidden">
-      <div className={`mx-auto ${container}`}>
-        <div className="mb-6 flex flex-wrap gap-x-8 gap-y-2 text-sm font-bold">
+    <footer className="bg-plum-950 print:hidden">
+      <div className={`mx-auto flex flex-col gap-6 py-10 md:py-14 ${container}`}>
+        <nav aria-label="Footer" className="flex flex-wrap gap-x-8 gap-y-3.5 text-base">
           {/* An admin gets no navigation duplicated down here. All seven admin
               destinations are already in the header on every page, so
               repeating them would just be a second menu competing with the
@@ -180,20 +239,20 @@ function SiteFooter({
               footer uniquely carries is Contact and the two legal pages. */}
           {!isAdmin && (
             <>
-              <Link href="/events" className="hover:text-green">Upcoming Events</Link>
-              {isLoggedIn && <Link href="/matches" className="hover:text-green">My Match History</Link>}
-              {isLoggedIn && <Link href="/feedback" className="hover:text-green">Feedback</Link>}
-              {isLoggedIn && <Link href="/tell-a-friend" className="hover:text-green">Tell A Friend</Link>}
-              {isLoggedIn && <Link href="/account" className="hover:text-green">My Account</Link>}
+              <Link href="/events" className={link}>Upcoming Events</Link>
+              {isLoggedIn && <Link href="/matches" className={link}>My Match History</Link>}
+              {isLoggedIn && <Link href="/feedback" className={link}>Feedback</Link>}
+              {isLoggedIn && <Link href="/tell-a-friend" className={link}>Tell A Friend</Link>}
+              {isLoggedIn && <Link href="/account" className={link}>My Account</Link>}
             </>
           )}
-          <Link href="/contact" className="hover:text-green">Contact</Link>
-          <Link href="/terms" className="hover:text-green">Terms &amp; Conditions</Link>
-          <Link href="/privacy" className="hover:text-green">Privacy Policy</Link>
-        </div>
-        <p className="text-xs text-white/60">
-          © {new Date().getFullYear()} {BRAND_NAME} — Connecting People Face to Face.
-          Australia&apos;s original speed dating organizer, since 1999.
+          <Link href="/contact" className={link}>Contact</Link>
+          <Link href="/terms" className={link}>Terms &amp; Conditions</Link>
+          <Link href="/privacy" className={link}>Privacy Policy</Link>
+        </nav>
+        <div className="h-px bg-white/[.12]" />
+        <p className="text-sm leading-relaxed text-[#BFB0D4] text-pretty">
+          © {new Date().getFullYear()} {BRAND_NAME} — {BRAND_TAGLINE}. Australia&apos;s original speed dating organizer, since 1999.
         </p>
       </div>
     </footer>

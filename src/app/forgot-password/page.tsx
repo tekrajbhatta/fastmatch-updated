@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Field, Input, Button, Card } from '@/components/ui';
+import { SplitLayout, FormCard } from '@/components/site/layout';
+import { Field, TextInput, FormSuccess } from '@/components/site/form';
+import { Button } from '@/components/site/button';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -18,21 +20,19 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="mx-auto max-w-sm">
-      <h1 className="mb-1 text-2xl font-extrabold text-ink">Reset your password</h1>
-      <p className="mb-6 text-sm text-ink/60">Enter the email you registered with and we'll send a reset link.</p>
-      <Card>
+    <SplitLayout title="Reset your password" lead="Enter the email you registered with and we'll send a reset link.">
+      <FormCard>
         {sent ? (
-          <p className="text-sm text-ink/70">If that email is registered, a reset link is on its way — check your inbox.</p>
+          <FormSuccess>If that email is registered, a reset link is on its way — check your inbox.</FormSuccess>
         ) : (
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <Field label="Email">
-              <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+              <TextInput type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </Field>
-            <Button type="submit" className="w-full">Send reset link</Button>
+            <Button type="submit" block className="mt-1">Send reset link</Button>
           </form>
         )}
-      </Card>
-    </div>
+      </FormCard>
+    </SplitLayout>
   );
 }

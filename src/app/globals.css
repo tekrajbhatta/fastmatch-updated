@@ -2,11 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+/* Fonts (Figtree for text, Bricolage Grotesque for headings) are loaded with
+   next/font in the root layout; Tailwind's font-sans / font-display read the
+   CSS variables it sets. */
 
-body {
-  font-family: 'Manrope', system-ui, sans-serif;
-  background-color: #FAFAF7;
+@layer base {
+  body {
+    @apply text-ink-900;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    @apply text-ink-500 opacity-100;
+  }
 }
 
 .wordmark {

@@ -3,7 +3,9 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Card, Button } from '@/components/ui';
+import { SplitLayout, FormCard, LoadingNote } from '@/components/site/layout';
+import { FormError, FormSuccess } from '@/components/site/form';
+import { ButtonLink, linkClass } from '@/components/site/button';
 
 // Landing page for the link in the welcome/verification email
 // (`${APP_URL}/verify-email?token=...`). The API route existed but this page
@@ -31,29 +33,28 @@ function VerifyEmailInner() {
   }, [token]);
 
   return (
-    <div className="mx-auto max-w-sm text-center">
-      <h1 className="mb-6 text-2xl font-extrabold text-ink">Email verification</h1>
-      <Card>
-        {state === 'verifying' && <p className="text-sm text-ink/60">Verifying your email…</p>}
+    <SplitLayout title="Email verification">
+      <FormCard>
+        {state === 'verifying' && <LoadingNote>Verifying your email…</LoadingNote>}
         {state === 'done' && (
           <>
-            <p className="mb-1 font-bold text-green-dark">Your email is verified.</p>
-            <p className="mb-5 text-sm text-ink/60">
+            <FormSuccess>Your email is verified.</FormSuccess>
+            <p className="text-[15px] leading-normal text-ink-600">
               If you haven't already, enter the 6-digit code we texted you — both steps are
               needed before you can book an event.
             </p>
-            <Link href="/verify-mobile"><Button className="w-full">Enter SMS code</Button></Link>
-            <Link href="/events" className="mt-3 block text-sm font-bold text-plum">Browse events</Link>
+            <ButtonLink href="/verify-mobile" block>Enter SMS code</ButtonLink>
+            <Link href="/events" className={`${linkClass} self-center text-[15px]`}>Browse events</Link>
           </>
         )}
         {state === 'error' && (
           <>
-            <p className="mb-5 text-sm font-medium text-coral">{error}</p>
-            <Link href="/login" className="text-sm font-bold text-plum">Log in</Link>
+            <FormError>{error}</FormError>
+            <Link href="/login" className={`${linkClass} self-center text-[15px]`}>Log in</Link>
           </>
         )}
-      </Card>
-    </div>
+      </FormCard>
+    </SplitLayout>
   );
 }
 

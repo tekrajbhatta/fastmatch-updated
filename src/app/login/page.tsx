@@ -3,7 +3,9 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Field, Input, Button, Card } from '@/components/ui';
+import { SplitLayout, FormCard } from '@/components/site/layout';
+import { Field, TextInput, FormError } from '@/components/site/form';
+import { Button, linkClass } from '@/components/site/button';
 
 function LoginInner() {
   const router = useRouter();
@@ -40,34 +42,31 @@ function LoginInner() {
   }
 
   return (
-    <div className="mx-auto max-w-sm">
-      <h1 className="mb-1 text-2xl font-extrabold text-ink">Welcome back</h1>
-      <p className="mb-6 text-sm text-ink/60">Log in to book events, update your profile, or check your matches.</p>
-
-      <Card>
-        <form onSubmit={handleSubmit}>
+    <SplitLayout title="Welcome back" lead="Log in to book events, update your profile, or check your matches.">
+      <FormCard>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <Field label="Email">
-            <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" />
+            <TextInput type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" />
           </Field>
           <Field label="Password">
-            <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+            <TextInput type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
           </Field>
 
-          {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
+          {error && <FormError>{error}</FormError>}
 
-          <Button type="submit" disabled={loading} className="w-full">
+          <Button type="submit" disabled={loading} block className="mt-1">
             {loading ? 'Logging in…' : 'Log in'}
           </Button>
         </form>
 
-        <div className="mt-4 text-center text-sm">
-          <Link href="/forgot-password" className="font-bold text-plum">Forgot password?</Link>
+        <div className="flex flex-col items-center gap-2.5 text-center text-[15px]">
+          <Link href="/forgot-password" className={linkClass}>Forgot password?</Link>
+          <p className="text-ink-600">
+            New to FastMatch? <Link href="/register" className={linkClass}>Register free</Link>
+          </p>
         </div>
-        <div className="mt-2 text-center text-sm text-ink/60">
-          New to FastMatch? <Link href="/register" className="font-bold text-plum">Register free</Link>
-        </div>
-      </Card>
-    </div>
+      </FormCard>
+    </SplitLayout>
   );
 }
 

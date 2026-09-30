@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Field, Input, Select, Button, Card } from '@/components/ui';
+import { SplitLayout, FormCard } from '@/components/site/layout';
+import { Field, TextInput, SelectInput, Checkbox, RadioCards, FormError } from '@/components/site/form';
+import { Button, linkClass } from '@/components/site/button';
 
 interface City { id: string; name: string; }
 
@@ -48,64 +50,56 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="mx-auto max-w-sm">
-      <h1 className="mb-1 text-2xl font-extrabold text-ink">Create your profile</h1>
-      <p className="mb-6 text-sm text-ink/60">Register below and we'll email you to confirm your membership.</p>
-
-      <Card>
-        <form onSubmit={handleSubmit}>
+    <SplitLayout title="Create your profile" lead="Register below and we'll email you to confirm your membership." stickyIntro>
+      <FormCard>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-[22px]">
           <Field label="Name">
-            <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Full name" />
+            <TextInput required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Full name" />
           </Field>
-          <Field label="Gender">
-            <div className="flex gap-5 py-1 text-sm font-semibold">
-              <label className="flex items-center gap-1.5">
-                <input type="radio" checked={form.gender === 'MALE'} onChange={() => setForm({ ...form, gender: 'MALE' })} /> Male
-              </label>
-              <label className="flex items-center gap-1.5">
-                <input type="radio" checked={form.gender === 'FEMALE'} onChange={() => setForm({ ...form, gender: 'FEMALE' })} /> Female
-              </label>
-            </div>
-          </Field>
+          <RadioCards
+            legend="Gender"
+            name="gender"
+            value={form.gender}
+            options={[{ value: 'MALE', label: 'Male' }, { value: 'FEMALE', label: 'Female' }]}
+            onChange={(gender) => setForm({ ...form, gender })}
+          />
           <Field label="Email">
-            <Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="you@email.com" />
+            <TextInput type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="you@email.com" />
           </Field>
           <Field label="Password">
-            <Input type="password" required minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="At least 8 characters" />
+            <TextInput type="password" required minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="At least 8 characters" />
           </Field>
           <Field label="City">
-            <Select required value={form.cityId} onChange={(e) => setForm({ ...form, cityId: e.target.value })}>
+            <SelectInput required value={form.cityId} onChange={(e) => setForm({ ...form, cityId: e.target.value })}>
               {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
+            </SelectInput>
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Date of birth">
-              <Input type="date" required value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} />
+          {/* Side by side while both fit, stacked on a phone. */}
+          <div className="flex flex-wrap gap-x-3.5 gap-y-[22px]">
+            <Field label="Date of birth" className="flex-[1_1_150px]">
+              <TextInput type="date" required value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} />
             </Field>
-            <Field label="Mobile">
-              <Input required value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} placeholder="04XX XXX XXX" />
+            <Field label="Mobile" className="flex-[1_1_150px]">
+              <TextInput type="tel" required value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} placeholder="04XX XXX XXX" />
             </Field>
           </div>
 
-          <label className="mb-4 mt-1 flex items-start gap-2 text-xs text-ink/60">
-            <input type="checkbox" className="mt-0.5" checked={agreedTerms} onChange={(e) => setAgreedTerms(e.target.checked)} />
-            <span>
-              I'm 18+ and I agree to the <Link href="/terms" className="font-bold text-plum">Terms &amp; Conditions</Link> and{' '}
-              <Link href="/privacy" className="font-bold text-plum">Privacy Policy</Link>
-            </span>
-          </label>
+          <Checkbox checked={agreedTerms} onChange={(e) => setAgreedTerms(e.target.checked)}>
+            I'm 18+ and I agree to the <Link href="/terms" className={linkClass}>Terms &amp; Conditions</Link> and{' '}
+            <Link href="/privacy" className={linkClass}>Privacy Policy</Link>
+          </Checkbox>
 
-          {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
+          {error && <FormError>{error}</FormError>}
 
-          <Button type="submit" disabled={loading || !agreedTerms} className="w-full">
+          <Button type="submit" disabled={loading || !agreedTerms} block>
             {loading ? 'Signing up…' : 'Sign up now'}
           </Button>
-        </form>
 
-        <div className="mt-4 text-center text-sm text-ink/60">
-          Already a member? <Link href="/login" className="font-bold text-plum">Log in</Link>
-        </div>
-      </Card>
-    </div>
+          <p className="text-center text-[15px] text-ink-600">
+            Already a member? <Link href="/login" className={linkClass}>Log in</Link>
+          </p>
+        </form>
+      </FormCard>
+    </SplitLayout>
   );
 }

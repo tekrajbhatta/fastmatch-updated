@@ -2,8 +2,9 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { Card, Button, Field, Input } from '@/components/ui';
+import { SplitLayout, FormCard, LoadingNote } from '@/components/site/layout';
+import { Field, TextInput, FormError, FormSuccess } from '@/components/site/form';
+import { Button, ButtonLink, linkClass } from '@/components/site/button';
 
 // SMS verification — enter the 6-digit code sent at registration. The API
 // routes (verify-mobile, resend-mobile-code) existed but no screen ever
@@ -63,49 +64,61 @@ function VerifyMobileInner() {
     }
   }
 
-  if (!loaded) return <p className="text-center text-sm text-ink/50">Loading…</p>;
+  if (!loaded) {
+    return (
+      <SplitLayout title="Verify your mobile">
+        <FormCard><LoadingNote>Loading…</LoadingNote></FormCard>
+      </SplitLayout>
+    );
+  }
 
   if (!me) {
     return (
-      <div className="mx-auto max-w-sm text-center">
-        <Card>
-          <p className="mb-4 text-sm text-ink/60">Log in first, then verify your mobile from here.</p>
-          <Link href="/login"><Button className="w-full">Log in</Button></Link>
-        </Card>
-      </div>
+      <SplitLayout title="Verify your mobile">
+        <FormCard>
+          <p className="text-[15px] leading-normal text-ink-600">Log in first, then verify your mobile from here.</p>
+          <ButtonLink href="/login" block>Log in</ButtonLink>
+        </FormCard>
+      </SplitLayout>
     );
   }
 
   return (
-    <div className="mx-auto max-w-sm">
-      <h1 className="mb-1 text-2xl font-extrabold text-ink">Verify your mobile</h1>
-      {smsFailed && !me.mobileVerified ? (
-        <p className="mb-6 text-sm text-ink/60">
-          Your account is created, but we couldn&apos;t text the code to{' '}
-          <span className="font-bold text-ink">{me.mobile}</span> just now. Check the number is
-          right and tap <span className="font-bold text-ink">Resend code</span> below.
-        </p>
-      ) : (
-        <p className="mb-6 text-sm text-ink/60">
-          We texted a 6-digit code to <span className="font-bold text-ink">{me.mobile}</span>.
-        </p>
-      )}
-
-      <Card>
+    <SplitLayout
+      title="Verify your mobile"
+      lead={
+        smsFailed && !me.mobileVerified ? (
+          <>
+            Your account is created, but we couldn&apos;t text the code to{' '}
+            <span className="font-bold text-white">{me.mobile}</span> just now. Check the number is
+            right and tap <span className="font-bold text-white">Resend code</span> below.
+          </>
+        ) : (
+          <>
+            We texted a 6-digit code to <span className="font-bold text-white">{me.mobile}</span>.
+          </>
+        )
+      }
+    >
+      <FormCard>
         {me.mobileVerified ? (
-          <div className="text-center">
-            <p className="mb-1 font-bold text-green-dark">Your mobile is verified.</p>
-            <p className="mb-5 text-sm text-ink/60">
+          <>
+            <FormSuccess>Your mobile is verified.</FormSuccess>
+            <p className="text-[15px] leading-normal text-ink-600">
               {me.emailVerified
                 ? 'You’re all set — you can book events now.'
                 : 'Now click the confirmation link in your welcome email and you’re all set.'}
             </p>
-            <Button className="w-full" onClick={() => router.push('/events')}>Browse events</Button>
-          </div>
+            <Button block onClick={() => router.push('/events')}>Browse events</Button>
+          </>
         ) : (
-          <form onSubmit={handleVerify}>
+          <form onSubmit={handleVerify} className="flex flex-col gap-5">
             <Field label="6-digit code">
-              <Input
+              {/* ! because the kit's h-[52px] / text-base would otherwise win:
+                  same-utility classes don't override by source order. The
+                  extra left padding balances the trailing letter-spacing so
+                  the digits sit truly centred. */}
+              <TextInput
                 required
                 inputMode="numeric"
                 pattern="[0-9]{6}"
@@ -113,23 +126,23 @@ function VerifyMobileInner() {
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                 placeholder="000000"
-                className="text-center text-lg tracking-[0.4em]"
+                className="!h-16 pl-[calc(1rem+0.4em)] text-center !text-[28px] font-bold leading-tight tracking-[0.4em] tabular-nums"
               />
             </Field>
 
-            {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
-            {notice && <p className="mb-4 text-sm font-medium text-green-dark">{notice}</p>}
+            {error && <FormError>{error}</FormError>}
+            {notice && <FormSuccess>{notice}</FormSuccess>}
 
-            <Button type="submit" disabled={busy || code.length !== 6} className="w-full">
+            <Button type="submit" disabled={busy || code.length !== 6} block className="mt-1">
               {busy ? 'Checking…' : 'Verify mobile'}
             </Button>
-            <button type="button" onClick={handleResend} className="mt-3 w-full text-center text-sm font-bold text-plum">
+            <button type="button" onClick={handleResend} className={`${linkClass} self-center text-[15px]`}>
               Resend code
             </button>
           </form>
         )}
-      </Card>
-    </div>
+      </FormCard>
+    </SplitLayout>
   );
 }
 

@@ -1,8 +1,15 @@
 import type { Metadata } from 'next';
+import { Bricolage_Grotesque, Figtree } from 'next/font/google';
 import { BRAND_TAGLINE } from '@/lib/brand';
 import { getCurrentMember } from '@/lib/auth';
 import SiteChrome from '@/components/SiteChrome';
 import './globals.css';
+
+// Self-hosted by next/font (downloaded once at build time), so there's no
+// request to Google from the visitor's browser and no layout shift when the
+// fonts arrive. Figtree is the text face; Bricolage Grotesque is headings only.
+const figtree = Figtree({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
+const bricolage = Bricolage_Grotesque({ subsets: ['latin'], axes: ['opsz'], variable: '--font-display', display: 'swap' });
 
 export const metadata: Metadata = {
   title: 'FastMatch — Speed Dating Sydney',
@@ -23,7 +30,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const member = await getCurrentMember();
 
   return (
-    <html lang="en">
+    <html lang="en" className={`${figtree.variable} ${bricolage.variable}`}>
       {/*
         suppressHydrationWarning: browser extensions (Grammarly, password
         managers, some ad blockers) inject attributes onto <body> before React
@@ -42,7 +49,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         with little content — an empty events list, the login form — left the
         footer floating mid-screen with a band of background below it.
       */}
-      <body suppressHydrationWarning className="flex min-h-screen flex-col bg-cream/30">
+      <body suppressHydrationWarning className="flex min-h-screen flex-col bg-cream-50 font-sans">
         {/*
           The member header and its max-w-5xl <main> used to live here, which
           wrapped EVERY route including /admin — showing the member nav above

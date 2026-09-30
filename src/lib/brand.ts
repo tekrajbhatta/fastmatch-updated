@@ -22,3 +22,21 @@ export const BRAND_COLORS = {
   redCta: "#E1382E", // call-to-action buttons (Login, Sign Up, Book Now — matches the real site)
   cream: "#F1E9F8",
 };
+
+// The member-facing redesign's palette, from its style guide. Tailwind
+// exposes these as numbered shades next to the colours
+// above — `plum` stays #3D1E6D for the admin screens while `plum-900` is the
+// redesign's plum — so the public site can move to the new palette without
+// repainting admin. Every text pair the redesign uses meets WCAG AA; lime
+// (match-400) is never text on a light background, only a fill or text on plum.
+export const SITE_PALETTE = {
+  plum: { 50: "#F8F4FB", 100: "#EFE8F7", 200: "#D9CCEA", 700: "#4A2A6E", 900: "#2D1848", 950: "#1F1233" },
+  match: { 300: "#C4E26A", 400: "#A4CE39" },
+  coral: { 600: "#D23B2A", 700: "#B32F20" },
+  cream: { 50: "#FCF9F5", 100: "#F4ECE2" },
+  ink: { 500: "#736879", 600: "#5C5266", 900: "#221A2B" },
+  field: "#8A7E93", // input and checkbox borders (3.8:1 on white)
+  line: "#EDE6DD", // card borders and dividers
+  ring: "#E4D9F2", // focus ring around inputs
+  error: { 100: "#FDE3DF", 700: "#B42318" },
+};

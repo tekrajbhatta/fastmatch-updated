@@ -2,7 +2,9 @@
 
 import { Suspense, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Field, Input, Button, Card } from '@/components/ui';
+import { SplitLayout, FormCard } from '@/components/site/layout';
+import { Field, TextInput, FormError, FormSuccess } from '@/components/site/form';
+import { Button } from '@/components/site/button';
 
 function ResetPasswordInner() {
   const params = useSearchParams();
@@ -32,24 +34,23 @@ function ResetPasswordInner() {
   }
 
   return (
-    <div className="mx-auto max-w-sm">
-      <h1 className="mb-6 text-2xl font-extrabold text-ink">Set a new password</h1>
-      <Card>
+    <SplitLayout title="Set a new password">
+      <FormCard>
         {status === 'done' ? (
-          <p className="text-sm font-bold text-green-dark">Password set — redirecting to login…</p>
+          <FormSuccess>Password set — redirecting to login…</FormSuccess>
         ) : (
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <Field label="New password">
-              <Input type="password" required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+              <TextInput type="password" required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             </Field>
-            {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
-            <Button type="submit" disabled={status === 'saving'} className="w-full">
+            {error && <FormError>{error}</FormError>}
+            <Button type="submit" disabled={status === 'saving'} block className="mt-1">
               {status === 'saving' ? 'Saving…' : 'Save new password'}
             </Button>
           </form>
         )}
-      </Card>
-    </div>
+      </FormCard>
+    </SplitLayout>
   );
 }
 

@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Card } from '@/components/ui';
+import { FormCard, SplitLayout } from '@/components/site/layout';
+import { Button } from '@/components/site/button';
+import { FormError, FormSuccess } from '@/components/site/form';
 
 export default function UnsubscribePage() {
   const [done, setDone] = useState(false);
@@ -25,25 +27,24 @@ export default function UnsubscribePage() {
   }
 
   return (
-    <div className="mx-auto max-w-sm text-center">
-      <h1 className="mb-6 text-2xl font-extrabold text-ink">Unsubscribe from emails</h1>
-      <Card>
+    <SplitLayout title="Unsubscribe from emails">
+      <FormCard>
         {done ? (
-          <p className="text-sm text-ink/70">
+          <FormSuccess>
             You're unsubscribed from marketing emails. You'll still get booking and event confirmations for events you've registered for.
-          </p>
+          </FormSuccess>
         ) : (
           <>
-            <p className="mb-4 text-sm text-ink/70">
+            <p className="text-base leading-relaxed text-ink-600">
               You'll stop receiving newsletters and invitations. Booking and event confirmations aren't affected.
             </p>
-            {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
-            <Button onClick={handleUnsubscribe} disabled={busy} className="w-full">
+            {error && <FormError>{error}</FormError>}
+            <Button onClick={handleUnsubscribe} disabled={busy} block>
               {busy ? 'Unsubscribing…' : 'Unsubscribe'}
             </Button>
           </>
         )}
-      </Card>
-    </div>
+      </FormCard>
+    </SplitLayout>
   );
 }

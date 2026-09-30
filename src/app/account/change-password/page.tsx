@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Field, Input, Button, Card } from '@/components/ui';
+import { FormCard, SplitLayout } from '@/components/site/layout';
+import { Button } from '@/components/site/button';
+import { Field, FormError, FormSuccess, TextInput } from '@/components/site/form';
 
 export default function ChangePasswordPage() {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -28,26 +30,25 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <div className="mx-auto max-w-sm">
-      <h1 className="mb-6 text-2xl font-extrabold text-ink">Change password</h1>
-      <Card>
+    <SplitLayout title="Change password">
+      <FormCard>
         {status === 'done' ? (
-          <p className="text-sm font-bold text-green-dark">Password updated.</p>
+          <FormSuccess>Password updated.</FormSuccess>
         ) : (
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <Field label="Current password">
-              <Input type="password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+              <TextInput type="password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
             </Field>
             <Field label="New password">
-              <Input type="password" required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+              <TextInput type="password" required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             </Field>
-            {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
-            <Button type="submit" disabled={status === 'saving'} className="w-full">
+            {error && <FormError>{error}</FormError>}
+            <Button type="submit" disabled={status === 'saving'} block className="mt-1">
               {status === 'saving' ? 'Saving…' : 'Save new password'}
             </Button>
           </form>
         )}
-      </Card>
-    </div>
+      </FormCard>
+    </SplitLayout>
   );
 }

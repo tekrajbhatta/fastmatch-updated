@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Field, Input, Button, Card } from '@/components/ui';
+import { SplitLayout, FormCard } from '@/components/site/layout';
+import { Field, TextInput, TextArea, FormError, FormSuccess } from '@/components/site/form';
+import { Button, linkClass } from '@/components/site/button';
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: '', email: '', message: '' });
@@ -31,42 +33,39 @@ export default function ContactPage() {
   }
 
   return (
-    <div className="mx-auto max-w-sm">
-      <h1 className="mb-1 text-2xl font-extrabold text-ink">Contact us</h1>
-      <p className="mb-6 text-sm text-ink/60">Questions or feedback? Send us a message and we'll get back to you.</p>
-      <Card>
+    <SplitLayout title="Contact us" lead="Questions or feedback? Send us a message and we'll get back to you.">
+      <FormCard>
         {status === 'sent' ? (
-          <p className="text-sm font-bold text-green-dark">Thanks — your message has been sent.</p>
+          <FormSuccess>Thanks — your message has been sent.</FormSuccess>
         ) : (
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <Field label="Name">
-              <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <TextInput required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </Field>
             <Field label="Email">
-              <Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <TextInput type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
             </Field>
             <Field label="Message">
-              <textarea
+              <TextArea
                 required
                 value={form.message}
                 onChange={(e) => setForm({ ...form, message: e.target.value })}
-                className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum"
-                rows={4}
+                rows={5}
               />
             </Field>
             {status === 'error' && (
-              <p className="mb-4 text-sm font-medium text-coral">
+              <FormError>
                 Sorry — we couldn&apos;t send your message just now. Please try again, or email us
                 directly at{' '}
-                <a href="mailto:gil@fastmatch.com.au" className="font-bold underline">gil@fastmatch.com.au</a>.
-              </p>
+                <a href="mailto:gil@fastmatch.com.au" className={linkClass}>gil@fastmatch.com.au</a>.
+              </FormError>
             )}
-            <Button type="submit" disabled={status === 'sending'} className="w-full">
+            <Button type="submit" disabled={status === 'sending'} block className="mt-1">
               {status === 'sending' ? 'Sending…' : status === 'error' ? 'Try again' : 'Send message'}
             </Button>
           </form>
         )}
-      </Card>
-    </div>
+      </FormCard>
+    </SplitLayout>
   );
 }

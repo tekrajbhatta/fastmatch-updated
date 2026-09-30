@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Select } from '@/components/ui';
 import MemberEventsTable, { type MemberTableEvent } from '@/components/MemberEventsTable';
+import { LoadingNote, SectionTitle } from '@/components/site/layout';
+import { Field, SelectInput } from '@/components/site/form';
+import { linkClass } from '@/components/site/button';
 import { orderForMember } from '@/lib/memberEvents';
 import { calculateAge } from '@/lib/age';
 import { venueLine } from '@/lib/venue';
@@ -45,7 +47,7 @@ export default function MemberEventsBrowser({ showBookedList }: { showBookedList
     });
   }, []);
 
-  if (!events || cityId === null) return <p className="text-sm text-ink/50">Loading events…</p>;
+  if (!events || cityId === null) return <LoadingNote>Loading events…</LoadingNote>;
 
   const cityName = (id: string | null) => cities.find((c) => c.id === id)?.name;
   const rows = orderForMember(events, cityId || null);
@@ -55,23 +57,29 @@ export default function MemberEventsBrowser({ showBookedList }: { showBookedList
   return (
     <div>
       {showBookedList && booked.length > 0 && (
-        <section className="mb-8 rounded-2xl border border-green/30 bg-green/5 p-4 sm:p-5">
-          <h2 className="mb-2 text-lg font-extrabold text-plum">Events you are currently booked into</h2>
-          <ul className="space-y-1.5">
+        // Booked = lime, as the booked rows in the table below.
+        <section className="mb-[clamp(36px,4.4vw,56px)] rounded-card border border-match-400/60 bg-match-400/15 p-[clamp(20px,2.2vw,32px)]">
+          <h2 className="font-display text-[clamp(22px,2vw,28px)] font-extrabold leading-[1.1] tracking-[-0.02em] text-plum-900">
+            Events you are currently booked into
+          </h2>
+          <ul className="mt-4 flex flex-col gap-2.5">
             {booked.map((e) => {
               // "7:30 pm in Perth" — the event's own local time; naming the
               // city already says whose time it is.
               const when = formatEventForViewer(e.startsAt, e.city.name);
               return (
-                <li key={e.id}>
-                  <Link href={`/events/${e.id}`} className="text-ink hover:text-plum hover:underline">
-                    <strong>{e.venue.name}</strong>
+                <li key={e.id} className="rounded-field bg-white px-4 py-3.5 md:px-5">
+                  <Link
+                    href={`/events/${e.id}`}
+                    className="rounded-sm text-base leading-snug text-ink-900 underline decoration-plum-700/30 underline-offset-4 hover:text-plum-700 hover:decoration-plum-700 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-plum-700"
+                  >
+                    <strong className="font-bold">{e.venue.name}</strong>
                     {' — '}
                     {when.dateWithYear}
                     {' — '}
                     {when.time} in {e.city.name}
                   </Link>
-                  <span className="block text-xs text-ink/50">{e.theme.name} · Ages {e.ageMin}–{e.ageMax} · {venueLine(e.venue)}</span>
+                  <span className="mt-1 block text-sm leading-snug text-ink-600">{e.theme.name} · Ages {e.ageMin}–{e.ageMax} · {venueLine(e.venue)}</span>
                 </li>
               );
             })}
@@ -79,26 +87,27 @@ export default function MemberEventsBrowser({ showBookedList }: { showBookedList
         </section>
       )}
 
-      <h2 className="mb-3 text-xl font-extrabold text-ink">Looking at events in {where}</h2>
+      <SectionTitle className="mb-[clamp(16px,1.7vw,24px)]">Looking at events in {where}</SectionTitle>
       {rows.length > 0 ? (
         <MemberEventsTable events={rows} age={age} showCity={!cityId} />
       ) : (
-        <p className="rounded-xl border border-ink/10 bg-white p-4 text-sm text-ink/60">No upcoming events in {where} right now — check back soon.</p>
+        <p className="rounded-card border border-line bg-white p-[clamp(20px,1.8vw,26px)] text-base leading-relaxed text-ink-600">
+          No upcoming events in {where} right now — check back soon.
+        </p>
       )}
 
-      <div className="mt-3 text-sm text-ink/70">
+      <div className="mt-5 text-[15px] leading-normal text-ink-600">
         {choosing ? (
-          <label className="flex max-w-xs items-center gap-2">
-            <span className="whitespace-nowrap">Show events in</span>
-            <Select value={cityId} onChange={(e) => setCityId(e.target.value)}>
+          <Field label="Show events in" className="max-w-[320px]">
+            <SelectInput value={cityId} onChange={(e) => setCityId(e.target.value)}>
               <option value="">All locations</option>
               {cities.map((c) => <option key={c.id} value={c.id}>{c.name}{c.id === homeCityId ? ' (your city)' : ''}</option>)}
-            </Select>
-          </label>
+            </SelectInput>
+          </Field>
         ) : (
           <>
             For events in other locations click{' '}
-            <button type="button" onClick={() => setChoosing(true)} className="font-bold text-plum underline">here</button>
+            <button type="button" onClick={() => setChoosing(true)} className={linkClass}>here</button>
           </>
         )}
       </div>
