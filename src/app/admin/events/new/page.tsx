@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Field, Input, Select, Button, Card } from '@/components/ui';
+import { Field, Input, Select, Button, Card, BackLink } from '@/components/ui';
 import PhotoUploadField from '@/components/PhotoUploadField';
 import EventFlagFields from '@/components/EventFlagFields';
 import VenueInfoPanel, { venueFillPatch } from '@/components/VenueInfoPanel';
@@ -87,6 +87,7 @@ export default function NewEventPage() {
 
   return (
     <div className="mx-auto max-w-lg">
+      <BackLink href="/admin/events">Back to events</BackLink>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">New event</h1>
       <p className="mb-6 text-sm text-ink/60">Event number assigns automatically.</p>
 
@@ -131,7 +132,7 @@ export default function NewEventPage() {
                 not added a venue in this city yet". */}
             <p className="mt-1 text-xs text-ink/50">
               {venuesInCity.length === 0
-                ? 'No venues in this city yet — '
+                ? 'No venues in this city yet, so '
                 : 'Somewhere new? '}
               <Link href="/admin/venues" className="font-bold text-plum hover:underline">add a venue</Link> first.
             </p>
@@ -189,7 +190,7 @@ export default function NewEventPage() {
 
           {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
 
-          <Button type="submit" disabled={saving} className="w-full">{saving ? 'Creating…' : 'Create event'}</Button>
+          <Button type="submit" disabled={saving} loading={saving} className="w-full">{saving ? 'Creating…' : 'Create event'}</Button>
         </form>
       </Card>
     </div>

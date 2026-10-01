@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button, Badge } from '@/components/ui';
+import { Button, Badge, Loader, BackLink } from '@/components/ui';
 
 interface SeriesEvent {
   id: string; number: number; name: string; startsAt: string; visibility: string; status: string;
@@ -13,11 +13,13 @@ export default function SeriesPage() {
   const { seriesId } = useParams<{ seriesId: string }>();
   const router = useRouter();
   const [events, setEvents] = useState<SeriesEvent[]>([]);
+  // False until the first fetch returns, so the list doesn't claim to be empty while loading.
+  const [loaded, setLoaded] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [result, setResult] = useState<string | null>(null);
 
   function load() {
-    fetch(`/api/admin/events/series/${seriesId}`).then((r) => r.json()).then(setEvents);
+    fetch(`/api/admin/events/series/${seriesId}`).then((r) => r.json()).then((d) => { setEvents(d); setLoaded(true); });
   }
   useEffect(() => { load(); }, [seriesId]);
 
@@ -50,9 +52,10 @@ export default function SeriesPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
+      <BackLink href="/admin/events">Back to events</BackLink>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Event series</h1>
       <p className="mb-6 text-sm text-ink/60">
-        Select the events you want, then apply an action to just those — not the whole series. Deleting is fully
+        Select the events you want, then apply an action to just those, not the whole series. Deleting is fully
         reversible in effect: events with no bookings are removed, events with bookings are cancelled instead so
         anyone who's already paid is protected.
       </p>
@@ -68,6 +71,7 @@ export default function SeriesPage() {
             <tr><th className="w-10 px-4 py-3"></th><th className="px-4 py-3">#</th><th className="px-4 py-3">Start</th><th className="px-4 py-3">Bookings</th><th className="px-4 py-3">Status</th></tr>
           </thead>
           <tbody>
+            {!loaded && <tr><td colSpan={5}><Loader label="Loading the series…" /></td></tr>}
             {events.map((e) => (
               <tr key={e.id} className="border-t border-ink/5">
                 <td className="px-4 py-3"><input type="checkbox" checked={checked.has(e.id)} onChange={() => toggle(e.id)} /></td>

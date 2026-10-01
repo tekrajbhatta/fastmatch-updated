@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { venueLine } from '@/lib/venue';
 import MemberEventsBrowser from '@/components/MemberEventsBrowser';
 import EventCard from '@/components/site/EventCard';
-import { Container, LoadingNote, PageHero } from '@/components/site/layout';
+import { Container, PageHero, PageLoader } from '@/components/site/layout';
 import { formatEventForViewer } from '@/lib/timezone';
 
 interface EventListItem {
@@ -48,12 +48,12 @@ export default function EventsPage() {
       <section className="pb-[clamp(56px,6.7vw,96px)] pt-[clamp(24px,3.9vw,56px)]">
         {loading && (
           <Container>
-            <LoadingNote>Loading events…</LoadingNote>
+            <PageLoader>Loading events…</PageLoader>
           </Container>
         )}
         {!loading && !loggedIn && events.length === 0 && (
           <Container>
-            <p className="text-base leading-relaxed text-ink-600">No upcoming events right now — check back soon.</p>
+            <p className="text-base leading-relaxed text-ink-600">No upcoming events right now. Check back soon.</p>
           </Container>
         )}
 

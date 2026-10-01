@@ -7,12 +7,66 @@
    CSS variables it sets. */
 
 @layer base {
+  /* The header is sticky, so anything scrolled to — an #anchor, or a field
+     receiving keyboard focus — stops below it instead of underneath it.
+     --header-h is set on <html> by the root layout. */
+  html {
+    scroll-padding-top: var(--header-h, 0px);
+  }
+  /* The visible screen on a phone (dvh, which allows for the address bar),
+     with plain vh for browsers that don't know dvh — so the footer sits at
+     the very bottom on short pages. */
   body {
     @apply text-ink-900;
+    min-height: 100vh;
+    min-height: 100dvh;
   }
   input::placeholder,
   textarea::placeholder {
     @apply text-ink-500 opacity-100;
+  }
+}
+
+/* Homepage hero: header + hero fill the screen exactly. Each property is
+   written twice — the plain vh/vw line is the fallback for browsers that
+   don't understand the newer units in the line after it. */
+@layer components {
+  /* dvh follows a phone's address bar as it shows and hides. A minimum, not
+     a fixed height: on a screen too short for the text the hero grows
+     rather than cutting anything off. */
+  .hero-fill {
+    min-height: calc(100vh - var(--header-h, 0px));
+    min-height: calc(100dvh - var(--header-h, 0px));
+  }
+  /* The design's sizes, also capped by the screen's height so everything
+     still fits on short laptop screens and small phones. svh (the smallest
+     viewport height) rather than dvh, so the text doesn't resize while the
+     address bar slides. */
+  .hero-title {
+    font-size: 46px;
+    font-size: clamp(34px, 7.3svh, 46px);
+  }
+  .hero-stack {
+    gap: 20px;
+    gap: clamp(14px, 2.6svh, 28px);
+  }
+  .hero-pad {
+    padding-top: 24px;
+    padding-top: clamp(12px, 3svh, 24px);
+    padding-bottom: 32px;
+    padding-bottom: clamp(24px, 5svh, 56px);
+  }
+  @media (min-width: 768px) {
+    .hero-title {
+      font-size: clamp(46px, 6.2vw, 90px);
+      font-size: clamp(46px, min(6.2vw, 10svh), 90px);
+    }
+    .hero-pad {
+      padding-top: 48px;
+      padding-bottom: 48px;
+      padding-top: clamp(24px, 4.5svh, 96px);
+      padding-bottom: clamp(24px, 4.5svh, 96px);
+    }
   }
 }
 

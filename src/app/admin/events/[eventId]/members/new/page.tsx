@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Button, Card, Field, Input, Select } from '@/components/ui';
+import { Button, Card, Field, Input, Select, Loader, BackLink } from '@/components/ui';
 import { venueLine } from '@/lib/venue';
 import { PAYMENT_METHODS } from '@/lib/paymentMethod';
 
@@ -16,7 +16,7 @@ interface City { id: string; name: string; }
 // What each "Email/Phone confirmation" choice means for the person, shown
 // under the select so the admin knows what will be sent.
 const CONFIRMATION_HELP: Record<string, string> = {
-  CONFIRMED: 'Nothing to confirm — they can book online straight away.',
+  CONFIRMED: 'Nothing to confirm. They can book online straight away.',
   EMAIL: 'Email is confirmed. They’ll be texted a code to confirm their mobile.',
   PHONE: 'Mobile is confirmed. They’ll be emailed a link to confirm their email.',
   UNCONFIRMED: 'They’ll be emailed a link and texted a code, and must confirm both before booking online.',
@@ -82,7 +82,7 @@ export default function AddMemberPage() {
     setWarnings(missed.map((m) => `${data.member?.name ?? 'The member'} was added (badge #${data.badge}), but ${m} couldn’t be sent.`));
   }
 
-  if (!event) return <p className="text-sm text-ink/50">Loading…</p>;
+  if (!event) return <Loader />;
   const date = new Date(event.startsAt);
 
   if (warnings) {
@@ -100,9 +100,7 @@ export default function AddMemberPage() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <Link href={`/admin/events/${eventId}`} className="mb-3 inline-flex items-center gap-1 text-sm font-bold text-plum hover:underline">
-        ← Back to event
-      </Link>
+      <BackLink href={`/admin/events/${eventId}`}>Back to event</BackLink>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Add a new member</h1>
       <p className="mb-6 text-sm text-ink/60">
         Registers them and books them into {event.name} · {venueLine(event.venue)} ·{' '}
@@ -161,7 +159,7 @@ export default function AddMemberPage() {
             <input type="checkbox" className="mt-0.5" checked={form.marketingOptIn} onChange={(e) => set({ marketingOptIn: e.target.checked })} />
             <span>
               Receive special offers
-              <span className="block text-xs font-normal text-ink/50">Only tick if they&apos;ve said yes — blasts go only to members who opted in.</span>
+              <span className="block text-xs font-normal text-ink/50">Only tick if they&apos;ve said yes. Blasts go only to members who opted in.</span>
             </span>
           </label>
         </Card>
@@ -180,7 +178,7 @@ export default function AddMemberPage() {
           </div>
           {form.paymentMethod === 'CARD' && (
             <p className="mb-4 rounded-lg bg-cream/60 p-3 text-xs text-ink/70">
-              Card details aren&apos;t taken on this screen — charge the card separately (e.g. in Stripe), then save.
+              Card details aren&apos;t taken on this screen. Charge the card separately (e.g. in Stripe), then save.
             </p>
           )}
           <label className="mb-4 flex items-start gap-2 text-sm font-semibold text-ink">
@@ -194,7 +192,7 @@ export default function AddMemberPage() {
         </Card>
 
         {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
-        <Button type="submit" disabled={saving} className="w-full">{saving ? 'Saving…' : 'Create member & add to event'}</Button>
+        <Button type="submit" disabled={saving} loading={saving} className="w-full">{saving ? 'Saving…' : 'Create member & add to event'}</Button>
       </form>
     </div>
   );

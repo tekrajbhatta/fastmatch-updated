@@ -91,7 +91,7 @@ export default function RegisterPage() {
 
           {error && <FormError>{error}</FormError>}
 
-          <Button type="submit" disabled={loading || !agreedTerms} block>
+          <Button type="submit" disabled={loading || !agreedTerms} loading={loading} block>
             {loading ? 'Signing up…' : 'Sign up now'}
           </Button>
 

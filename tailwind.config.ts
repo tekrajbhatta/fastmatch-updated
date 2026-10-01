@@ -35,6 +35,16 @@ const config: Config = {
         // One tight corner: a speech bubble, the brand's signature shape.
         bubble: '28px 28px 28px 6px',
       },
+      // The indeterminate progress bar's sliding stripe (components/Spinner).
+      keyframes: {
+        indeterminate: {
+          '0%': { transform: 'translateX(-110%)' },
+          '100%': { transform: 'translateX(260%)' },
+        },
+      },
+      animation: {
+        indeterminate: 'indeterminate 1.3s ease-in-out infinite',
+      },
       boxShadow: {
         card: '0 18px 36px -22px rgb(45 24 72 / .45)',
         cta: '0 10px 24px -14px rgb(210 59 42 / .9)',

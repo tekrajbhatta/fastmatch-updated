@@ -83,7 +83,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
     const released = await releasePendingBooking(existing);
     if (released === 'paid') {
       return NextResponse.json(
-        { error: 'Your payment for this event has already gone through — your confirmation email is on its way.' },
+        { error: 'Your payment for this event has already gone through. Your confirmation email is on its way.' },
         { status: 409 }
       );
     }

@@ -32,7 +32,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const existing = await prisma.discountCode.findUnique({ where: { code: data.code } });
   if (existing) {
     return NextResponse.json(
-      { error: 'That code already exists — edit it instead of creating a new one.' },
+      { error: 'That code already exists. Edit it instead of creating a new one.' },
       { status: 409 }
     );
   }

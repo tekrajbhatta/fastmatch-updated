@@ -30,7 +30,7 @@ export default function TellAFriendPage() {
     }).catch(() => null);
     const data = res ? await res.json().catch(() => ({})) : {};
     setSending(false);
-    if (!res?.ok) { setError(typeof data.error === 'string' ? data.error : 'Sorry — something went wrong. Please try again.'); return; }
+    if (!res?.ok) { setError(typeof data.error === 'string' ? data.error : 'Sorry, something went wrong. Please try again.'); return; }
     setSent({ name: data.name, email: data.email });
     setForm(EMPTY);
   }
@@ -72,7 +72,7 @@ export default function TellAFriendPage() {
               </Field>
             </div>
             {error && <FormError>{error}</FormError>}
-            <Button type="submit" disabled={sending} block className="mt-1">{sending ? 'Registering…' : 'Register friend'}</Button>
+            <Button type="submit" disabled={sending} loading={sending} block className="mt-1">{sending ? 'Registering…' : 'Register friend'}</Button>
           </form>
         </FormCard>
       </div>

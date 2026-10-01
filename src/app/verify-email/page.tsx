@@ -19,7 +19,7 @@ function VerifyEmailInner() {
   useEffect(() => {
     if (!token) {
       setState('error');
-      setError('This link is missing its verification code — use the full link from your email.');
+      setError('This link is missing its verification code. Use the full link from your email.');
       return;
     }
     fetch(`/api/auth/verify-email?token=${encodeURIComponent(token)}`)
@@ -40,7 +40,7 @@ function VerifyEmailInner() {
           <>
             <FormSuccess>Your email is verified.</FormSuccess>
             <p className="text-[15px] leading-normal text-ink-600">
-              If you haven't already, enter the 6-digit code we texted you — both steps are
+              If you haven't already, enter the 6-digit code we texted you. Both steps are
               needed before you can book an event.
             </p>
             <ButtonLink href="/verify-mobile" block>Enter SMS code</ButtonLink>

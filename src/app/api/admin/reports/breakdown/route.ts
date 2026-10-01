@@ -85,7 +85,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
       month: place(month.key, month.label, month.key),
       location: place(e.city.id, e.city.name),
       venue: place(e.venue.id, `${e.venue.name}, ${e.city.name}`),
-      event: place(e.id, `#${e.number} ${e.venue.name} — ${day}, ${e.city.name}`, e.startsAt.toISOString()),
+      event: place(e.id, `#${e.number} ${e.venue.name}, ${day}, ${e.city.name}`, e.startsAt.toISOString()),
     };
   };
   const agePlace = (age: number) => {

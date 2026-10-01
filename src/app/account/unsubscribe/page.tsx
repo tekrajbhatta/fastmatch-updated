@@ -27,7 +27,7 @@ export default function UnsubscribePage() {
   }
 
   return (
-    <SplitLayout title="Unsubscribe from emails">
+    <SplitLayout title="Unsubscribe from emails" back={{ href: '/account', label: 'Back to my account' }}>
       <FormCard>
         {done ? (
           <FormSuccess>
@@ -39,7 +39,7 @@ export default function UnsubscribePage() {
               You'll stop receiving newsletters and invitations. Booking and event confirmations aren't affected.
             </p>
             {error && <FormError>{error}</FormError>}
-            <Button onClick={handleUnsubscribe} disabled={busy} block>
+            <Button onClick={handleUnsubscribe} disabled={busy} loading={busy} block>
               {busy ? 'Unsubscribing…' : 'Unsubscribe'}
             </Button>
           </>

@@ -11,12 +11,12 @@ export function matchResultsEmail(opts: {
   const dateStr = opts.eventDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: opts.timeZone });
 
   const listItem = (m: { name: string; email: string; mobile: string }) =>
-    `<li>${m.name} — ${m.email} — ${m.mobile}</li>`;
+    `<li>${m.name}, ${m.email}, ${m.mobile}</li>`;
 
   const html = emailLayout(`
     <h1 style="color:#3D1E6D;">Your matches from ${opts.eventName}</h1>
     <p>Hi ${opts.memberName},</p>
-    <p>Here's how ${dateStr} turned out — contact details are only shared for people you both matched with.</p>
+    <p>Here's how ${dateStr} turned out. Contact details are only shared for people you both matched with.</p>
 
     ${
       opts.dateMatches.length
@@ -30,7 +30,7 @@ export function matchResultsEmail(opts: {
     }
     ${
       !opts.dateMatches.length && !opts.friendMatches.length
-        ? `<p>No mutual matches this time — thanks for coming along, and we hope to see you at a future event.</p>`
+        ? `<p>No mutual matches this time. Thanks for coming along, and we hope to see you at a future event.</p>`
         : ''
     }
 

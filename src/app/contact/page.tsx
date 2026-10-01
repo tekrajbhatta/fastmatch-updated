@@ -36,7 +36,7 @@ export default function ContactPage() {
     <SplitLayout title="Contact us" lead="Questions or feedback? Send us a message and we'll get back to you.">
       <FormCard>
         {status === 'sent' ? (
-          <FormSuccess>Thanks — your message has been sent.</FormSuccess>
+          <FormSuccess>Thanks, your message has been sent.</FormSuccess>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <Field label="Name">
@@ -55,12 +55,12 @@ export default function ContactPage() {
             </Field>
             {status === 'error' && (
               <FormError>
-                Sorry — we couldn&apos;t send your message just now. Please try again, or email us
+                Sorry, we couldn&apos;t send your message just now. Please try again, or email us
                 directly at{' '}
                 <a href="mailto:gil@fastmatch.com.au" className={linkClass}>gil@fastmatch.com.au</a>.
               </FormError>
             )}
-            <Button type="submit" disabled={status === 'sending'} block className="mt-1">
+            <Button type="submit" disabled={status === 'sending'} loading={status === 'sending'} block className="mt-1">
               {status === 'sending' ? 'Sending…' : status === 'error' ? 'Try again' : 'Send message'}
             </Button>
           </form>

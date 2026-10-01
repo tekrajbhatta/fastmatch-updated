@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Button, Card, Field, Input, Select } from '@/components/ui';
+import { Button, Card, Field, Input, Select, Loader, BackLink } from '@/components/ui';
 import BlastFields, { blastContentFrom, type BlastContent } from '@/components/BlastFields';
 import BlastTestSend from '@/components/BlastTestSend';
 import { resolveCampaignEmailHtml } from '@/lib/emails/campaignEmail';
 import { memberFilterFromParams, memberFilterToParams, describeMemberFilter } from '@/lib/memberFilterParams';
+import BlastSendProgress from '@/components/BlastSendProgress';
 
 interface BlastOption { id: string; title: string; blastStatus: string; reusable: boolean; hasBeenSent: boolean }
 interface City { id: string; name: string }
@@ -46,6 +47,8 @@ export default function BlastFilteredMembersPage() {
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [send, setSend] = useState<SendState | null>(null);
+  // The send request is in flight (see handleConfirmSend).
+  const [starting, setStarting] = useState(false);
 
   const filter = useMemo(() => memberFilterFromParams(new URLSearchParams(query ?? '')), [query]);
   const summary = describeMemberFilter(filter, cities.find((c) => c.id === filter.cityId)?.name);
@@ -112,7 +115,7 @@ export default function BlastFilteredMembersPage() {
     const data = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) {
-      setMessage({ ok: false, text: typeof data.error === 'string' ? data.error : 'Please check the blast — a title and an email subject are needed.' });
+      setMessage({ ok: false, text: typeof data.error === 'string' ? data.error : 'Please check the blast. A title and an email subject are needed.' });
       return null;
     }
     setSavedSnapshot(JSON.stringify({ title, content }));
@@ -129,12 +132,23 @@ export default function BlastFilteredMembersPage() {
 
   async function handleConfirmSend() {
     setConfirming(false);
-    const id = await save();
-    if (!id) return;
-    const res = await fetch(`/api/admin/campaigns/${id}/send`, { method: 'POST' });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { setMessage({ ok: false, text: typeof data.error === 'string' ? data.error : 'The blast could not be sent.' }); return; }
-    pollSend(id);
+    // Shows "Sending…" from the click until the first progress check comes
+    // back. A short list is sent entirely inside the send request, which can
+    // take a few seconds; without this nothing on screen said it was going.
+    setStarting(true);
+    setSend(null);
+    try {
+      const id = await save();
+      if (!id) return;
+      const res = await fetch(`/api/admin/campaigns/${id}/send`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setMessage({ ok: false, text: typeof data.error === 'string' ? data.error : 'The blast could not be sent.' }); return; }
+      await pollSend(id);
+    } catch {
+      setMessage({ ok: false, text: 'The blast could not be sent. Check your connection and try again.' });
+    } finally {
+      setStarting(false);
+    }
   }
 
   // Small lists finish inside the send request; bigger ones are carried on
@@ -151,15 +165,13 @@ export default function BlastFilteredMembersPage() {
     [content],
   );
 
-  if (query === null) return <p className="text-sm text-ink/50">Loading…</p>;
+  if (query === null) return <Loader />;
   const canSend = !!selected && (content.sendEmail || content.sendSms) && (audience?.recipients ?? 0) > 0 && !saving;
   const backHref = `/admin/members${query ? `?${query}` : ''}`;
 
   return (
     <div className="mx-auto max-w-2xl">
-      <Link href={backHref} className="mb-3 inline-flex items-center gap-1 text-sm font-bold text-plum hover:underline">
-        ← Back to members
-      </Link>
+      <BackLink href={backHref}>Back to members</BackLink>
       <h1 className="mb-4 text-2xl font-extrabold text-ink">Blast filtered members</h1>
 
       <Card className="mb-4">
@@ -168,7 +180,7 @@ export default function BlastFilteredMembersPage() {
         </p>
         <p className="mt-1 text-sm text-ink">
           <strong>Filter currently applied:</strong>{' '}
-          <span className="text-ink/70">{summary.length ? summary.join(' · ') : 'none — every member'}</span>
+          <span className="text-ink/70">{summary.length ? summary.join(' · ') : 'none (every member)'}</span>
         </p>
       </Card>
 
@@ -185,7 +197,7 @@ export default function BlastFilteredMembersPage() {
             <option value={NEW}>+ Start a new blast</option>
             {blasts.map((b) => (
               <option key={b.id} value={b.id}>
-                {b.title} — {b.blastStatus === 'UNUSED' ? 'unused' : b.blastStatus.toLowerCase()}
+                {b.title} ({b.blastStatus === 'UNUSED' ? 'unused' : b.blastStatus.toLowerCase()})
               </option>
             ))}
           </Select>
@@ -238,21 +250,21 @@ export default function BlastFilteredMembersPage() {
                 {message.text}
               </p>
             )}
-            {send && (
-              <div className={`mb-3 rounded-lg p-3 text-center text-sm ${send.status === 'SENT' ? 'border border-green/40 bg-green/10' : 'bg-cream/50'}`}>
-                <div className="text-xl font-extrabold text-plum">{send.sentCount} / {send.totalRecipients} {send.status === 'SENT' ? 'sent' : 'sending…'}</div>
+            {starting && <BlastSendProgress status="STARTING" total={audience?.recipients ?? 0} />}
+            {send && !starting && (
+              <BlastSendProgress status={send.status} sentCount={send.sentCount} total={send.totalRecipients}>
                 {campaignId && (
                   <Link href={`/admin/blasts/${campaignId}?tab=history`} className="text-xs font-bold text-plum underline">
                     View this blast&apos;s history
                   </Link>
                 )}
-              </div>
+              </BlastSendProgress>
             )}
             <div className="flex gap-2">
-              <Button variant="ghost" onClick={handleSave} disabled={saving || !dirty} className="flex-1">
+              <Button variant="ghost" onClick={handleSave} disabled={saving || starting || !dirty} loading={saving && !starting} className="flex-1">
                 {saving ? 'Saving…' : dirty ? 'Save blast' : 'Saved'}
               </Button>
-              <Button onClick={() => setConfirming(true)} disabled={!canSend || send?.status === 'SENDING'} className="flex-1">
+              <Button onClick={() => setConfirming(true)} disabled={!canSend || starting || send?.status === 'SENDING'} loading={starting} className="flex-1">
                 Send to {(audience?.recipients ?? 0).toLocaleString()} members
               </Button>
             </div>

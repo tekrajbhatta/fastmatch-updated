@@ -35,7 +35,7 @@ function SetPasswordInner() {
 
   useEffect(() => {
     fetch('/api/cities').then((r) => r.json()).then(setCities).catch(() => {});
-    if (!token) { setLinkError('This link is incomplete — please use the button in your email.'); return; }
+    if (!token) { setLinkError('This link is incomplete. Please use the button in your email.'); return; }
     fetch(`/api/auth/set-password?token=${encodeURIComponent(token)}`).then(async (r) => {
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { setLinkError(typeof d.error === 'string' ? d.error : 'This link is invalid or has expired.'); return; }
@@ -93,7 +93,7 @@ function SetPasswordInner() {
         ) : !prefill ? (
           <LoadingNote>Loading…</LoadingNote>
         ) : status === 'done' ? (
-          <FormSuccess>All set — you&apos;re logged in. One last step: confirming your mobile…</FormSuccess>
+          <FormSuccess>All set, you&apos;re logged in. One last step: confirming your mobile…</FormSuccess>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-[22px]">
             <Field label="Email"><TextInput value={prefill.email} disabled /></Field>
@@ -143,7 +143,7 @@ function SetPasswordInner() {
               </Checkbox>
             </div>
             {error && <FormError>{error}</FormError>}
-            <Button type="submit" disabled={status === 'saving' || !form.agreedTerms} block>
+            <Button type="submit" disabled={status === 'saving' || !form.agreedTerms} loading={status === 'saving'} block>
               {status === 'saving' ? 'Saving…' : 'Save and continue'}
             </Button>
           </form>

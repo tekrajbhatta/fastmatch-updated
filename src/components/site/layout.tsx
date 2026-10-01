@@ -1,4 +1,27 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
+import { Spinner } from '@/components/Spinner';
+
+/** Where a page's "← Back to …" link goes, and what it says. */
+export interface BackTo { href: string; label: string }
+
+/**
+ * "← Back to …" — to the page this one sits under. Padded to a comfortable
+ * tap size (most visitors are on phones). `onDark` is for plum panels.
+ */
+export function BackLink({ href, label, onDark = false, className = '' }: BackTo & { onDark?: boolean; className?: string }) {
+  return (
+    <Link
+      href={href}
+      className={`-ml-1.5 inline-flex min-h-[40px] items-center gap-1.5 rounded-md px-1.5 text-[15px] font-bold focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 ${
+        onDark ? 'text-plum-200 hover:text-white focus-visible:outline-match-400' : 'text-plum-700 hover:text-plum-900 focus-visible:outline-plum-700'
+      } ${className}`}
+    >
+      <span aria-hidden="true">←</span>
+      {label}
+    </Link>
+  );
+}
 
 // Page scaffolding for the member-facing site (the redesign). Every member
 // page is full width (SiteChrome gives it a bare <main>) and lays itself out
@@ -28,8 +51,10 @@ export function DecorDisc({ className = '' }: { className?: string }) {
  * right of the text (an event's venue logo); `children` go under the lead.
  */
 export function PageHero({
-  eyebrow, title, lead, aside, children, size = 'page',
+  eyebrow, title, lead, aside, children, size = 'page', back,
 }: {
+  /** "← Back to …" above the title. */
+  back?: BackTo;
   eyebrow?: ReactNode;
   title: ReactNode;
   lead?: ReactNode;
@@ -45,6 +70,7 @@ export function PageHero({
       <Container className={`relative pb-[clamp(36px,4.4vw,64px)] ${event ? 'pt-[clamp(36px,5vw,72px)]' : 'pt-[clamp(40px,5vw,72px)]'}`}>
         <div className="flex items-start justify-between gap-6">
           <div className="min-w-0">
+            {back && <BackLink {...back} onDark className="mb-3" />}
             {eyebrow && (
               <p className="text-[clamp(12px,1vw,14px)] font-extrabold uppercase tracking-[0.1em] text-match-300">{eyebrow}</p>
             )}
@@ -79,8 +105,10 @@ export function PageHero({
  * once there isn't room for both, around 1000px.
  */
 export function SplitLayout({
-  title, lead, intro, children, stickyIntro = false,
+  title, lead, intro, children, stickyIntro = false, back,
 }: {
+  /** "← Back to …" above the title. */
+  back?: BackTo;
   title: ReactNode;
   lead?: ReactNode;
   /** Anything else for the plum panel, under the lead. */
@@ -97,7 +125,8 @@ export function SplitLayout({
       <section className="relative flex-[1_1_480px] overflow-clip bg-plum-900 pb-[clamp(48px,7.2vw,104px)] pl-[max(20px,calc(50vw-568px))] pr-[clamp(20px,4.4vw,64px)] pt-[clamp(40px,7.2vw,104px)]">
         <DecorRing className="bottom-[clamp(-110px,-6vw,-60px)] right-[clamp(-60px,-2vw,-20px)] w-[clamp(150px,22vw,320px)] opacity-70" />
         <DecorDisc className="bottom-[clamp(-110px,-6vw,-60px)] right-[clamp(50px,11vw,160px)] w-[clamp(150px,22vw,320px)]" />
-        <div className={`relative max-w-[460px] ${stickyIntro ? 'sticky top-10' : ''}`}>
+        <div className={`relative max-w-[460px] ${stickyIntro ? 'sticky top-[calc(var(--header-h)+40px)]' : ''}`}>
+          {back && <BackLink {...back} onDark className="mb-4" />}
           <h1 className="font-display text-[clamp(40px,5vw,72px)] font-extrabold leading-none tracking-[-0.035em] text-white">{title}</h1>
           {lead && <p className="mt-4 text-[clamp(17px,1.4vw,20px)] leading-normal text-plum-200 text-pretty">{lead}</p>}
           {intro}
@@ -133,9 +162,27 @@ export function Tag({ children, className = '' }: { children: ReactNode; classNa
   );
 }
 
-/** "Loading…" and similar one-liners while data arrives. */
+/** "Loading…" and similar one-liners while data arrives, inside a card or list. */
 export function LoadingNote({ children = 'Loading…', className = '' }: { children?: ReactNode; className?: string }) {
-  return <p role="status" className={`text-[15px] text-ink-600 ${className}`}>{children}</p>;
+  return (
+    <p role="status" className={`flex items-center gap-2.5 text-[15px] text-ink-600 ${className}`}>
+      <Spinner className="h-5 w-5 text-plum-700" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+/**
+ * A page's main content while it loads: a larger spinner, centred, with room
+ * around it so the footer doesn't jump up and back down.
+ */
+export function PageLoader({ children = 'Loading…', className = '' }: { children?: ReactNode; className?: string }) {
+  return (
+    <div role="status" className={`flex min-h-[40vh] flex-col items-center justify-center gap-4 py-16 text-center ${className}`}>
+      <Spinner className="h-10 w-10 text-plum-700" />
+      <p className="text-base font-semibold text-ink-600">{children}</p>
+    </div>
+  );
 }
 
 /** Section heading inside a page body (e.g. "Looking at events in Sydney"). */

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Card, Badge, Button, Field, Input, Select } from '@/components/ui';
+import { Card, Badge, Button, Field, Input, Select, Loader, BackLink } from '@/components/ui';
 import { venueLine } from '@/lib/venue';
 
 interface Booking {
@@ -94,16 +94,17 @@ export default function MemberDetailPage() {
     router.refresh();
   }
 
-  if (!member) return <p className="text-sm text-ink/50">Loading…</p>;
+  if (!member) return <Loader label="Loading member…" />;
 
   const age = calculateAge(member.dateOfBirth);
 
   return (
     <div className="mx-auto max-w-2xl">
+      <BackLink href="/admin/members">Back to members</BackLink>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">{member.name}</h1>
       <p className="mb-6 text-sm text-ink/60">
         {member.email} · {member.mobile} · {member.city?.name} · {age} years old
-        {!member.agreedTerms && <span className="ml-2 font-bold text-coral">— T&Cs not yet accepted</span>}
+        {!member.agreedTerms && <span className="ml-2 font-bold text-coral">(T&Cs not yet accepted)</span>}
       </p>
 
       {saved && !editing && <p className="mb-4 text-sm font-bold text-green-dark">Member details updated.</p>}
@@ -133,7 +134,7 @@ export default function MemberDetailPage() {
             </Field>
             {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
             <div className="flex gap-2">
-              <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
+              <Button type="submit" disabled={saving} loading={saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
               <Button type="button" variant="ghost" onClick={() => { setEditing(false); setError(null); }}>Cancel</Button>
             </div>
           </form>
@@ -192,7 +193,7 @@ export default function MemberDetailPage() {
           </p>
           {error && <p className="mb-3 text-sm font-medium text-coral">{error}</p>}
           <div className="flex gap-2">
-            <Button variant="danger" disabled={deleting} onClick={handleDelete}>
+            <Button variant="danger" disabled={deleting} loading={deleting} onClick={handleDelete}>
               {deleting ? 'Deleting…' : 'Yes, delete permanently'}
             </Button>
             <Button variant="ghost" onClick={() => { setConfirmingDelete(false); setError(null); }}>Cancel</Button>

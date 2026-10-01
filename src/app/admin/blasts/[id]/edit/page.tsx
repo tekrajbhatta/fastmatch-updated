@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Field, Input, Button, Card } from '@/components/ui';
+import { Field, Input, Button, Card, Loader, BackLink } from '@/components/ui';
 import BlastFields, { blastContentFrom, type BlastContent } from '@/components/BlastFields';
 
 export default function EditBlastPage() {
@@ -37,17 +36,15 @@ export default function EditBlastPage() {
     router.push(`/admin/blasts/${id}`);
   }
 
-  if (!content) return <p className="text-sm text-ink/50">Loading…</p>;
+  if (!content) return <Loader label="Loading blast…" />;
 
   return (
     <div className="mx-auto max-w-lg">
-      <Link href={`/admin/blasts/${id}`} className="mb-3 inline-flex items-center gap-1 text-sm font-bold text-plum hover:underline">
-        ← Back to blast
-      </Link>
+      <BackLink href={`/admin/blasts/${id}`}>Back to blast</BackLink>
       <h1 className="mb-6 text-2xl font-extrabold text-ink">Edit blast</h1>
       {hasBeenSent && (
         <p className="mb-4 rounded-lg bg-cream/60 p-3 text-sm text-ink/70">
-          This blast has been sent before. Your changes apply to its next send — to keep this version as it is, use Duplicate instead.
+          This blast has been sent before. Your changes apply to its next send. To keep this version as it is, use Duplicate instead.
         </p>
       )}
       <Card>
@@ -55,7 +52,7 @@ export default function EditBlastPage() {
           <Field label="Title"><Input required value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
           <BlastFields value={content} onChange={(patch) => setContent((c) => (c ? { ...c, ...patch } : c))} />
           {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
-          <Button type="submit" disabled={saving || (!content.sendEmail && !content.sendSms)} className="w-full">{saving ? 'Saving…' : 'Save changes'}</Button>
+          <Button type="submit" disabled={saving || (!content.sendEmail && !content.sendSms)} loading={saving} className="w-full">{saving ? 'Saving…' : 'Save changes'}</Button>
           {!content.sendEmail && !content.sendSms && <p className="mt-2 text-center text-xs text-ink/50">Tick Send Email and/or Send SMS.</p>}
         </form>
       </Card>

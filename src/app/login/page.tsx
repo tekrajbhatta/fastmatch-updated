@@ -54,7 +54,7 @@ function LoginInner() {
 
           {error && <FormError>{error}</FormError>}
 
-          <Button type="submit" disabled={loading} block className="mt-1">
+          <Button type="submit" disabled={loading} loading={loading} block className="mt-1">
             {loading ? 'Logging in…' : 'Log in'}
           </Button>
         </form>

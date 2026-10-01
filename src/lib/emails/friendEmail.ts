@@ -53,12 +53,12 @@ export function friendWelcomeEmail(opts: {
 export function tellAFriendEmail(opts: { friendName: string; inviterName: string; setPasswordUrl: string }) {
   const html = emailLayout(`
     <h1 style="${HEADING}">Hi ${opts.friendName}, you've been invited to FastMatch!</h1>
-    <p style="${PARA}"><strong>${opts.inviterName}</strong> has registered you with FastMatch — Australia's original
+    <p style="${PARA}"><strong>${opts.inviterName}</strong> has registered you with FastMatch, Australia's original
       speed dating organiser, connecting people face to face since 1999.</p>
     <p style="${PARA}">Your account is ready. Set your password and fill in your profile details to see our upcoming
       events and book your place:</p>
     <p style="${PARA_BUTTON}"><a href="${opts.setPasswordUrl}" style="${BUTTON}">Set your password</a></p>
-    <p style="${PARA}">Not interested? Just ignore this email — we won't contact you again unless you complete your registration.</p>
+    <p style="${PARA}">Not interested? Just ignore this email. We won't contact you again unless you complete your registration.</p>
     <p style="${PARA}">The FastMatch Team</p>
   `);
   return { subject: `${opts.inviterName} has registered you with FastMatch`, html };

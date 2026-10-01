@@ -124,7 +124,7 @@ const DEMO_VENUES = [
 const VENUE_EXTRAS: Record<string, { imageUrl: string; description: string }> = {
   'City Tattersalls Club': {
     imageUrl: '/photos/p7_formal_event.jpg',
-    description: 'A grand old members’ club in the heart of the city — high ceilings, a long bar and plenty of quiet corners for a proper conversation.',
+    description: 'A grand old members’ club in the heart of the city, with high ceilings, a long bar and plenty of quiet corners for a proper conversation.',
   },
   'Soultrap Bar': {
     imageUrl: '/photos/p2_couple_table.jpg',
@@ -132,7 +132,7 @@ const VENUE_EXTRAS: Record<string, { imageUrl: string; description: string }> = 
   },
   'GG Bar': {
     imageUrl: '/photos/p4_pink_shirt.jpg',
-    description: 'Bright and lively, with a great drinks list. Upstairs at Westfield Bondi Junction — take the lift to level 5.',
+    description: 'Bright and lively, with a great drinks list. Upstairs at Westfield Bondi Junction. Take the lift to level 5.',
   },
 };
 
@@ -286,7 +286,7 @@ async function insertDemoData() {
   const PHOTOS = ['/photos/p2_couple_table.jpg', '/photos/p7_formal_event.jpg', '/photos/p1_white_dress.jpg', '/photos/p4_pink_shirt.jpg'];
   const BLURB = (who: string) =>
     `${who}, here's your chance to meet a whole bunch of great singles in your age group and actually talk to up to 10 of them in one night.\n\n` +
-    `No awkward mingling, no name-tag games — just relaxed, short one-on-one chats with a drink in hand.\n\n` +
+    `No awkward mingling, no name-tag games. Just relaxed, short one-on-one chats with a drink in hand.\n\n` +
     `We were the pioneers of speed dating back in 1999. Reserve your spot now!`;
 
   type E = {
@@ -412,7 +412,7 @@ async function insertDemoData() {
   const template = await prisma.campaignTemplate.create({
     data: {
       title: '[Demo] Standard event blast',
-      subject: 'Speed dating this week — spots still available',
+      subject: 'Speed dating this week: spots still available',
       heading: 'SPEED DATING\nThis week in Sydney',
       freeText: "Meet up to 10 great singles in one relaxed night. Book now before it's full!",
       smsBody: 'FastMatch speed dating this week in Sydney. Book at fastmatch.com.au',
@@ -420,9 +420,9 @@ async function insertDemoData() {
   });
   const campaignA = await prisma.campaign.create({
     data: {
-      title: '[Demo] Professionals 35-49 — this week', templateId: template.id,
+      title: '[Demo] Professionals 35-49, this week', templateId: template.id,
       sendEmail: true, sendSms: true,
-      subject: 'Professionals speed dating — 35 to 49 years',
+      subject: 'Professionals speed dating, 35 to 49 years',
       heading: 'PROFESSIONALS SPEED DATING\n35-49 years at City Tattersalls Club',
       freeText: 'Busy professionals, this one is for you. A few spots left for women.',
       eventDetailsText: 'City Tattersalls Club\n194 Pitt St, Sydney\n(02) 9267 9421\ncitytatts.com.au',
@@ -440,7 +440,7 @@ async function insertDemoData() {
   });
   await prisma.campaign.create({
     data: {
-      title: '[Demo] Seniors night — spots left', sendEmail: true,
+      title: '[Demo] Seniors night, spots left', sendEmail: true,
       subject: 'Seniors speed dating this week',
       heading: 'SENIORS SPEED DATING\n55 to 70 years at Soultrap Bar',
       freeText: "OK seniors, here's your chance to meet a whole bunch of great singles in your age group.",
@@ -451,7 +451,7 @@ async function insertDemoData() {
   });
   const campaignC = await prisma.campaign.create({
     data: {
-      title: '[Demo] SMS only — Asian speed dating', sendEmail: false, sendSms: true,
+      title: '[Demo] SMS only: Asian speed dating', sendEmail: false, sendSms: true,
       smsBody: 'Asian speed dating this Friday at Chung Lo Bar, Ultimo. Book at fastmatch.com.au',
       filter: { cityId: sydney, ageMin: 25, ageMax: 41, marketingOptInOnly: true, contactMethods: ['EMAIL_AND_SMS', 'SMS'] },
     },

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import MemberEventsTable, { type MemberTableEvent } from '@/components/MemberEventsTable';
-import { LoadingNote, SectionTitle } from '@/components/site/layout';
+import { SectionTitle, PageLoader } from '@/components/site/layout';
 import { Field, SelectInput } from '@/components/site/form';
 import { linkClass } from '@/components/site/button';
 import { orderForMember } from '@/lib/memberEvents';
@@ -47,7 +47,7 @@ export default function MemberEventsBrowser({ showBookedList }: { showBookedList
     });
   }, []);
 
-  if (!events || cityId === null) return <LoadingNote>Loading events…</LoadingNote>;
+  if (!events || cityId === null) return <PageLoader>Loading events…</PageLoader>;
 
   const cityName = (id: string | null) => cities.find((c) => c.id === id)?.name;
   const rows = orderForMember(events, cityId || null);
@@ -74,9 +74,9 @@ export default function MemberEventsBrowser({ showBookedList }: { showBookedList
                     className="rounded-sm text-base leading-snug text-ink-900 underline decoration-plum-700/30 underline-offset-4 hover:text-plum-700 hover:decoration-plum-700 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-plum-700"
                   >
                     <strong className="font-bold">{e.venue.name}</strong>
-                    {' — '}
+                    {' · '}
                     {when.dateWithYear}
-                    {' — '}
+                    {' · '}
                     {when.time} in {e.city.name}
                   </Link>
                   <span className="mt-1 block text-sm leading-snug text-ink-600">{e.theme.name} · Ages {e.ageMin}–{e.ageMax} · {venueLine(e.venue)}</span>
@@ -92,7 +92,7 @@ export default function MemberEventsBrowser({ showBookedList }: { showBookedList
         <MemberEventsTable events={rows} age={age} showCity={!cityId} />
       ) : (
         <p className="rounded-card border border-line bg-white p-[clamp(20px,1.8vw,26px)] text-base leading-relaxed text-ink-600">
-          No upcoming events in {where} right now — check back soon.
+          No upcoming events in {where} right now. Check back soon.
         </p>
       )}
 

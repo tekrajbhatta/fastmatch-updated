@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { BRAND_NAME, BRAND_TAGLINE } from '@/lib/brand';
+import { siteHeaderLayout } from '@/components/siteHeaderLayout';
 
 // Header, footer and page frame for every route.
 //
@@ -94,29 +95,24 @@ export default function SiteChrome({
   const container = isAdminRoute ? ADMIN_CONTAINER : SITE_CONTAINER;
   const closeMobile = () => setMobileOpen(false);
 
-  // The admin (nine items) and member (five) navs won't fit beside the logo
-  // on a tablet, so they collapse into the menu button later than the
-  // two-item public nav does — the admin one latest of all. The header's own
-  // size switches at the same point, so the compact header is always the one
-  // with the menu button. Full class strings, not interpolated fragments —
-  // Tailwind only generates classes it can find literally in the source.
-  const bp = isAdmin
-    ? { nav: 'hidden xl:flex', burger: 'xl:hidden', bar: 'h-[68px] xl:h-[88px]', logo: 'w-[150px] xl:w-[200px]', links: 'gap-5 text-[15px]' }
-    : isLoggedIn
-      ? { nav: 'hidden lg:flex', burger: 'lg:hidden', bar: 'h-[68px] lg:h-[88px]', logo: 'w-[150px] lg:w-[200px]', links: 'gap-8 text-base' }
-      : { nav: 'hidden md:flex', burger: 'md:hidden', bar: 'h-[68px] md:h-[88px]', logo: 'w-[150px] md:w-[200px]', links: 'gap-8 text-base' };
+  // Breakpoints and sizes for this audience's header (see siteHeaderLayout).
+  const bp = siteHeaderLayout(isLoggedIn, isAdmin);
 
   return (
     <>
-      {/* print:hidden — printed reports are just the report. */}
-      <header className="relative z-40 border-b border-line bg-white print:hidden">
-        <div className={`mx-auto flex ${container} ${bp.bar} items-center justify-between gap-6`}>
-          {/* Always the homepage. The logo used to point at /events, which
-              sent a logged-out visitor into the app rather than to the page
-              that explains what FastMatch is. For members it is still one
-              click to their events via the nav. */}
-          <Link href="/" className="flex shrink-0 rounded-md focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-4 focus-visible:outline-plum-700">
-            <Image src="/logo.png" alt={`${BRAND_NAME} — ${BRAND_TAGLINE}`} width={200} height={61} priority className={`h-auto ${bp.logo}`} />
+      {/* Sticky on every page, so the menu is always one tap away. Its height
+          comes from --header-h (set on <html> by the root layout), the same
+          value the homepage hero and sticky panels use to clear it.
+          print:hidden — printed reports are just the report. */}
+      <header className="sticky top-0 z-40 border-b border-line bg-white print:hidden">
+        <div className={`mx-auto flex ${container} h-[calc(var(--header-h)-1px)] items-center justify-between gap-6`}>
+          {/* The homepage for visitors and members. The logo used to point at
+              /events, which sent a logged-out visitor into the app rather
+              than to the page that explains what FastMatch is; for members
+              their events are still one click away via the nav. An admin's
+              home is the dashboard, so their logo goes there. */}
+          <Link href={isAdmin ? '/admin' : '/'} className="flex shrink-0 rounded-md focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-4 focus-visible:outline-plum-700">
+            <Image src="/logo.png" alt={`${BRAND_NAME}, ${BRAND_TAGLINE}`} width={200} height={61} priority className={`h-auto ${bp.logo}`} />
           </Link>
 
           <nav aria-label="Main" className={`${bp.nav} items-center ${bp.links}`}>
@@ -168,7 +164,7 @@ export default function SiteChrome({
         {mobileOpen && (
           <div
             id="site-menu"
-            className={`${bp.burger} absolute inset-x-0 top-full flex min-h-[calc(100dvh-68px)] flex-col bg-plum-900 px-5 pb-8 pt-3`}
+            className={`${bp.burger} absolute inset-x-0 top-full flex h-[calc(100dvh-var(--header-h)+1px)] flex-col overflow-y-auto overscroll-contain bg-plum-900 px-5 pb-8 pt-3`}
           >
             <nav aria-label="Main" className="flex flex-col">
               {navLinks.map((l) => (
@@ -252,7 +248,7 @@ function SiteFooter({
         </nav>
         <div className="h-px bg-white/[.12]" />
         <p className="text-sm leading-relaxed text-[#BFB0D4] text-pretty">
-          © {new Date().getFullYear()} {BRAND_NAME} — {BRAND_TAGLINE}. Australia&apos;s original speed dating organizer, since 1999.
+          © {new Date().getFullYear()} {BRAND_NAME}. {BRAND_TAGLINE}. Australia&apos;s original speed dating organizer, since 1999.
         </p>
       </div>
     </footer>

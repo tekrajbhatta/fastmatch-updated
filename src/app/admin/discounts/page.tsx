@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Field, Input, Select, Button, Card, Badge } from '@/components/ui';
+import { Field, Input, Select, Button, Card, Badge, Loader } from '@/components/ui';
 
 interface DiscountCode {
   id: string; code: string; type: string; amount: string | null;
@@ -12,13 +12,15 @@ const emptyForm = { code: '', type: 'PERCENT_OFF', amount: '', validFrom: '', va
 
 export default function AdminDiscountsPage() {
   const [codes, setCodes] = useState<DiscountCode[]>([]);
+  // False until the first fetch returns, so the list doesn't claim to be empty while loading.
+  const [loaded, setLoaded] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function loadCodes() {
-    fetch('/api/admin/discount-codes').then((r) => r.json()).then(setCodes);
+    fetch('/api/admin/discount-codes').then((r) => r.json()).then((d) => { setCodes(d); setLoaded(true); });
   }
   useEffect(() => { loadCodes(); }, []);
 
@@ -79,6 +81,7 @@ export default function AdminDiscountsPage() {
         </Card>
       )}
 
+      {!loaded && <Loader label="Loading discount codes…" />}
       <div className="space-y-2">
         {codes.map((c) => {
           const expired = new Date(c.validTo) < new Date();

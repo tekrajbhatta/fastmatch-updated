@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Field, Input, Select, Button, Card, Badge } from '@/components/ui';
+import { Field, Input, Select, Button, Card, Badge, Loader } from '@/components/ui';
 import { memberFilterFromParams, memberFilterToParams, describeMemberFilter } from '@/lib/memberFilterParams';
 
 interface Member { id: string; name: string; email: string; mobile: string; city: { name: string }; gender: string; dateOfBirth: string; _count: { bookings: number }; }
@@ -12,6 +13,8 @@ interface City { id: string; name: string; }
 export default function AdminMembersPage() {
   const router = useRouter();
   const [members, setMembers] = useState<Member[]>([]);
+  // True while a page of members is being fetched (first load and every re-filter).
+  const [loadingMembers, setLoadingMembers] = useState(true);
   const [cities, setCities] = useState<City[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [page, setPage] = useState(1);
@@ -41,7 +44,9 @@ export default function AdminMembersPage() {
     setApplied(query);
     params.set('page', String(pageNum));
 
+    setLoadingMembers(true);
     fetch(`/api/admin/members?${params}`).then((r) => r.json()).then((data) => {
+      setLoadingMembers(false);
       setMembers(data.members);
       setTotals(data.totals);
       setTotalPages(data.totalPages);
@@ -99,7 +104,7 @@ export default function AdminMembersPage() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-plum/20 bg-white p-3">
           <div className="text-sm">
             <span className="font-bold text-ink">Filter currently applied: </span>
-            <span className="text-ink/70">{appliedSummary.length ? appliedSummary.join(' · ') : 'none — every member'}</span>
+            <span className="text-ink/70">{appliedSummary.length ? appliedSummary.join(' · ') : 'none (every member)'}</span>
           </div>
           <Button onClick={() => router.push(`/admin/members/blast?${applied}`)} disabled={totals.count === 0}>
             Click here to blast these filtered members
@@ -115,13 +120,17 @@ export default function AdminMembersPage() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-ink/10 bg-white">
-        <table className="w-full text-sm">
+      {/* Scrolls sideways on a phone, like the events and venues tables,
+          rather than squeezing seven columns into the screen width. */}
+      <div className="overflow-x-auto rounded-xl border border-ink/10 bg-white">
+        <table className="w-full whitespace-nowrap text-sm">
           <thead className="bg-cream/50 text-left text-xs font-bold uppercase text-ink/50">
-            <tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Mobile</th><th className="px-4 py-3">Gender</th><th className="px-4 py-3">Age</th><th className="px-4 py-3">City</th><th className="px-4 py-3">Events attended</th></tr>
+            <tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Mobile</th><th className="px-4 py-3">Gender</th><th className="px-4 py-3">Age</th><th className="px-4 py-3">City</th><th className="px-4 py-3">Events attended</th><th className="px-4 py-3 text-right">Action</th></tr>
           </thead>
           <tbody>
-            {members.map((m) => (
+            {loadingMembers ? (
+              <tr><td colSpan={8}><Loader label="Loading members…" /></td></tr>
+            ) : members.map((m) => (
               <tr key={m.id} className="cursor-pointer border-t border-ink/5 hover:bg-cream/30" onClick={() => router.push(`/admin/members/${m.id}`)}>
                 <td className="px-4 py-3 font-bold text-ink">{m.name}</td>
                 <td className="px-4 py-3 text-ink/60">{m.email}</td>
@@ -130,6 +139,17 @@ export default function AdminMembersPage() {
                 <td className="px-4 py-3 text-ink/60">{calculateAge(m.dateOfBirth)}</td>
                 <td className="px-4 py-3 text-ink/60">{m.city?.name}</td>
                 <td className="px-4 py-3"><Badge tone="green">{m._count.bookings}</Badge></td>
+                <td className="px-4 py-3 text-right">
+                  {/* Same destination as clicking the row: a visible target,
+                      as on the events list. */}
+                  <Link
+                    href={`/admin/members/${m.id}`}
+                    onClick={(ev) => ev.stopPropagation()}
+                    className="inline-block rounded-lg border border-plum bg-white px-3 py-1.5 text-xs font-bold text-plum hover:bg-plum hover:text-white"
+                  >
+                    Manage
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>

@@ -2,8 +2,9 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
-import { Field, Input, Select, Button, Card, Badge } from '@/components/ui';
+import { Field, Input, Select, Button, Card, Badge, Loader, BackLink } from '@/components/ui';
 import BlastTestSend from '@/components/BlastTestSend';
+import BlastSendProgress from '@/components/BlastSendProgress';
 
 interface Campaign {
   id: string; title: string; hasBeenSent: boolean; subject: string; sendEmail: boolean; sendSms: boolean;
@@ -33,6 +34,11 @@ function ViewBlastInner() {
   // The send that has just COMPLETED, so the admin gets told it finished
   // instead of being left staring at "sending…".
   const [justSent, setJustSent] = useState<Send | null>(null);
+  // The send request is in flight (see handleConfirmSend).
+  const [startingSend, setStartingSend] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  // Counting the filtered members (the Filter button).
+  const [previewing, setPreviewing] = useState(false);
 
   function loadCampaign() {
     fetch(`/api/admin/campaigns/${id}`).then((r) => r.json()).then(setCampaign);
@@ -69,10 +75,11 @@ function ViewBlastInner() {
   }
 
   async function handlePreview() {
+    setPreviewing(true);
     const res = await fetch(`/api/admin/campaigns/${id}/preview`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filter: currentFilterPayload() }),
-    });
+    }).finally(() => setPreviewing(false));
     const data = await res.json();
     setPreviewCount(data.count);
     setPreviewMembers(data.members ?? []);
@@ -91,14 +98,33 @@ function ViewBlastInner() {
 
   async function handleConfirmSend() {
     setConfirmingSend(false);
-    const savedFilter = currentFilterPayload();
-    await fetch(`/api/admin/campaigns/${id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filter: savedFilter }),
-    });
-    const res = await fetch(`/api/admin/campaigns/${id}/send`, { method: 'POST' });
-    const data = await res.json();
-    // Poll for progress
-    pollSend();
+    setSendError(null);
+    setJustSent(null);
+    // From the click until the first progress check comes back, show that
+    // it's sending: a short list goes out entirely inside the send request,
+    // which can take a few seconds. "Send Blast Now" is out of reach
+    // meanwhile, so it can't be clicked twice.
+    setStartingSend(true);
+    try {
+      const savedFilter = currentFilterPayload();
+      await fetch(`/api/admin/campaigns/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filter: savedFilter }),
+      });
+      const res = await fetch(`/api/admin/campaigns/${id}/send`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      // A refused send (e.g. a blast set to stop re-using) used to vanish
+      // silently, leaving the admin waiting for progress that never came.
+      if (!res.ok) {
+        setSendError(typeof data.error === 'string' ? data.error : 'The blast could not be sent.');
+        return;
+      }
+      // Poll for progress
+      await pollSend();
+    } catch {
+      setSendError('The blast could not be sent. Check your connection and try again.');
+    } finally {
+      setStartingSend(false);
+    }
   }
 
   async function pollSend() {
@@ -150,10 +176,11 @@ function ViewBlastInner() {
     loadHistory();
   }
 
-  if (!campaign) return <p className="text-sm text-ink/50">Loading…</p>;
+  if (!campaign) return <Loader label="Loading blast…" />;
 
   return (
     <div className="mx-auto max-w-2xl">
+      <BackLink href="/admin/blasts">Back to blasts</BackLink>
       <h1 className="mb-2 text-2xl font-extrabold text-ink">{campaign.title}</h1>
 
       <div className="mb-4 flex gap-3 text-sm">
@@ -180,12 +207,12 @@ function ViewBlastInner() {
           <Row label="Email subject" value={campaign.subject} />
           <Row label="Send SMS?" value={campaign.sendSms ? 'Yes' : 'No'} />
 
-          <div className="mt-5 text-sm font-extrabold text-ink">Preview — how it actually renders</div>
-          <p className="mb-2 text-xs text-ink/50">This is the real email, not a mockup — edit the blast if anything here needs to change.</p>
+          <div className="mt-5 text-sm font-extrabold text-ink">Preview: how it actually renders</div>
+          <p className="mb-2 text-xs text-ink/50">This is the real email, not a mockup. Edit the blast if anything here needs to change.</p>
           {renderedHtml ? (
             <iframe srcDoc={renderedHtml} className="h-[420px] w-full rounded-lg border border-ink/10 bg-white" title="Email preview" />
           ) : (
-            <p className="text-sm text-ink/40">Loading preview…</p>
+            <Loader label="Loading preview…" className="py-8" />
           )}
         </Card>
       )}
@@ -199,7 +226,7 @@ function ViewBlastInner() {
       {tab === 'send' && (
         <Card>
           <div className="mb-2 text-sm font-extrabold text-ink">Select members</div>
-          <p className="mb-4 text-sm text-ink/60">"Email and SMS" and "SMS" are different — select both if you want to reach everyone who can receive SMS.</p>
+          <p className="mb-4 text-sm text-ink/60">"Email and SMS" and "SMS" are different. Select both if you want to reach everyone who can receive SMS.</p>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Age from"><Input type="number" value={filter.ageMin} onChange={(e) => setFilter({ ...filter, ageMin: e.target.value })} /></Field>
             <Field label="Age to"><Input type="number" value={filter.ageMax} onChange={(e) => setFilter({ ...filter, ageMax: e.target.value })} /></Field>
@@ -222,7 +249,7 @@ function ViewBlastInner() {
               </Select>
             </Field>
           </div>
-          <Button variant="ghost" onClick={handlePreview} className="mb-4 w-full">Filter</Button>
+          <Button variant="ghost" onClick={handlePreview} disabled={previewing} loading={previewing} className="mb-4 w-full">Filter</Button>
           {previewCount !== null && (
             <div className="mb-4 rounded-lg bg-plum/10 p-3">
               <div className="flex items-center justify-between">
@@ -238,7 +265,7 @@ function ViewBlastInner() {
                   {previewMembers.map((m) => (
                     <div key={m.id} className="border-b border-ink/5 px-3 py-2 text-xs last:border-0">
                       <span className="font-bold text-ink">{m.name}</span>
-                      <span className="text-ink/50"> — {m.email} · {m.mobile} · {m.city?.name}</span>
+                      <span className="text-ink/50"> · {m.email} · {m.mobile} · {m.city?.name}</span>
                     </div>
                   ))}
                   {/* The preview API caps at 200 rows. */}
@@ -250,24 +277,26 @@ function ViewBlastInner() {
             </div>
           )}
 
-          {justSent && !activeSend && (
-            <div className="mb-4 rounded-lg border border-green/40 bg-green/10 p-3 text-center text-sm">
-              <div className="text-xl font-extrabold text-green-dark">{justSent.sentCount} / {justSent.totalRecipients} sent</div>
-              <div className="text-ink/60">Blast delivered to everyone in the filtered list.</div>
-            </div>
-          )}
-          {activeSend ? (
-            <div className="mb-4 rounded-lg bg-cream/50 p-3 text-center text-sm">
-              <div className="text-xl font-extrabold text-plum">{activeSend.sentCount} / {activeSend.totalRecipients}</div>
-              <div className="mb-3 text-ink/50">{activeSend.status === 'PAUSED' ? 'paused' : 'sending…'}</div>
-              <div className="flex justify-center gap-2">
-                {activeSend.status === 'SENDING' && <Button variant="ghost" onClick={handlePause}>Pause</Button>}
-                {activeSend.status === 'PAUSED' && <Button onClick={handleResume}>Resume</Button>}
-                <Button variant="danger" onClick={handleCancel}>Cancel</Button>
-              </div>
-            </div>
+          {sendError && <p role="alert" className="mb-4 text-sm font-medium text-coral">{sendError}</p>}
+          {startingSend ? (
+            <BlastSendProgress status="STARTING" total={previewCount ?? 0} />
           ) : (
-            <Button onClick={handleSendBlastNowClick} className="w-full">Send Blast Now</Button>
+            <>
+              {justSent && !activeSend && (
+                <BlastSendProgress status="SENT" sentCount={justSent.sentCount} total={justSent.totalRecipients} />
+              )}
+              {activeSend ? (
+                <BlastSendProgress status={activeSend.status} sentCount={activeSend.sentCount} total={activeSend.totalRecipients}>
+                  <div className="flex justify-center gap-2">
+                    {activeSend.status === 'SENDING' && <Button variant="ghost" onClick={handlePause}>Pause</Button>}
+                    {activeSend.status === 'PAUSED' && <Button onClick={handleResume}>Resume</Button>}
+                    <Button variant="danger" onClick={handleCancel}>Cancel</Button>
+                  </div>
+                </BlastSendProgress>
+              ) : (
+                <Button onClick={handleSendBlastNowClick} disabled={previewing} loading={previewing} className="w-full">Send Blast Now</Button>
+              )}
+            </>
           )}
         </Card>
       )}

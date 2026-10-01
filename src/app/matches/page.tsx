@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import MemberEventsBrowser from '@/components/MemberEventsBrowser';
-import { Card, Container, LoadingNote, PageHero } from '@/components/site/layout';
+import { Card, Container, PageHero, PageLoader } from '@/components/site/layout';
 import { ButtonLink } from '@/components/site/button';
 import { formatEventForViewer } from '@/lib/timezone';
 
@@ -57,7 +57,7 @@ export default function MatchHistoryPage() {
       <PageHero title="My Match History" />
       <section className={BODY}>
         <Container>
-          {!data && <LoadingNote>Loading…</LoadingNote>}
+          {!data && <PageLoader>Loading your match history…</PageLoader>}
 
           {data && data.history.length > 0 && (
             <>
@@ -72,7 +72,7 @@ export default function MatchHistoryPage() {
                 {data.history.map((h) => (
                   <Card key={h.event.id}>
                     <h2 className="font-display text-[clamp(22px,2vw,28px)] font-extrabold leading-[1.15] tracking-[-0.02em] text-ink-900">
-                      {h.event.venue.name} — {formatEventForViewer(h.event.startsAt, h.event.city.name).dateWithYear}
+                      {h.event.venue.name} · {formatEventForViewer(h.event.startsAt, h.event.city.name).dateWithYear}
                     </h2>
                     <p className="mt-1.5 text-sm text-ink-600">{h.event.name} · {h.event.city.name}</p>
                     <div className="mt-5 grid gap-6 border-t border-dashed border-[#DCD0C2] pt-5 md:grid-cols-2 md:gap-8">

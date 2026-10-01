@@ -8,28 +8,31 @@ import { Button } from '@/components/site/button';
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  // The button used to give no sign it had been pressed while the email went.
+  const [sending, setSending] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setSending(true);
     await fetch('/api/auth/forgot-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
-    });
+    }).finally(() => setSending(false));
     setSent(true);
   }
 
   return (
-    <SplitLayout title="Reset your password" lead="Enter the email you registered with and we'll send a reset link.">
+    <SplitLayout title="Reset your password" back={{ href: '/login', label: 'Back to log in' }} lead="Enter the email you registered with and we'll send a reset link.">
       <FormCard>
         {sent ? (
-          <FormSuccess>If that email is registered, a reset link is on its way — check your inbox.</FormSuccess>
+          <FormSuccess>If that email is registered, a reset link is on its way. Check your inbox.</FormSuccess>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <Field label="Email">
               <TextInput type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </Field>
-            <Button type="submit" block className="mt-1">Send reset link</Button>
+            <Button type="submit" disabled={sending} loading={sending} block className="mt-1">Send reset link</Button>
           </form>
         )}
       </FormCard>

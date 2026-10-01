@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Card, Button } from '@/components/ui';
+import { Card, Button, Loader, BackLink } from '@/components/ui';
 import { venueLine, venueBlock } from '@/lib/venue';
+import { Spinner } from '@/components/Spinner';
 
 interface EventDetail {
   id: string; name: string; venue: { name: string; address: string | null; phone: string | null; websiteUrl: string | null }; startsAt: string; cost: string;
@@ -38,10 +39,12 @@ export default function AdminEventDetailPage() {
     // the blast form can pre-fill itself, including a booking link that
     // points at this specific event, not a generic events page.
     const params = new URLSearchParams({
-      subject: `${event.name} — ${event.theme.name}`,
+      subject: `${event.theme.name}, ${event.name}`,
       heading: event.theme.name,
       eventDetails: `When: ${dateStr}, ${timeStr}\nWhere: ${venueBlock(event.venue)}, ${event.city.name}\nCost: $${event.cost}`,
       bookingLink: `${window.location.origin}/events/${event.id}`,
+      // Only for the blast form's "← Back to event" link.
+      fromEvent: event.id,
     });
     router.push(`/admin/blasts/new?${params.toString()}`);
   }
@@ -71,10 +74,13 @@ export default function AdminEventDetailPage() {
     setCloseResult(data);
   }
 
-  if (!event) return <p className="text-sm text-ink/50">Loading…</p>;
+  if (!event) return <Loader label="Loading event…" />;
 
   return (
     <div className="mx-auto max-w-md">
+      {/* At the top as well as the bottom: on a phone the bottom one is a
+          long scroll away. */}
+      <BackLink href="/admin/events">Back to events</BackLink>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">{event.name}</h1>
       <p className="mb-6 text-sm text-ink/60">{venueLine(event.venue)} · {new Date(event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'long' })}</p>
 
@@ -86,7 +92,8 @@ export default function AdminEventDetailPage() {
         <Link href={`/admin/events/${event.id}/edit`} className="block font-bold text-ink hover:text-plum">Edit event</Link>
       </Card>
       <Card className="mb-3">
-        <button onClick={handleDuplicate} disabled={duplicating} className="block text-left font-bold text-ink hover:text-plum disabled:opacity-50">
+        <button onClick={handleDuplicate} disabled={duplicating} className="flex items-center gap-2 text-left font-bold text-ink hover:text-plum disabled:opacity-50">
+          {duplicating && <Spinner className="h-4 w-4 text-plum" />}
           {duplicating ? 'Duplicating…' : 'Duplicate event'}
         </button>
         <p className="mt-0.5 text-sm text-ink/50">Makes a copy with the same details, then opens it for editing</p>
@@ -94,7 +101,7 @@ export default function AdminEventDetailPage() {
       </Card>
       <Card className="mb-3">
         <button onClick={createBlastForEvent} className="block text-left font-bold text-ink hover:text-plum">Create blast for this event</button>
-        <p className="mt-0.5 text-sm text-ink/50">Auto-fills subject, details, and booking link — nothing to retype</p>
+        <p className="mt-0.5 text-sm text-ink/50">Auto-fills subject, details, and booking link, so there&apos;s nothing to retype</p>
       </Card>
       <Card className="mb-3">
         <Link href={`/admin/events/${event.id}/bookings/new`} className="block font-bold text-ink hover:text-plum">Add a new booking</Link>
@@ -108,14 +115,14 @@ export default function AdminEventDetailPage() {
       <Card className="mb-3">
         <div className="font-bold text-ink">Close event &amp; calculate matches</div>
         <p className="mt-0.5 mb-3 text-sm text-ink/50">
-          Matches process automatically at midnight — use this only to run them early (e.g. testing, or the host wants results before leaving the venue).
+          Matches process automatically at midnight. Use this only to run them early (e.g. testing, or the host wants results before leaving the venue).
         </p>
         {closeResult ? (
           <p className="text-sm font-bold text-green-dark">
-            {closeResult.alreadyCalculated ? 'Matches were already calculated for this event.' : `Done — ${closeResult.matchesCreated} matches created and result emails sent.`}
+            {closeResult.alreadyCalculated ? 'Matches were already calculated for this event.' : `Done. ${closeResult.matchesCreated} matches created and result emails sent.`}
           </p>
         ) : (
-          <Button onClick={handleCloseEventNow} disabled={closing} variant="ghost">
+          <Button onClick={handleCloseEventNow} disabled={closing} loading={closing} variant="ghost">
             {closing ? 'Calculating matches…' : 'Close event now & calculate early'}
           </Button>
         )}
@@ -124,7 +131,7 @@ export default function AdminEventDetailPage() {
 
       <Card className="mb-3">
         <Link href={`/admin/events/${event.id}/checkin-qr`} className="block font-bold text-ink hover:text-plum">Printable check-in QR code</Link>
-        <p className="mt-0.5 text-sm text-ink/50">Display or print at the venue — attendees scan this to check in</p>
+        <p className="mt-0.5 text-sm text-ink/50">Display or print at the venue for attendees to scan when they check in</p>
       </Card>
 
       <Button variant="ghost" onClick={() => router.push('/admin/events')} className="w-full">Back to events</Button>

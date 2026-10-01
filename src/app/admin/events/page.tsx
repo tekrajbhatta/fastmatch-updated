@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Button } from '@/components/ui';
+import { Button, Loader } from '@/components/ui';
 import { adminEventGroup, sortAdminEvents, GROUP_ORDER, type AdminEventGroup } from '@/lib/adminEventGroups';
 
 interface AdminEvent {
@@ -95,7 +95,7 @@ export default function AdminEventsPage() {
         </div>
       </div>
 
-      {loading && <p className="text-sm text-ink/50">Loading…</p>}
+      {loading && <Loader label="Loading events…" />}
 
       <div className="overflow-x-auto rounded-xl border border-ink/10 bg-white">
         <table className="w-full text-sm">

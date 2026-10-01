@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Button, Card, Field, Input, Select } from '@/components/ui';
+import { Button, Card, Field, Input, Select, Loader, BackLink } from '@/components/ui';
 import { calculateAge } from '@/lib/age';
 import { venueLine } from '@/lib/venue';
 import { PAYMENT_METHODS } from '@/lib/paymentMethod';
+import { Spinner } from '@/components/Spinner';
 
 interface EventSummary {
   id: string; name: string; startsAt: string; cost: string;
@@ -117,7 +118,7 @@ export default function AddBookingPage() {
     loadBooked();
   }
 
-  if (!event) return <p className="text-sm text-ink/50">Loading…</p>;
+  if (!event) return <Loader />;
 
   const date = new Date(event.startsAt);
   const selMen = selected.filter((m) => m.gender === 'MALE').length;
@@ -125,9 +126,7 @@ export default function AddBookingPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <Link href={`/admin/events/${eventId}`} className="mb-3 inline-flex items-center gap-1 text-sm font-bold text-plum hover:underline">
-        ← Back to event
-      </Link>
+      <BackLink href={`/admin/events/${eventId}`}>Back to event</BackLink>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Add a new booking</h1>
       <p className="mb-1 text-sm text-ink/60">
         {event.name} · {venueLine(event.venue)}, {event.city.name} ·{' '}
@@ -152,7 +151,7 @@ export default function AddBookingPage() {
         {query.trim().length > 0 && query.trim().length < 2 && (
           <p className="text-sm text-ink/50">Keep typing…</p>
         )}
-        {searching && <p className="text-sm text-ink/50">Searching…</p>}
+        {searching && <p role="status" className="flex items-center gap-2 text-sm text-ink/50"><Spinner className="h-4 w-4 text-plum" />Searching…</p>}
 
         {!searching && query.trim().length >= 2 && hits.length === 0 && (
           <div className="rounded-lg bg-cream/60 p-3 text-sm">
@@ -194,10 +193,10 @@ export default function AddBookingPage() {
 
       <Card className="mb-4">
         <h2 className="mb-3 font-extrabold text-ink">
-          Selected {selected.length > 0 && <span className="font-semibold text-ink/50">— {selected.length} ({selMen} {selMen === 1 ? 'man' : 'men'}, {selWomen} {selWomen === 1 ? 'woman' : 'women'})</span>}
+          Selected{selected.length > 0 && <span className="font-semibold text-ink/50">: {selected.length} ({selMen} {selMen === 1 ? 'man' : 'men'}, {selWomen} {selWomen === 1 ? 'woman' : 'women'})</span>}
         </h2>
         {selected.length === 0 ? (
-          <p className="mb-4 text-sm text-ink/40">Nobody yet — tick members in the search results above.</p>
+          <p className="mb-4 text-sm text-ink/40">Nobody yet. Tick members in the search results above.</p>
         ) : (
           <div className="mb-4 flex flex-wrap gap-2">
             {selected.map((m) => (
@@ -221,7 +220,7 @@ export default function AddBookingPage() {
         </div>
         {paymentMethod === 'CARD' && (
           <p className="mb-4 rounded-lg bg-cream/60 p-3 text-xs text-ink/70">
-            Card details aren&apos;t taken on this screen — charge the card separately (e.g. in Stripe), then add the booking here.
+            Card details aren&apos;t taken on this screen. Charge the card separately (e.g. in Stripe), then add the booking here.
           </p>
         )}
         <label className="mb-4 flex items-start gap-2 text-sm font-semibold text-ink">
@@ -237,7 +236,7 @@ export default function AddBookingPage() {
         </p>
 
         {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
-        <Button onClick={handleAdd} disabled={submitting || selected.length === 0} className="w-full">
+        <Button onClick={handleAdd} disabled={submitting || selected.length === 0} loading={submitting} className="w-full">
           {submitting ? 'Adding…' : selected.length <= 1 ? 'Add booking' : `Add ${selected.length} bookings`}
         </Button>
       </Card>
@@ -251,7 +250,7 @@ export default function AddBookingPage() {
                 {result.added.map((a) => (
                   <li key={a.memberId}>
                     {a.name} (badge #{a.badge})
-                    {!a.notified && <span className="text-coral"> — confirmation email couldn&apos;t be sent; let them know directly</span>}
+                    {!a.notified && <span className="text-coral">: confirmation email couldn&apos;t be sent, so let them know directly</span>}
                   </li>
                 ))}
               </ul>
@@ -261,7 +260,7 @@ export default function AddBookingPage() {
             <div className="mb-3">
               <p className="font-bold text-coral">Not added {result.skipped.length}:</p>
               <ul className="mt-1 list-inside list-disc text-sm text-ink/70">
-                {result.skipped.map((s) => <li key={s.memberId}>{s.name ?? 'Unknown member'} — {s.reason}</li>)}
+                {result.skipped.map((s) => <li key={s.memberId}>{s.name ?? 'Unknown member'}: {s.reason}</li>)}
               </ul>
             </div>
           )}

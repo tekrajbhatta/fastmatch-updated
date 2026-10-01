@@ -57,7 +57,7 @@ export function validateFriends(
     const email = f.email.trim().toLowerCase();
     if (!email) errors.push({ index, field: 'email', message: 'Please enter their email' });
     else if (!EMAIL_RE.test(email)) errors.push({ index, field: 'email', message: 'Please enter a valid email' });
-    else if (email === ctx.memberEmail.trim().toLowerCase()) errors.push({ index, field: 'email', message: "That's your own email — please use your friend's" });
+    else if (email === ctx.memberEmail.trim().toLowerCase()) errors.push({ index, field: 'email', message: "That's your own email. Please use your friend's" });
     else if (seen.has(email)) errors.push({ index, field: 'email', message: `Same email as friend ${seen.get(email)! + 1}` });
     else seen.set(email, index);
 

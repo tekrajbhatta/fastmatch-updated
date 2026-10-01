@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FormCard, LoadingNote, SplitLayout } from '@/components/site/layout';
+import { Container, FormCard, PageLoader, SplitLayout } from '@/components/site/layout';
 import { Button, ButtonLink } from '@/components/site/button';
 import { Notice } from '@/components/site/form';
 
-interface Me { id: string; name: string; email: string; agreedTerms: boolean; }
+interface Me { id: string; name: string; email: string; agreedTerms: boolean; isAdmin: boolean; }
 
 export default function AccountPage() {
   const router = useRouter();
@@ -24,22 +24,29 @@ export default function AccountPage() {
       .finally(() => setLoaded(true));
   }, []);
 
+  // Both buttons show a spinner while their request runs. Log out stays busy
+  // through the redirect to /login, which itself takes a moment.
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [accepting, setAccepting] = useState(false);
+
   async function handleLogout() {
+    setLoggingOut(true);
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
     router.refresh();
   }
 
   async function acceptTerms() {
-    await fetch('/api/account/accept-terms', { method: 'POST' });
+    setAccepting(true);
+    await fetch('/api/account/accept-terms', { method: 'POST' }).finally(() => setAccepting(false));
     setMe((m) => (m ? { ...m, agreedTerms: true } : m));
   }
 
   if (!loaded) {
     return (
-      <div className="flex flex-1 justify-center px-4 py-[clamp(40px,7.2vw,104px)]">
-        <LoadingNote />
-      </div>
+      <Container>
+        <PageLoader />
+      </Container>
     );
   }
 
@@ -70,7 +77,7 @@ export default function AccountPage() {
             <p className="font-bold text-ink-900">Please accept our Terms &amp; Conditions to book events.</p>
             {/* The label is too long for one line on a phone, so this one
                 button may wrap onto two. */}
-            <Button onClick={acceptTerms} block className="!h-auto min-h-[54px] !whitespace-normal py-3 leading-snug">
+            <Button onClick={acceptTerms} disabled={accepting} loading={accepting} block className="!h-auto min-h-[54px] !whitespace-normal py-3 leading-snug">
               I agree to the Terms &amp; Privacy Policy
             </Button>
           </Notice>
@@ -83,10 +90,12 @@ export default function AccountPage() {
               second route to the same three pages. */}
           <AccountLink href="/account/edit-profile" label="Edit profile" />
           <AccountLink href="/account/change-password" label="Change password" />
-          <AccountLink href="/account/unsubscribe" label="Unsubscribe from emails" />
+          {/* Marketing emails are for members; an admin account has nothing
+              to unsubscribe from. */}
+          {!me.isAdmin && <AccountLink href="/account/unsubscribe" label="Unsubscribe from emails" />}
         </ul>
 
-        <Button variant="secondary" block onClick={handleLogout}>Log out</Button>
+        <Button variant="secondary" block onClick={handleLogout} disabled={loggingOut} loading={loggingOut}>Log out</Button>
       </FormCard>
     </SplitLayout>
   );

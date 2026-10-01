@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import { Button, Field, Input, Select } from '@/components/ui';
+import { Button, Field, Input, Select, Loader, BackLink } from '@/components/ui';
 import { calculateAge } from '@/lib/age';
 import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethod';
 
@@ -18,6 +17,8 @@ interface Booking {
 export default function EventBookingsPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  // False until the first fetch returns, so the list doesn't claim to be empty while loading.
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Inline edit of one booking at a time — the host is standing at a door,
   // not filling in a form, so this opens in place rather than on another page.
@@ -26,7 +27,7 @@ export default function EventBookingsPage() {
   const [savingBooking, setSavingBooking] = useState(false);
 
   function loadBookings() {
-    fetch(`/api/admin/events/${eventId}/bookings`).then((r) => r.json()).then(setBookings);
+    fetch(`/api/admin/events/${eventId}/bookings`).then((r) => r.json()).then((d) => { setBookings(d); setLoaded(true); });
   }
 
   useEffect(() => {
@@ -66,12 +67,10 @@ export default function EventBookingsPage() {
 
   return (
     <div>
-      <Link href={`/admin/events/${eventId}`} className="mb-3 inline-flex items-center gap-1 text-sm font-bold text-plum hover:underline">
-        ← Back to event
-      </Link>
+      <BackLink href={`/admin/events/${eventId}`}>Back to event</BackLink>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Event bookings</h1>
       <p className="mb-4 text-sm text-ink/60">
-        {men} men · {women} women booked
+        {loaded ? `${men} men · ${women} women booked` : 'Loading bookings…'}
         {unpaid > 0 && <span className="text-ink/40"> · {unpaid} unpaid (not holding a place)</span>}
       </p>
 
@@ -83,6 +82,7 @@ export default function EventBookingsPage() {
             <tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Name</th><th className="px-4 py-3">M/F</th><th className="px-4 py-3">Age</th><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Status</th><th className="px-4 py-3"></th></tr>
           </thead>
           <tbody>
+            {!loaded && <tr><td colSpan={7}><Loader label="Loading bookings…" /></td></tr>}
             {bookings.flatMap((b) => [
               <tr key={b.id} className="border-t border-ink/5">
                 <td className="px-4 py-3 text-ink/40">{String(b.badge).padStart(2, '0')}</td>
@@ -143,7 +143,7 @@ export default function EventBookingsPage() {
                         Checked in
                       </label>
                       <div className="mb-4 flex gap-2">
-                        <Button onClick={() => saveBooking(b.id)} disabled={savingBooking}>
+                        <Button onClick={() => saveBooking(b.id)} disabled={savingBooking} loading={savingBooking}>
                           {savingBooking ? 'Saving…' : 'Save'}
                         </Button>
                         <Button variant="ghost" onClick={() => { setEditingId(null); setError(null); }}>Cancel</Button>
@@ -154,7 +154,7 @@ export default function EventBookingsPage() {
                         Refunded does not send money back — both still happen
                         in Stripe. */}
                     <p className="text-xs text-ink/50">
-                      Records what happened — it doesn&apos;t take or refund a payment in Stripe.
+                      Records what happened. It doesn&apos;t take or refund a payment in Stripe.
                     </p>
                   </td>
                 </tr>

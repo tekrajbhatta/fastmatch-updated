@@ -90,13 +90,13 @@ const SIGNUP_DIMENSIONS = new Set(['month', 'ageGroup', 'location', 'none']);
 export function reportProblem(opts: {
   category: Dimension; group: Dimension | 'none'; type: ReportType; memberFilters: boolean;
 }): string | null {
-  if (opts.category === opts.group) return 'Choose a different Group by — it’s the same as Categorise by.';
+  if (opts.category === opts.group) return 'Choose a different Group by. It’s the same as Categorise by.';
   if (opts.type === 'profitLoss') {
     if (opts.category === 'ageGroup' || opts.group === 'ageGroup') {
-      return 'A profit/loss statement can’t be split by age group — an event’s expenses belong to the whole night, not to one age group.';
+      return 'A profit/loss statement can’t be split by age group. An event’s expenses belong to the whole night, not to one age group.';
     }
     if (opts.memberFilters) {
-      return 'A profit/loss statement can’t be restricted by age or gender — expenses are for the whole event. Clear those two filters.';
+      return 'A profit/loss statement can’t be restricted by age or gender, as expenses are for the whole event. Clear those two filters.';
     }
   }
   return null;

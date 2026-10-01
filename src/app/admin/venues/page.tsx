@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Field, Input, Select, Button, Card, Badge } from '@/components/ui';
+import { Field, Input, Select, Button, Card, Badge, Loader } from '@/components/ui';
 import PhotoUploadField from '@/components/PhotoUploadField';
+import { Spinner } from '@/components/Spinner';
 
 interface City { id: string; name: string; }
 interface Venue {
@@ -16,6 +17,8 @@ const EMPTY = { name: '', cityId: '', address: '', phone: '', websiteUrl: '', lo
 
 export default function AdminVenuesPage() {
   const [venues, setVenues] = useState<Venue[]>([]);
+  // False until the first fetch returns, so the list doesn't claim to be empty while loading.
+  const [loaded, setLoaded] = useState(false);
   const [cities, setCities] = useState<City[]>([]);
   const [form, setForm] = useState(EMPTY);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -27,7 +30,7 @@ export default function AdminVenuesPage() {
   const [duplicating, setDuplicating] = useState<string | null>(null);
 
   function load() {
-    return fetch('/api/admin/venues').then((r) => r.json()).then(setVenues);
+    return fetch('/api/admin/venues').then((r) => r.json()).then((d) => { setVenues(d); setLoaded(true); });
   }
 
   useEffect(() => {
@@ -96,7 +99,7 @@ export default function AdminVenuesPage() {
     if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Could not duplicate that venue.'); return; }
     await load();
     startEdit(data);
-    setNotice(`Copy of ${v.name} created — give it its own name and save.`);
+    setNotice(`Copy of ${v.name} created. Give it its own name and save.`);
   }
 
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
@@ -106,7 +109,7 @@ export default function AdminVenuesPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="mb-1 text-2xl font-extrabold text-ink">Venues</h1>
-          <p className="text-sm text-ink/60">Add a venue here, then pick it when creating an event or a blast — its image and description are copied in, ready to edit.</p>
+          <p className="text-sm text-ink/60">Add a venue here, then pick it when creating an event or a blast. Its image and description are copied in, ready to edit.</p>
           <p className="text-sm text-ink/60">The venues that are already in use by an event can not be deleted.</p>
         </div>
         {!open && <Button onClick={startCreate}>Create venue</Button>}
@@ -143,7 +146,7 @@ export default function AdminVenuesPage() {
                 rows={4}
                 value={form.description}
                 onChange={(e) => set({ description: e.target.value })}
-                placeholder="A few words about the venue — the setting, the drinks, how to find it."
+                placeholder="A few words about the venue: the setting, the drinks, how to find it."
                 className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum"
               />
             </Field>
@@ -155,7 +158,7 @@ export default function AdminVenuesPage() {
 
             {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
             <div className="flex gap-2">
-              <Button type="submit" disabled={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create venue'}</Button>
+              <Button type="submit" disabled={saving} loading={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create venue'}</Button>
               <Button type="button" variant="ghost" onClick={() => { setOpen(false); setEditingId(null); setError(null); setNotice(null); }}>Cancel</Button>
             </div>
           </form>
@@ -174,7 +177,9 @@ export default function AdminVenuesPage() {
         </Card>
       )}
 
-      {venues.length === 0 ? (
+      {!loaded ? (
+        <Loader label="Loading venues…" />
+      ) : venues.length === 0 ? (
         <Card><p className="text-sm text-ink/50">No venues yet. Create one to start adding events.</p></Card>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-ink/10 bg-white">
@@ -199,10 +204,10 @@ export default function AdminVenuesPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-ink/60">{v.city.name}</td>
-                  <td className="px-4 py-3 text-ink/60">{v.address ?? <span className="text-ink/30">—</span>}</td>
+                  <td className="px-4 py-3 text-ink/60">{v.address ?? <span className="text-ink/30">-</span>}</td>
                   <td className="px-4 py-3 text-ink/60">
                     {v.phone ?? ''}{v.phone && v.websiteUrl ? ' · ' : ''}{v.websiteUrl ?? ''}
-                    {!v.phone && !v.websiteUrl && <span className="text-ink/30">—</span>}
+                    {!v.phone && !v.websiteUrl && <span className="text-ink/30">-</span>}
                   </td>
                   <td className="px-4 py-3"><Badge tone={v._count.events > 0 ? 'green' : 'muted'}>{v._count.events}</Badge></td>
                   <td className="whitespace-nowrap px-4 py-3 text-right">
@@ -213,7 +218,8 @@ export default function AdminVenuesPage() {
                     {v._count.events === 0 && (
                       <button onClick={() => setConfirmDelete(v)} className="ml-3 text-sm font-bold text-coral hover:underline">Delete</button>
                     )}
-                    <button onClick={() => handleDuplicate(v)} disabled={duplicating !== null} className="ml-3 text-sm font-bold text-plum hover:underline disabled:opacity-50">
+                    <button onClick={() => handleDuplicate(v)} disabled={duplicating !== null} className="ml-3 inline-flex items-center gap-1.5 text-sm font-bold text-plum hover:underline disabled:opacity-50">
+                      {duplicating === v.id && <Spinner className="h-3.5 w-3.5" />}
                       {duplicating === v.id ? 'Duplicating…' : 'Duplicate'}
                     </button>
                   </td>

@@ -58,7 +58,7 @@ function campaignBanner(bannerImageUrl?: string | null) {
   const logoSrc = `${(process.env.APP_URL ?? '').replace(/\/+$/, '')}/logo.png`;
   return `
     <div style="background-color:#ffffff;padding:24px;text-align:center;">
-      <img src="${logoSrc}" width="200" height="61" alt="fastmatch — Connecting People Face to Face"
+      <img src="${logoSrc}" width="200" height="61" alt="fastmatch, Connecting People Face to Face"
            style="width:200px;height:auto;border:0;display:inline-block;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:bold;color:${BRAND_COLORS.plum};" />
     </div>
     <div style="height:6px;background-color:${BRAND_COLORS.green};"></div>`;

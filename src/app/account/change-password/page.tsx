@@ -30,7 +30,7 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <SplitLayout title="Change password">
+    <SplitLayout title="Change password" back={{ href: '/account', label: 'Back to my account' }}>
       <FormCard>
         {status === 'done' ? (
           <FormSuccess>Password updated.</FormSuccess>
@@ -43,7 +43,7 @@ export default function ChangePasswordPage() {
               <TextInput type="password" required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             </Field>
             {error && <FormError>{error}</FormError>}
-            <Button type="submit" disabled={status === 'saving'} block className="mt-1">
+            <Button type="submit" disabled={status === 'saving'} loading={status === 'saving'} block className="mt-1">
               {status === 'saving' ? 'Saving…' : 'Save new password'}
             </Button>
           </form>

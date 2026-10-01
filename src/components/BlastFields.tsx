@@ -83,7 +83,7 @@ export default function BlastFields({ value, onChange }: { value: BlastContent; 
               extra SMS is charged per member. */}
           <p className={`-mt-2 text-xs ${sms.messages > 1 ? 'font-bold text-coral' : 'text-ink/50'}`}>
             {sms.characters} characters incl. the &ldquo;Reply STOP to opt out&rdquo; line
-            {sms.messages > 0 && <> — {sms.messages} SMS per member{sms.messages === 1 ? ` (${sms.remaining} left)` : ''}</>}
+            {sms.messages > 0 && <> · {sms.messages} SMS per member{sms.messages === 1 ? ` (${sms.remaining} left)` : ''}</>}
             {sms.unicode && ' · contains a special character (emoji or curly quote), so each SMS holds only 70'}
           </p>
         </div>

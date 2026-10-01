@@ -14,10 +14,10 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (!parsed.success) return NextResponse.json({ error: 'Enter the 6-digit code from your SMS.' }, { status: 400 });
 
   if (!member.mobileVerificationCode || !member.mobileVerificationExpires) {
-    return NextResponse.json({ error: 'No verification code pending — request a new one.' }, { status: 400 });
+    return NextResponse.json({ error: 'No verification code pending. Request a new one.' }, { status: 400 });
   }
   if (member.mobileVerificationExpires < new Date()) {
-    return NextResponse.json({ error: 'This code has expired — request a new one.' }, { status: 400 });
+    return NextResponse.json({ error: 'This code has expired. Request a new one.' }, { status: 400 });
   }
   if (parsed.data.code !== member.mobileVerificationCode) {
     return NextResponse.json({ error: 'Incorrect code.' }, { status: 400 });

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Field, Input, Select, Button, Card } from '@/components/ui';
+import { Field, Input, Select, Button, Card, Loader } from '@/components/ui';
 import {
   CATEGORY_OPTIONS, GROUP_OPTIONS, REPORT_TYPES, reportProblem,
   type Dimension, type ReportType, type Metrics, type CategoryRow,
@@ -42,7 +42,7 @@ const COLUMN_LABELS: Record<keyof Metrics, string> = {
 const COLUMN_HELP: Record<keyof Metrics, string> = {
   signups: 'Number of registrations (by the date they joined, their city and their age then)',
   members: 'Number of different members with a paid booking',
-  bookings: 'Number of paid bookings — online, cash, card, pay at door and friends',
+  bookings: 'Number of paid bookings: online, cash, card, pay at door and friends',
   matchPct: 'Percentage of those members who got at least one date or friend match (events whose results are in)',
   revenue: 'How much money was taken in',
   expenses: 'Each event’s expenses, counted once per event',
@@ -52,7 +52,7 @@ const COLUMN_HELP: Record<keyof Metrics, string> = {
 const money = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 function cell(col: keyof Metrics, m: Metrics) {
   const v = m[col];
-  if (v === null) return '—';
+  if (v === null) return '-';
   if (col === 'matchPct') return `${v.toFixed(2)}%`;
   if (col === 'revenue' || col === 'expenses' || col === 'profit') return money(v);
   return v.toLocaleString();
@@ -75,6 +75,7 @@ export default function ReportsPage() {
   const [events, setEvents] = useState<EventOption[]>([]);
   const [selectedEvent, setSelectedEvent] = useState('');
   const [eventReport, setEventReport] = useState<EventReport | null>(null);
+  const [loadingEventReport, setLoadingEventReport] = useState(false);
 
   useEffect(() => {
     fetch('/api/event-themes').then((r) => r.json()).then(setThemes);
@@ -90,7 +91,8 @@ export default function ReportsPage() {
 
   useEffect(() => {
     if (selectedEvent) {
-      fetch(`/api/admin/reports/event/${selectedEvent}`).then((r) => r.json()).then(setEventReport);
+      setLoadingEventReport(true);
+      fetch(`/api/admin/reports/event/${selectedEvent}`).then((r) => r.json()).then(setEventReport).finally(() => setLoadingEventReport(false));
     }
   }, [selectedEvent]);
 
@@ -182,17 +184,18 @@ export default function ReportsPage() {
                 <Field label="Age from"><Input type="number" min={18} disabled={isPL} value={filters.ageMin} onChange={(e) => setFilters({ ...filters, ageMin: e.target.value })} /></Field>
                 <Field label="Age to"><Input type="number" min={18} disabled={isPL} value={filters.ageMax} onChange={(e) => setFilters({ ...filters, ageMax: e.target.value })} /></Field>
               </div>
-              {isPL && <p className="-mt-2 text-xs text-ink/50">Age and gender don&apos;t apply to a profit/loss statement — expenses are for the whole event.</p>}
+              {isPL && <p className="-mt-2 text-xs text-ink/50">Age and gender don&apos;t apply to a profit/loss statement, as expenses are for the whole event.</p>}
             </Card>
           </div>
 
           <div className="mb-6 flex flex-wrap items-center gap-3 print:hidden">
-            <Button onClick={() => generate(filters, shape)} disabled={!!problem || loadingReport}>{loadingReport ? 'Generating…' : 'Generate report'}</Button>
+            <Button onClick={() => generate(filters, shape)} disabled={!!problem || loadingReport} loading={loadingReport}>{loadingReport ? 'Generating…' : 'Generate report'}</Button>
             <Button variant="ghost" onClick={() => { setFilters(EMPTY_FILTERS); }}>Clear filters</Button>
             {problem && <p className="text-sm font-medium text-coral">{problem}</p>}
           </div>
 
           {breakdownError && <p className="mb-4 text-sm font-medium text-coral">{breakdownError}</p>}
+          {loadingReport && !breakdown && <Loader label="Generating report…" />}
           {breakdown && <BreakdownTable b={breakdown} cities={cities} venues={venues} themes={themes} />}
 
           {summary && (
@@ -251,14 +254,15 @@ export default function ReportsPage() {
               <Select value={selectedEvent} onChange={(e) => setSelectedEvent(e.target.value)}>
                 {events.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} — {e.theme.name} — {e.venue.name} — Ages {e.ageMin}-{e.ageMax}
+                    {new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} · {e.theme.name} · {e.venue.name} · Ages {e.ageMin}-{e.ageMax}
                   </option>
                 ))}
               </Select>
             </Field>
           </Card>
 
-          {eventReport && (
+          {loadingEventReport && <Loader label="Loading the event report…" />}
+          {eventReport && !loadingEventReport && (
             <>
               <div className="mb-6 grid grid-cols-3 gap-4 print:hidden">
                 <StatBox label="Attended" value={eventReport.attended} />
@@ -400,7 +404,7 @@ function EventStatement({ r }: { r: EventReport }) {
       <StatementTotal label="Total revenue" amount={s.revenue} />
 
       <h3 className="mb-1 mt-5 font-extrabold text-ink">Commissions</h3>
-      <p className="text-xs text-ink/50">None — the new site has no affiliates.</p>
+      <p className="text-xs text-ink/50">None. The new site has no affiliates.</p>
       <StatementTotal label="Total commissions" amount={-s.commissions} />
 
       <h3 className="mb-1 mt-5 font-extrabold text-ink">Expenses</h3>

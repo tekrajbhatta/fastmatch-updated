@@ -47,7 +47,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
     });
     if (inFlight > 0) {
       return NextResponse.json(
-        { error: 'This blast is being sent right now — wait for it to finish (or cancel it on the Send tab) before editing.' },
+        { error: 'This blast is being sent right now. Wait for it to finish (or cancel it on the Send tab) before editing.' },
         { status: 409 }
       );
     }
@@ -69,7 +69,7 @@ export const DELETE = withErrorHandling(async (req: NextRequest, ctx: { params: 
   const sendCount = await prisma.campaignSend.count({ where: { campaignId: params.id } });
   if (sendCount > 0) {
     return NextResponse.json(
-      { error: 'This blast has been sent before — use Stop re-using blast instead of deleting.' },
+      { error: 'This blast has been sent before. Use Stop re-using blast instead of deleting.' },
       { status: 409 }
     );
   }

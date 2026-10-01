@@ -65,7 +65,7 @@ export default function VenuePickerField({
       <Select value={selectedId} onChange={(e) => handleSelect(e.target.value)}>
         <option value="">Select a venue…</option>
         {venues.map((v) => (
-          <option key={v.id} value={v.id}>{v.name} — {v.city.name}</option>
+          <option key={v.id} value={v.id}>{v.name}, {v.city.name}</option>
         ))}
       </Select>
 
@@ -82,7 +82,7 @@ export default function VenuePickerField({
       ) : (
         <p className="mt-1 text-xs text-ink/50">
           Copies the venue&apos;s name, address, phone, website, description, image and logo into this blast. Edit
-          freely afterwards — changing the venue later won&apos;t alter this blast.
+          freely afterwards. Changing the venue later won&apos;t alter this blast.
         </p>
       )}
     </Field>

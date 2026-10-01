@@ -36,7 +36,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const f = parsed.data;
 
   if (f.email.toLowerCase() === member.email.toLowerCase()) {
-    return NextResponse.json({ error: 'That’s your own email — please enter your friend’s.' }, { status: 400 });
+    return NextResponse.json({ error: 'That’s your own email. Please enter your friend’s.' }, { status: 400 });
   }
   const existing = await prisma.member.findUnique({ where: { email: f.email } });
   if (existing) {
@@ -80,7 +80,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // try again rather than being told "already invited".
     console.error(`Tell A Friend: invitation to ${friend.email} failed`, err);
     await prisma.member.delete({ where: { id: friend.id } });
-    return NextResponse.json({ error: "Sorry — we couldn't send the invitation just now. Please try again." }, { status: 502 });
+    return NextResponse.json({ error: "Sorry, we couldn't send the invitation just now. Please try again." }, { status: 502 });
   }
 
   return NextResponse.json({ ok: true, name: friend.name, email: friend.email });

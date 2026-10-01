@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Button } from '@/components/ui';
+import { Button, Loader } from '@/components/ui';
 
 interface Item {
   id: string;
@@ -28,7 +28,7 @@ export default function MemberFeedbackPage() {
         Everything members have sent from the Feedback page, newest first. Each one is also emailed to gil@fastmatch.com.au as it arrives.
       </p>
 
-      {!data && <p className="text-sm text-ink/50">Loading…</p>}
+      {!data && <Loader label="Loading feedback…" />}
       {data && data.items.length === 0 && <p className="rounded-xl border border-ink/10 bg-white p-5 text-sm text-ink/50">No feedback yet.</p>}
 
       <div className="space-y-3">
@@ -48,7 +48,7 @@ export default function MemberFeedbackPage() {
                 <>
                   About event{' '}
                   <Link href={`/admin/events/${f.event.id}`} className="text-plum hover:underline">
-                    #{f.event.number} {f.event.name} — {f.event.venue.name}, {new Date(f.event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    #{f.event.number} {f.event.name} at {f.event.venue.name}, {new Date(f.event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </Link>
                 </>
               ) : 'General comment'}

@@ -21,7 +21,7 @@ function UnsubscribeInner() {
   useEffect(() => {
     if (!token) {
       setState('error');
-      setError('This link is missing its code — use the full link from the email.');
+      setError('This link is missing its code. Use the full link from the email.');
       return;
     }
     fetch(`/api/unsubscribe?token=${encodeURIComponent(token)}`)

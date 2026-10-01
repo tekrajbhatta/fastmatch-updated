@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Field, Input, Select, Button, Card } from '@/components/ui';
+import { Field, Input, Select, Button, Card, BackLink } from '@/components/ui';
 import PhotoUploadField from '@/components/PhotoUploadField';
 import VenuePickerField from '@/components/VenuePickerField';
 import ExcludeBookedField from '@/components/ExcludeBookedField';
@@ -93,8 +93,13 @@ function NewBlastInner() {
 
   return (
     <div className="mx-auto max-w-lg">
+      {/* Opened from an event's "Create blast for this event", it goes back
+          to that event; otherwise to the blasts list. */}
+      {params.get('fromEvent')
+        ? <BackLink href={`/admin/events/${params.get('fromEvent')}`}>Back to event</BackLink>
+        : <BackLink href="/admin/blasts">Back to blasts</BackLink>}
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Create blast</h1>
-      <p className="mb-6 text-sm text-ink/60">Reusable — you can send it more than once, to different filtered lists, until you stop re-using it.</p>
+      <p className="mb-6 text-sm text-ink/60">Reusable: you can send it more than once, to different filtered lists, until you stop re-using it.</p>
 
       <Card>
         <form onSubmit={handleSave}>
@@ -102,13 +107,13 @@ function NewBlastInner() {
 
           <Field label="Blast template">
             <Select value={templateId} onChange={(e) => applyTemplate(e.target.value)}>
-              <option value="">(None — start blank)</option>
+              <option value="">(None, start blank)</option>
               {templates.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
             </Select>
           </Field>
           {templateId && (
             <p className="mb-4 -mt-2 text-xs text-ink/50">
-              Content copied in below — edit freely, this blast has its own independent copy and won&apos;t affect the template or any other blast.
+              Content copied in below. Edit freely: this blast has its own independent copy and won&apos;t affect the template or any other blast.
             </p>
           )}
 
@@ -160,13 +165,13 @@ function NewBlastInner() {
 
           <label className="mb-4 flex items-center gap-2 text-sm text-ink/70">
             <input type="checkbox" checked={form.ignorePreference} onChange={(e) => setForm({ ...form, ignorePreference: e.target.checked })} />
-            Ignore preference — overrides each member's contact setting
+            Ignore preference (overrides each member's contact setting)
           </label>
           <ExcludeBookedField excludeBooked={form.excludeBooked} eventId={form.excludeBookedEventId} onChange={(patch) => setForm((f) => ({ ...f, ...patch }))} />
 
           {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
 
-          <Button type="submit" disabled={saving} className="w-full">{saving ? 'Saving…' : 'Save blast & preview'}</Button>
+          <Button type="submit" disabled={saving} loading={saving} className="w-full">{saving ? 'Saving…' : 'Save blast & preview'}</Button>
         </form>
       </Card>
     </div>

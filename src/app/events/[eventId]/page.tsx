@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Card, Container, LoadingNote, PageHero } from '@/components/site/layout';
+import { Card, Container, PageHero, PageLoader, BackLink } from '@/components/site/layout';
 import { Field, FieldError, FormError, FormSuccess, SelectInput, TextInput } from '@/components/site/form';
 import { Button, linkClass } from '@/components/site/button';
 import { venueLine } from '@/lib/venue';
@@ -72,6 +72,14 @@ export default function EventDetailPage() {
     fetch('/api/auth/me').then((r) => r.json()).then((d) => setMe(d?.member ?? null)).catch(() => setMe(null));
   }, [eventId]);
 
+  // Coming Back from the payment page can restore this page exactly as it was
+  // left — mid-"Booking…". Reset the button so they can try again.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => { if (e.persisted) setBooking(false); };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, []);
+
   // Check the discount code shortly after the member stops typing, so the
   // summary shows the discount — or "promotion already used" — before they pay.
   useEffect(() => {
@@ -94,8 +102,15 @@ export default function EventDetailPage() {
     return () => clearTimeout(timer);
   }, [discountCode, me, event, eventId]);
 
-  if (notFound) return <Container className="py-16"><p className="text-base text-ink-600">This event isn&apos;t available.</p></Container>;
-  if (!event) return <Container className="py-16"><LoadingNote /></Container>;
+  if (notFound) {
+    return (
+      <Container className="py-16">
+        <BackLink href="/events" label="Back to upcoming events" className="mb-3" />
+        <p className="text-base text-ink-600">This event isn&apos;t available.</p>
+      </Container>
+    );
+  }
+  if (!event) return <Container><PageLoader>Loading event…</PageLoader></Container>;
 
   // The event's own local time, with "(Perth time)" if the viewer's differs.
   const when = formatEventForViewer(event.startsAt, event.city.name);
@@ -154,7 +169,9 @@ export default function EventDetailPage() {
       body: JSON.stringify({ discountCode: discountCode.trim() || undefined, friends }),
     });
     const data = await res.json().catch(() => ({}));
-    setBooking(false);
+    // The button stays busy ("Booking…" with a spinner) while the browser
+    // moves on to payment, login or the booked page — those can take a
+    // second or two — and only comes back if the booking was refused.
     // A logged-out visitor can browse events but can't book one. Send them to
     // log in and return them to this event afterwards, rather than showing a
     // dead-end "Not authenticated" message with nothing to act on.
@@ -163,8 +180,9 @@ export default function EventDetailPage() {
       return;
     }
     if (!res.ok) {
+      setBooking(false);
       if (Array.isArray(data.fieldErrors)) setServerErrors(data.fieldErrors);
-      setError(data.error ?? 'Something went wrong — please try again.');
+      setError(data.error ?? 'Something went wrong. Please try again.');
       return;
     }
     if (data.checkoutUrl) {
@@ -182,6 +200,7 @@ export default function EventDetailPage() {
   return (
     <>
       <PageHero
+        back={{ href: '/events', label: 'Back to upcoming events' }}
         size="event"
         eyebrow={event.theme.name}
         title={event.name}
@@ -287,7 +306,7 @@ export default function EventDetailPage() {
           )}
 
           {/* "Book" in the members' events table lands here (/events/:id#book). */}
-          <aside id="book" className="sticky top-6 min-w-0 flex-[0_1_420px] scroll-mt-6">
+          <aside id="book" className="sticky top-[calc(var(--header-h)+24px)] min-w-0 flex-[0_1_420px] scroll-mt-6">
             <div className="flex flex-col gap-5 rounded-[28px] border border-line bg-white p-[clamp(20px,2vw,28px)] shadow-[0_24px_48px_-28px_rgba(45,24,72,0.4)]">
               <dl className="flex flex-col">
                 <div className="border-b border-line pb-4">
@@ -356,7 +375,7 @@ export default function EventDetailPage() {
               {event.alreadyBooked ? (
                 <FormSuccess>You&apos;re already booked in for this event.</FormSuccess>
               ) : (
-                <Button onClick={handleBook} disabled={booking || spotsLeft <= 0 || checkingCode} block size="hero">
+                <Button onClick={handleBook} disabled={booking || spotsLeft <= 0 || checkingCode} loading={booking} block size="hero">
                   {spotsLeft <= 0
                     ? 'Sold out'
                     : booking
@@ -364,7 +383,7 @@ export default function EventDetailPage() {
                       : !quote
                         ? 'Book this event'
                         : quote.total > 0
-                          ? `Continue to payment — ${money(quote.total)}`
+                          ? `Continue to payment (${money(quote.total)})`
                           : 'Confirm booking'}
                 </Button>
               )}

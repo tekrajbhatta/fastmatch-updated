@@ -8,9 +8,9 @@ import { ButtonLink } from '@/components/site/button';
 // first-time visitors straight into a booking list with no explanation of what
 // FastMatch is. Photos are the client's own event photography.
 export const metadata: Metadata = {
-  title: "FastMatch — Australia's original speed dating, since 1999",
+  title: "FastMatch - Australia's original speed dating, since 1999",
   description:
-    'Real conversations. Real people. Real matches. Five minutes face to face could change your life — speed dating events across Australia since 1999.',
+    'Real conversations. Real people. Real matches. Five minutes face to face could change your life. Speed dating events across Australia since 1999.',
 };
 
 // "What a night actually looks like": a row of tilted polaroids that
@@ -30,59 +30,71 @@ export default async function HomePage() {
 
   return (
     <>
-      {/* Hero. Phones: the photo is a band across the top that fades into the
-          plum under the text. Wider: it fills the right 62%, faded in from
-          the left behind the text. */}
-      <section className="relative overflow-hidden bg-plum-900">
+      {/* Hero. Header + hero fill the screen exactly (.hero-fill: 100dvh
+          minus --header-h); the next section starts just below the fold.
+          Phones: the text sits at the bottom and the photo fills whatever
+          room is left above it, fading into the plum behind the text — a
+          taller phone simply shows more photo. Wider: the photo covers the
+          right 62%, faded in from the left behind the text, which is
+          centred top to bottom. */}
+      <section className="hero-fill relative flex flex-col overflow-hidden bg-plum-900">
         {/* The mask fades the photo's left edge in, so its bright background
             doesn't leave a visible seam where it meets the solid plum. */}
-        <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[300px] md:inset-y-0 md:left-auto md:h-auto md:w-[62%] md:[mask-image:linear-gradient(90deg,transparent,black_18%)]">
-          {/* Decorative — the headline beside it carries the meaning, so alt is
-              intentionally empty rather than describing the photo to a screen
-              reader that has just read the same message. */}
-          <Image
-            src="/photos/p3_greens_omar.jpg"
-            alt=""
-            fill
-            priority
-            sizes="(min-width: 768px) 62vw, 100vw"
-            className="object-cover object-[60%_center] md:object-right"
-          />
+        <div aria-hidden="true" className="relative min-h-8 flex-1 md:absolute md:inset-y-0 md:right-0 md:min-h-0 md:w-[62%] md:[mask-image:linear-gradient(90deg,transparent,black_18%)]">
+          {/* On phones the photo runs 110px down behind the top of the text,
+              where the text block's own gradient fades it out. */}
+          <div className="absolute inset-x-0 -bottom-[110px] top-0 md:bottom-0">
+            {/* Decorative — the headline beside it carries the meaning, so alt is
+                intentionally empty rather than describing the photo to a screen
+                reader that has just read the same message. */}
+            <Image
+              src="/photos/p3_greens_omar.jpg"
+              alt=""
+              fill
+              priority
+              sizes="(min-width: 768px) 62vw, 100vw"
+              className="object-cover object-[60%_35%] md:object-right"
+            />
+            <div className="absolute inset-0 bg-plum-900/10 md:hidden" />
+          </div>
         </div>
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-[linear-gradient(180deg,rgba(45,24,72,0.1)_0px,rgba(45,24,72,0.65)_170px,#2D1848_290px)] md:bg-[linear-gradient(90deg,#2D1848_36%,rgba(45,24,72,0.55)_64%,rgba(45,24,72,0.05)_100%)]"
+          className="absolute inset-0 hidden bg-[linear-gradient(90deg,#2D1848_36%,rgba(45,24,72,0.55)_64%,rgba(45,24,72,0.05)_100%)] md:block"
         />
-        <Container className="relative pb-[clamp(56px,9vw,136px)] pt-[clamp(40px,8vw,120px)]">
-          {/* Room for the photo above the text on phones. */}
-          <div className="h-40 md:hidden" />
-          <div className="flex max-w-[620px] flex-col items-start gap-[clamp(20px,2vw,28px)]">
-            <span className="inline-block rounded-[999px_999px_999px_4px] bg-match-400 px-3.5 py-2 text-[clamp(11px,0.9vw,13px)] font-extrabold uppercase leading-[1.3] tracking-[0.08em] text-plum-900">
-              Australia&apos;s original speed dating pioneers
-            </span>
-            <h1 className="font-display text-[clamp(46px,6.2vw,90px)] font-extrabold leading-[0.96] tracking-[-0.035em] text-white">
-              Real conversations.<br />Real people.<br /><span className="text-match-300">Real matches.</span>
-            </h1>
-            <p className="max-w-[540px] text-[clamp(17px,1.4vw,20px)] leading-[1.55] text-plum-200 text-pretty">
-              Five minutes face to face could change your life. We pioneered this phenomenon in 1999
-              and still today nobody knows speed dating better!
-            </p>
-            <div className="mt-2 flex w-full max-w-[440px] flex-wrap gap-3">
-              {/* On its own (logged in) it keeps the width it has beside
-                  "Sign up free" rather than stretching across the row. */}
-              <ButtonLink href="/events" size="hero" onDark className={isLoggedIn ? 'flex-[0_1_214px]' : 'flex-[1_1_180px]'}>
-                Browse events
-              </ButtonLink>
-              {/* Nothing to sign up for once you're in — shown only to visitors
-                  who don't already have an account. */}
-              {!isLoggedIn && (
-                <ButtonLink href="/register" variant="light" size="hero" onDark className="flex-[1_1_180px]">
-                  Sign up free
+        <div className="relative bg-[linear-gradient(180deg,rgba(45,24,72,0)_0px,rgba(45,24,72,0.8)_64px,#2D1848_110px)] md:flex md:flex-1 md:flex-col md:justify-center md:bg-none">
+          <Container className="hero-pad">
+            <div className="hero-stack flex max-w-[620px] flex-col items-start">
+              <span className="inline-block rounded-[999px_999px_999px_4px] bg-match-400 px-3.5 py-2 text-[clamp(11px,0.9vw,13px)] font-extrabold uppercase leading-[1.3] tracking-[0.08em] text-plum-900">
+                Australia&apos;s original speed dating pioneers
+              </span>
+              <h1 className="hero-title font-display font-extrabold leading-[0.96] tracking-[-0.035em] text-white">
+                Real conversations.<br />Real people.<br /><span className="text-match-300">Real matches.</span>
+              </h1>
+              <p className="max-w-[540px] text-[clamp(17px,1.4vw,20px)] leading-[1.55] text-plum-200 text-pretty">
+                Five minutes face to face could change your life. We pioneered this phenomenon in 1999
+                and still today nobody knows speed dating better!
+              </p>
+              {/* Side by side even on a phone (narrower padding there) — stacked,
+                  they'd push the hero past the bottom of a small screen. Below
+                  about 330px they wrap onto two rows. */}
+              <div className="mt-2 flex w-full max-w-[440px] flex-wrap gap-3">
+                {/* On its own (logged in) it keeps the width it has beside
+                    "Sign up free" rather than stretching across the row. */}
+                <ButtonLink href="/events" size="hero" onDark className={`max-md:px-4 ${isLoggedIn ? 'flex-[0_1_214px]' : 'flex-[1_1_140px]'}`}>
+                  Browse events
                 </ButtonLink>
-              )}
+                {/* Nothing to sign up for once you're in — shown only to visitors
+                    who don't already have an account. */}
+                {!isLoggedIn && (
+                  <ButtonLink href="/register" variant="light" size="hero" onDark className="flex-[1_1_140px] max-md:px-4">
+                    Sign up free
+                  </ButtonLink>
+                )}
+              </div>
             </div>
-          </div>
-        </Container>
+          </Container>
+        </div>
       </section>
 
       {/* How it works — explainer video + the real 6-step flow */}
@@ -122,12 +134,12 @@ export default async function HomePage() {
               <Step
                 n={5}
                 title="Start your 5-minute conversations"
-                body="Meet each person in the room and rate who you'd like to see again — Date, Friend, or No — it's quick and private, all on your phone."
+                body="Meet each person in the room and rate who you'd like to see again: Date, Friend, or No. It's quick and private, all on your phone."
               />
               <Step
                 n={6}
                 title="Receive your matches automatically"
-                body="At the end of the event, get your matches on your phone — if it's mutual, you'll both get each other's contact details."
+                body="At the end of the event, get your matches on your phone. If it's mutual, you'll both get each other's contact details."
               />
             </ol>
           </div>

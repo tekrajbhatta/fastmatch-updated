@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { SplitLayout, FormCard, LoadingNote } from '@/components/site/layout';
 import { Field, TextInput, FormError, FormSuccess } from '@/components/site/form';
 import { Button, ButtonLink, linkClass } from '@/components/site/button';
+import { Spinner } from '@/components/Spinner';
 
 // SMS verification — enter the 6-digit code sent at registration. The API
 // routes (verify-mobile, resend-mobile-code) existed but no screen ever
@@ -26,6 +27,7 @@ function VerifyMobileInner() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/me').then((r) => r.json()).then((data) => {
@@ -46,7 +48,7 @@ function VerifyMobileInner() {
     const data = await res.json();
     setBusy(false);
     if (!res.ok) {
-      setError(data.error ?? 'Verification failed — try again.');
+      setError(data.error ?? 'Verification failed. Try again.');
       return;
     }
     setMe((m) => (m ? { ...m, mobileVerified: true } : m));
@@ -55,7 +57,10 @@ function VerifyMobileInner() {
   async function handleResend() {
     setError(null);
     setNotice(null);
-    const res = await fetch('/api/auth/resend-mobile-code', { method: 'POST' });
+    // One code per press: the link is disabled (with a spinner) until the
+    // text has gone, so an impatient second tap doesn't send another.
+    setResending(true);
+    const res = await fetch('/api/auth/resend-mobile-code', { method: 'POST' }).finally(() => setResending(false));
     const data = await res.json();
     if (!res.ok) setError(data.error ?? 'Could not resend the code.');
     else {
@@ -106,7 +111,7 @@ function VerifyMobileInner() {
             <FormSuccess>Your mobile is verified.</FormSuccess>
             <p className="text-[15px] leading-normal text-ink-600">
               {me.emailVerified
-                ? 'You’re all set — you can book events now.'
+                ? 'You’re all set. You can book events now.'
                 : 'Now click the confirmation link in your welcome email and you’re all set.'}
             </p>
             <Button block onClick={() => router.push('/events')}>Browse events</Button>
@@ -133,10 +138,11 @@ function VerifyMobileInner() {
             {error && <FormError>{error}</FormError>}
             {notice && <FormSuccess>{notice}</FormSuccess>}
 
-            <Button type="submit" disabled={busy || code.length !== 6} block className="mt-1">
+            <Button type="submit" disabled={busy || code.length !== 6} loading={busy} block className="mt-1">
               {busy ? 'Checking…' : 'Verify mobile'}
             </Button>
-            <button type="button" onClick={handleResend} className={`${linkClass} self-center text-[15px]`}>
+            <button type="button" onClick={handleResend} disabled={resending} aria-busy={resending || undefined} className={`${linkClass} inline-flex items-center gap-2 self-center text-[15px] disabled:opacity-60`}>
+              {resending && <Spinner className="h-4 w-4" />}
               Resend code
             </button>
           </form>

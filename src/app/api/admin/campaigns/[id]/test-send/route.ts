@@ -65,14 +65,14 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
       result.email = `Test email sent to ${email}.`;
     } catch (err) {
       console.error(`Test email for blast ${params.id} to ${email} failed`, err);
-      errors.push(`The test email to ${email} wasn’t sent — ${reason(err)}`);
+      errors.push(`The test email to ${email} wasn’t sent: ${reason(err)}`);
     }
   }
 
   if (mobile) {
     const body = (c.smsBody ?? '').trim();
     if (!body) {
-      errors.push('The SMS message is empty — write one before sending a test SMS.');
+      errors.push('The SMS message is empty. Write one before sending a test SMS.');
     } else {
       try {
         // Exactly what members get: the opt-out line is added to every blast SMS.
@@ -80,7 +80,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
         result.sms = `Test SMS sent to ${mobile}.`;
       } catch (err) {
         console.error(`Test SMS for blast ${params.id} to ${mobile} failed`, err);
-        errors.push(`The test SMS to ${mobile} wasn’t sent — ${reason(err)}`);
+        errors.push(`The test SMS to ${mobile} wasn’t sent: ${reason(err)}`);
       }
     }
   }

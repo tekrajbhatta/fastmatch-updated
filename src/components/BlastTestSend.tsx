@@ -41,7 +41,7 @@ export default function BlastTestSend({
     const data = res ? await res.json().catch(() => ({})) : {};
     setBusy(null);
     if (res?.ok) setResult({ ok: true, text: channel === 'email' ? data.email : data.sms });
-    else setResult({ ok: false, text: data.errors?.join(' ') || data.error || 'The test couldn’t be sent — please try again.' });
+    else setResult({ ok: false, text: data.errors?.join(' ') || data.error || 'The test couldn’t be sent. Please try again.' });
   }
 
   return (
@@ -53,7 +53,7 @@ export default function BlastTestSend({
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" />
           </Field>
         </div>
-        <Button type="button" className="mb-4" onClick={() => send('email')} disabled={!campaignId || !email.trim() || busy !== null}>
+        <Button type="button" className="mb-4" onClick={() => send('email')} disabled={!campaignId || !email.trim() || busy !== null} loading={busy === 'email'}>
           {busy === 'email' ? 'Sending…' : 'Send test email'}
         </Button>
       </div>
@@ -63,7 +63,7 @@ export default function BlastTestSend({
             <Input type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="04XX XXX XXX" />
           </Field>
         </div>
-        <Button type="button" className="mb-4" onClick={() => send('sms')} disabled={!campaignId || !mobile.trim() || busy !== null}>
+        <Button type="button" className="mb-4" onClick={() => send('sms')} disabled={!campaignId || !mobile.trim() || busy !== null} loading={busy === 'sms'}>
           {busy === 'sms' ? 'Sending…' : 'Send test SMS'}
         </Button>
       </div>

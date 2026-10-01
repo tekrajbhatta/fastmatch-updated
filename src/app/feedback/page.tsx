@@ -33,7 +33,7 @@ export default function FeedbackPage() {
     // Only claim it's sent if it was — and on failure keep what they wrote.
     if (!res?.ok) {
       setStatus('idle');
-      setError(typeof data.error === 'string' ? data.error : "Sorry — we couldn't send your feedback just now. Please try again.");
+      setError(typeof data.error === 'string' ? data.error : "Sorry, we couldn't send your feedback just now. Please try again.");
       return;
     }
     setStatus('sent');
@@ -47,17 +47,17 @@ export default function FeedbackPage() {
       <FormCard>
         {status === 'sent' ? (
           <>
-            <FormSuccess>Thanks — your feedback has been sent to the Fast Match team.</FormSuccess>
+            <FormSuccess>Thanks, your feedback has been sent to the Fast Match team.</FormSuccess>
             <Button variant="secondary" block onClick={() => { setMessage(''); setEventId(''); setStatus('idle'); }}>Send more feedback</Button>
           </>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <Field label="My feedback is about the event">
               <SelectInput value={eventId} onChange={(e) => setEventId(e.target.value)}>
-                <option value="">None — general comment</option>
+                <option value="">None (general comment)</option>
                 {events.map((ev) => (
                   <option key={ev.id} value={ev.id}>
-                    {formatEventForViewer(ev.startsAt, ev.city.name).dateWithYear} — {ev.name} at {ev.venue.name}
+                    {formatEventForViewer(ev.startsAt, ev.city.name).dateWithYear}: {ev.name} at {ev.venue.name}
                   </option>
                 ))}
               </SelectInput>
@@ -72,7 +72,7 @@ export default function FeedbackPage() {
               />
             </Field>
             {error && <FormError>{error}</FormError>}
-            <Button type="submit" disabled={status === 'sending' || !message.trim()} block className="mt-1">
+            <Button type="submit" disabled={status === 'sending' || !message.trim()} loading={status === 'sending'} block className="mt-1">
               {status === 'sending' ? 'Sending…' : 'Submit my feedback'}
             </Button>
           </form>

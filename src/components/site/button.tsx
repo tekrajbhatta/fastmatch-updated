@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ButtonHTMLAttributes, ComponentProps } from 'react';
+import { Spinner } from '@/components/Spinner';
 
 // Buttons for the member-facing site (the redesign's style guide). Admin
 // keeps its own in components/ui.tsx.
@@ -48,11 +49,18 @@ export function buttonClass({ variant = 'primary', size = 'form', block = false,
 }
 
 /** A <button>. Like a plain button it has no default `type` — pass
-    type="submit" or type="button" as the place needs. */
+    type="submit" or type="button" as the place needs. `loading` shows a
+    spinner beside the label while its work is in progress; disabling the
+    button meanwhile stays the caller's call, as it always was. */
 export function Button({
-  variant, size, block, onDark, className = '', ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & ButtonStyle) {
-  return <button {...props} className={`${buttonClass({ variant, size, block, onDark })} ${className}`} />;
+  variant, size, block, onDark, loading = false, className = '', children, ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & ButtonStyle & { loading?: boolean }) {
+  return (
+    <button {...props} aria-busy={loading || undefined} className={`${buttonClass({ variant, size, block, onDark })} ${className}`}>
+      {loading && <Spinner className="h-[1.15em] w-[1.15em]" />}
+      {children}
+    </button>
+  );
 }
 
 /** A link that looks like a button. */

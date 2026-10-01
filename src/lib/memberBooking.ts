@@ -139,9 +139,9 @@ export async function prepareMemberBooking(
       b?.status === 'CONFIRMED'
         ? 'This person is already booked into this event.'
         : b && b.status !== 'PENDING'
-          ? "This person's earlier booking for this event was cancelled — please contact gil@fastmatch.com.au to rebook them."
+          ? "This person's earlier booking for this event was cancelled. Please contact gil@fastmatch.com.au to rebook them."
           : m.gender !== f.gender
-            ? `This email belongs to a member registered as ${genderWord(m.gender)} — please add them as a ${genderWord(m.gender)} friend.`
+            ? `This email belongs to a member registered as ${genderWord(m.gender)}. Please add them as a ${genderWord(m.gender)} friend.`
             : (() => {
                 const age = calculateAge(m.dateOfBirth);
                 return age < event.ageMin || age > event.ageMax
@@ -166,7 +166,7 @@ export async function prepareMemberBooking(
   if (menBooked + wantMen > event.maxMen || womenBooked + wantWomen > event.maxWomen) {
     if (friends.length === 0) return { ok: false, status: 409, error: 'This event is full for your gender.' };
     const short = menBooked + wantMen > event.maxMen ? 'men' : 'women';
-    return { ok: false, status: 409, error: `Sorry — there aren't enough places left for ${short} at this event for everyone in your booking.` };
+    return { ok: false, status: 409, error: `Sorry, there aren't enough places left for ${short} at this event for everyone in your booking.` };
   }
 
   const quote = priceBooking({

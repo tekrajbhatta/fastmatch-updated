@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Field } from '@/components/ui';
+import { Spinner } from '@/components/Spinner';
 
 /**
  * Photo picker for a blast, shared by the create and edit screens so the two
@@ -72,7 +73,7 @@ export default function PhotoUploadField({
           className="w-full cursor-pointer text-sm text-ink/70 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-plum/10 file:px-3 file:py-2 file:text-sm file:font-bold file:text-plum hover:file:bg-plum/20"
         />
       )}
-      {uploading && <p className="mt-1 text-xs text-ink/50">Uploading and optimising…</p>}
+      {uploading && <p role="status" className="mt-1 flex items-center gap-1.5 text-xs text-ink/50"><Spinner className="h-3.5 w-3.5 text-plum" />Uploading and optimising…</p>}
       {error && <p className="mt-1 text-xs font-medium text-coral">{error}</p>}
       {!value && !uploading && !error && (
         <p className="mt-1 text-xs text-ink/50">{hint}</p>

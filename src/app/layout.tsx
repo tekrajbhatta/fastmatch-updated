@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, Figtree } from 'next/font/google';
 import { BRAND_TAGLINE } from '@/lib/brand';
 import { getCurrentMember } from '@/lib/auth';
 import SiteChrome from '@/components/SiteChrome';
+import { siteHeaderLayout } from '@/components/siteHeaderLayout';
 import './globals.css';
 
 // Self-hosted by next/font (downloaded once at build time), so there's no
@@ -12,7 +13,7 @@ const figtree = Figtree({ subsets: ['latin'], variable: '--font-sans', display: 
 const bricolage = Bricolage_Grotesque({ subsets: ['latin'], axes: ['opsz'], variable: '--font-display', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: 'FastMatch — Speed Dating Sydney',
+  title: 'FastMatch - Speed Dating Sydney',
   description: BRAND_TAGLINE,
 };
 
@@ -30,7 +31,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const member = await getCurrentMember();
 
   return (
-    <html lang="en" className={`${figtree.variable} ${bricolage.variable}`}>
+    <html lang="en" className={`${figtree.variable} ${bricolage.variable} ${siteHeaderLayout(member !== null, member?.isAdmin ?? false).headerH}`}>
       {/*
         suppressHydrationWarning: browser extensions (Grammarly, password
         managers, some ad blockers) inject attributes onto <body> before React
@@ -48,8 +49,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         footer at the bottom of the viewport on short pages. Without it a page
         with little content — an empty events list, the login form — left the
         footer floating mid-screen with a band of background below it.
+        The body's minimum height (100dvh, with a 100vh fallback) is set in
+        globals.css: as two utility classes, Tailwind emits min-h-dvh BEFORE
+        min-h-screen, so the fallback would always win.
       */}
-      <body suppressHydrationWarning className="flex min-h-screen flex-col bg-cream-50 font-sans">
+      <body suppressHydrationWarning className="flex flex-col bg-cream-50 font-sans">
         {/*
           The member header and its max-w-5xl <main> used to live here, which
           wrapped EVERY route including /admin — showing the member nav above

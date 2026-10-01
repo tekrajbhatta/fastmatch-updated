@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Field, Input, Select, Button, Card } from '@/components/ui';
+import { Field, Input, Select, Button, Card, Loader, BackLink } from '@/components/ui';
 import PhotoUploadField from '@/components/PhotoUploadField';
 import EventFlagFields from '@/components/EventFlagFields';
 import VenueInfoPanel, { venueFillPatch } from '@/components/VenueInfoPanel';
@@ -85,18 +85,16 @@ export default function EditEventPage() {
     router.push(`/admin/events/${eventId}`);
   }
 
-  if (!form) return <p className="text-sm text-ink/50">Loading…</p>;
+  if (!form) return <Loader label="Loading event…" />;
 
   return (
     <div className="mx-auto max-w-lg">
-      <Link href={`/admin/events/${eventId}`} className="mb-3 inline-flex items-center gap-1 text-sm font-bold text-plum hover:underline">
-        ← Back to event
-      </Link>
+      <BackLink href={`/admin/events/${eventId}`}>Back to event</BackLink>
       <h1 className="mb-6 text-2xl font-extrabold text-ink">Edit event</h1>
       {isDraft && (
         <p className="mb-4 rounded-lg bg-amber/15 p-3 text-sm text-ink">
           <strong>{copiedFrom ? `This is a copy of event #${copiedFrom}, saved as a draft.` : 'This event is a draft.'}</strong>{' '}
-          It isn&apos;t visible to the public or bookable until you save this form — change the date and anything else first.
+          It isn&apos;t visible to the public or bookable until you save this form, so change the date and anything else first.
         </p>
       )}
       <Card>
@@ -164,12 +162,12 @@ export default function EditEventPage() {
             <div className="mb-4 rounded-lg bg-cream/60 p-3 text-sm">
               <p className="font-bold text-ink">Event saved, but {notifyFailures.length} notification{notifyFailures.length === 1 ? '' : 's'} couldn&apos;t be sent:</p>
               <ul className="mt-1 list-inside list-disc text-ink/70">
-                {notifyFailures.map((f, i) => <li key={i}>{f.member} — {f.channel.toUpperCase()}</li>)}
+                {notifyFailures.map((f, i) => <li key={i}>{f.member} ({f.channel.toUpperCase()})</li>)}
               </ul>
               <p className="mt-1 text-ink/60">Please contact them directly about the new time.</p>
             </div>
           )}
-          <Button type="submit" disabled={saving} className="w-full">{saving ? 'Saving…' : 'Save changes'}</Button>
+          <Button type="submit" disabled={saving} loading={saving} className="w-full">{saving ? 'Saving…' : 'Save changes'}</Button>
         </form>
       </Card>
     </div>

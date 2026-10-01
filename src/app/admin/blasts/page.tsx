@@ -3,18 +3,21 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Button, Badge } from '@/components/ui';
+import { Button, Badge, Loader } from '@/components/ui';
+import { Spinner } from '@/components/Spinner';
 
 interface Campaign { id: string; title: string; hasBeenSent: boolean; blastStatus: string; sendEmail: boolean; sendSms: boolean; }
 
 export default function BlastsListPage() {
   const router = useRouter();
   const [blasts, setBlasts] = useState<Campaign[]>([]);
+  // False until the first fetch returns, so the list doesn't claim to be empty while loading.
+  const [loaded, setLoaded] = useState(false);
   const [duplicating, setDuplicating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/admin/campaigns').then((r) => r.json()).then(setBlasts);
+    fetch('/api/admin/campaigns').then((r) => r.json()).then((d) => { setBlasts(d); setLoaded(true); });
   }, []);
 
   const statusTone = (status: string) => (status === 'SENT' ? 'green' : status === 'SENDING' ? 'plum' : 'muted');
@@ -57,14 +60,20 @@ export default function BlastsListPage() {
               <button
                 onClick={() => duplicate(b.id)}
                 disabled={duplicating !== null}
-                className="rounded-lg border border-plum px-3 py-1.5 text-xs font-bold text-plum hover:bg-plum hover:text-white disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-plum px-3 py-1.5 text-xs font-bold text-plum hover:bg-plum hover:text-white disabled:opacity-50"
               >
+                {duplicating === b.id && <Spinner className="h-3.5 w-3.5" />}
                 {duplicating === b.id ? 'Duplicating…' : 'Duplicate'}
               </button>
+              {/* Same destination as clicking the row (preview, send,
+                  history) — a visible target, as on the events list. */}
+              <Link href={`/admin/blasts/${b.id}`} className="rounded-lg border border-plum px-3 py-1.5 text-xs font-bold text-plum hover:bg-plum hover:text-white">
+                Manage
+              </Link>
             </div>
           </div>
         ))}
-        {blasts.length === 0 && <p className="text-sm text-ink/50">No blasts yet.</p>}
+        {!loaded ? <Loader label="Loading blasts…" /> : blasts.length === 0 && <p className="text-sm text-ink/50">No blasts yet.</p>}
       </div>
     </div>
   );

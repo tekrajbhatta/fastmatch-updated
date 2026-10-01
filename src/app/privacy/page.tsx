@@ -13,10 +13,10 @@ export default function PrivacyPage() {
 
           <H2>What we collect</H2>
           <P>Fast Match collects personal information from members of the public, including (but not limited to) name, address, contact details, gender, occupation, age, hobbies, event preferences, and in some cases financial information, including credit card information, banking details and income information.</P>
-          <P>We store the personal information you enter on fastmatch.com.au — obtained mainly through registration, updates to membership details, and bookings. We may also use cookies to assign your computer a &apos;User ID&apos; to help identify your computer to our servers; you can disable cookies via your browser settings.</P>
+          <P>We store the personal information you enter on fastmatch.com.au, obtained mainly through registration, updates to membership details, and bookings. We may also use cookies to assign your computer a &apos;User ID&apos; to help identify your computer to our servers; you can disable cookies via your browser settings.</P>
 
           <H2>How we use it</H2>
-          <P>Fast Match generally uses personal information to provide the products or services you&apos;ve requested, personalise your experience, manage and enhance our services, communicate with you, and — with your consent — send you information about offers, products or services we believe may interest you.</P>
+          <P>Fast Match generally uses personal information to provide the products or services you&apos;ve requested, personalise your experience, manage and enhance our services, communicate with you and, with your consent, send you information about offers, products or services we believe may interest you.</P>
 
           <H2>Disclosure</H2>
           <P>Fast Match may provide your information to third parties engaged to perform functions on its behalf, such as processing credit card payments, mailouts, marketing, research and advertising.</P>

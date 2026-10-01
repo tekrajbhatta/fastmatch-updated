@@ -34,17 +34,17 @@ function ResetPasswordInner() {
   }
 
   return (
-    <SplitLayout title="Set a new password">
+    <SplitLayout title="Set a new password" back={{ href: '/login', label: 'Back to log in' }}>
       <FormCard>
         {status === 'done' ? (
-          <FormSuccess>Password set — redirecting to login…</FormSuccess>
+          <FormSuccess>Password set. Redirecting to login…</FormSuccess>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <Field label="New password">
               <TextInput type="password" required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             </Field>
             {error && <FormError>{error}</FormError>}
-            <Button type="submit" disabled={status === 'saving'} block className="mt-1">
+            <Button type="submit" disabled={status === 'saving'} loading={status === 'saving'} block className="mt-1">
               {status === 'saving' ? 'Saving…' : 'Save new password'}
             </Button>
           </form>

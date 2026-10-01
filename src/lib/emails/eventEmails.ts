@@ -47,8 +47,8 @@ export function eventReminderEmail(opts: { memberName: string; eventName: string
 
   const html = emailLayout(`
     <h1 style="color:#3D1E6D;">${opts.memberName}, you're speed dating on ${dateStr}!</h1>
-    <p>How exciting — your event is almost here.</p>
-    <p>What to wear? Entirely up to you — smart casual is always a safe bet. Just be yourself.</p>
+    <p>How exciting! Your event is almost here.</p>
+    <p>What to wear? Entirely up to you. Smart casual is always a safe bet. Just be yourself.</p>
     <p>There'll be plenty of first-timers there too, so relax, smile, and enjoy the process.</p>
     <p>Remember to arrive at least 10 minutes early so you're checked in and ready to go.</p>
     <p><strong>${opts.eventName}</strong><br>${opts.venue}<br>${dateStr}, ${timeStr}</p>
@@ -141,7 +141,7 @@ export function eventChangeEmail(c: EventChange & { memberName: string }) {
       html: emailLayout(`
         <h1 style="margin:0 0 20px;font-family:Arial,sans-serif;font-size:20px;line-height:1.4;font-weight:bold;color:#3D1E6D;">Your FastMatch event has been cancelled</h1>
         <p style="${P}">Hi ${c.memberName},</p>
-        <p style="${P}">Sorry — <strong>${c.oldVenue} ${c.themeName} ${c.ageMin}-${c.ageMax} years</strong>
+        <p style="${P}">We're sorry to let you know that <strong>${c.oldVenue} ${c.themeName} ${c.ageMin}-${c.ageMax} years</strong>
           on <strong>${fmt(c.oldStartsAt)}</strong>, which you were booked into, has been cancelled.</p>
         <p style="${P}">If any issues please contact
           <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>

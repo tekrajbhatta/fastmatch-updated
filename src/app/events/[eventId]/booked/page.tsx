@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { Container, DecorRing } from '@/components/site/layout';
+import { Container, DecorRing, BackLink } from '@/components/site/layout';
 import { ButtonLink } from '@/components/site/button';
 
 export default function BookedPage() {
@@ -9,6 +9,9 @@ export default function BookedPage() {
 
   return (
     <Container className="py-[clamp(40px,6vw,88px)]">
+      <div className="mx-auto max-w-[640px]">
+        <BackLink href={`/events/${eventId}`} label="Back to event" className="mb-3" />
+      </div>
       {/* The home page's closing panel, as a celebration. */}
       <div className="relative mx-auto flex max-w-[640px] flex-col items-center gap-4 overflow-hidden rounded-[clamp(28px,3.3vw,48px)_clamp(28px,3.3vw,48px)_clamp(28px,3.3vw,48px)_10px] bg-plum-900 px-[clamp(24px,4.4vw,64px)] py-[clamp(40px,5vw,72px)] text-center">
         <DecorRing className="-right-16 -top-20 w-[clamp(160px,20vw,240px)] opacity-60" />
