@@ -305,6 +305,11 @@ model DiscountCode {
   type        DiscountType
   amount      Decimal?     @db.Decimal(10, 2) // percent or fixed $ depending on type
   scopeThemeId String?     // null = applies to all events
+  // "Event" on the discount code form: null = "All" events (the default);
+  // otherwise the code only works when booking that one event. A plain id
+  // like scopeThemeId, not a relation: if the event is ever deleted the code
+  // matches no event, rather than falling back to working on every event.
+  scopeEventId String?
   validFrom   DateTime
   validTo     DateTime
   usedCount   Int          @default(0)

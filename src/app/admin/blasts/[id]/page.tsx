@@ -294,7 +294,10 @@ function ViewBlastInner() {
                   </div>
                 </BlastSendProgress>
               ) : (
-                <Button onClick={handleSendBlastNowClick} disabled={previewing} loading={previewing} className="w-full">Send Blast Now</Button>
+                // Greyed out once the send has finished, so it's clear the blast
+                // has just gone and it isn't sent twice by mistake. Reopening
+                // the blast starts afresh, ready to send again.
+                <Button onClick={handleSendBlastNowClick} disabled={previewing || !!justSent} loading={previewing} className="w-full">Send Blast Now</Button>
               )}
             </>
           )}

@@ -62,13 +62,15 @@ export default function SiteChrome({
   // menu and had to type /admin to get back.
   const navLinks: NavLink[] = isAdmin
     ? [
+        // Gil's order. The dashboard's cards follow it too.
         { href: '/admin', label: 'Dashboard' },
         { href: '/admin/events', label: 'Events' },
-        { href: '/admin/venues', label: 'Venues' },
-        { href: '/admin/members', label: 'Members' },
-        { href: '/admin/feedback', label: 'Member Feedback' },
-        { href: '/admin/discounts', label: 'Discount codes' },
         { href: '/admin/blasts', label: 'Blasts' },
+        { href: '/admin/members', label: 'Members' },
+        { href: '/admin/venues', label: 'Venues' },
+        { href: '/admin/discounts', label: 'Discount codes' },
+        { href: '/admin/event-types', label: 'Event Types' },
+        { href: '/admin/feedback', label: 'Member Feedback' },
         { href: '/admin/reports', label: 'Reports' },
         { href: '/account', label: 'My Account' },
       ]

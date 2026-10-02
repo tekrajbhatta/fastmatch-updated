@@ -13,6 +13,19 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   const updates = await req.json();
   if (updates.validFrom) updates.validFrom = new Date(updates.validFrom);
   if (updates.validTo) updates.validTo = new Date(updates.validTo);
+  // "Event": empty means All events; a newly chosen event must exist. (One
+  // chosen earlier and since deleted can stay, so the rest still saves.)
+  if ('scopeEventId' in updates) {
+    updates.scopeEventId = updates.scopeEventId || null;
+    const current = await prisma.discountCode.findUnique({ where: { id: params.id }, select: { scopeEventId: true } });
+    if (
+      updates.scopeEventId &&
+      updates.scopeEventId !== current?.scopeEventId &&
+      !(await prisma.event.findUnique({ where: { id: updates.scopeEventId }, select: { id: true } }))
+    ) {
+      return NextResponse.json({ error: 'Please choose a valid event.' }, { status: 400 });
+    }
+  }
 
   const updated = await prisma.discountCode.update({ where: { id: params.id }, data: updates });
   return NextResponse.json(updated);

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { DiscountCode, Event, Member } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
+import { discountAppliesTo } from './discountScope';
 import { calculateAge } from './age';
 import { venueLine } from './venue';
 import { priceBooking, MAX_FRIENDS_PER_GENDER, type PriceQuote } from './bookingPrice';
@@ -62,18 +63,14 @@ interface PendingFriend {
  */
 export async function lookupDiscount(
   member: Pick<Member, 'id'>,
-  event: Pick<Event, 'themeId' | 'fastmatchDiscounts'>,
+  event: Pick<Event, 'id' | 'themeId' | 'fastmatchDiscounts'>,
   rawCode: string,
 ): Promise<{ ok: false; error: string } | { ok: true; discount: DiscountCode; alreadyUsed: boolean }> {
   if (!event.fastmatchDiscounts) return { ok: false, error: "Discount codes can't be used for this event." };
   const discount = await prisma.discountCode.findUnique({ where: { code: rawCode.trim() } });
-  const now = new Date();
-  const valid =
-    discount &&
-    discount.validFrom <= now &&
-    discount.validTo >= now &&
-    (!discount.scopeThemeId || discount.scopeThemeId === event.themeId);
-  if (!discount || !valid) return { ok: false, error: 'This discount code is not valid for this event.' };
+  if (!discount || !discountAppliesTo(discount, event, new Date())) {
+    return { ok: false, error: 'This discount code is not valid for this event.' };
+  }
   // One use per member. Only a CONFIRMED booking counts — an abandoned
   // checkout mustn't burn someone's code.
   const alreadyUsed =

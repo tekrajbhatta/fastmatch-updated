@@ -2,7 +2,7 @@
 // component) so the root layout — a server component — can put the
 // --header-h variable on <html> for the first paint.
 //
-// The admin (nine items) and member (five) navs won't fit beside the logo
+// The admin (ten items) and member (five) navs won't fit beside the logo
 // on a tablet, so they collapse into the menu button later than the
 // two-item public nav does — the admin one latest of all. The header's own
 // height switches at the same point, so the compact header is always the one

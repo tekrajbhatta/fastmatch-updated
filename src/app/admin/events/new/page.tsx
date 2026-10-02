@@ -93,7 +93,7 @@ export default function NewEventPage() {
 
       <Card>
         <form onSubmit={handleSubmit}>
-          <Field label="Event theme">
+          <Field label="Event type">
             <Select value={form.themeId} onChange={(e) => setForm({ ...form, themeId: e.target.value })}>
               {themes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </Select>
