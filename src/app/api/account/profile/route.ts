@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import jwt from 'jsonwebtoken';
 import { getSessionMember } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { signEmailVerificationToken } from '@/lib/tokens';
 import { sendEmail } from '@/lib/emails/send';
 import { welcomeVerificationEmail } from '@/lib/emails/welcomeEmail';
 import { parseDateOfBirth } from '@/lib/friendBooking';
@@ -65,11 +65,8 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
   });
 
   if (emailChanged) {
-    // Read JWT_SECRET here rather than at module scope: Next imports every
-    // route module during `next build`, so module-scope env reads that can
-    // throw break the production build.
-    const jwtSecret = process.env.JWT_SECRET as string;
-    const verifyToken = jwt.sign({ memberId: member.id, purpose: 'verify_email' }, jwtSecret, { expiresIn: '7d' });
+    // Tied to the NEW address (see tokens.ts).
+    const verifyToken = signEmailVerificationToken(updated);
     const verifyUrl = `${process.env.APP_URL}/verify-email?token=${verifyToken}`;
     const { subject, html } = welcomeVerificationEmail({ memberName: updated.name, verifyUrl });
     await sendEmail({ to: updated.email, subject, html });

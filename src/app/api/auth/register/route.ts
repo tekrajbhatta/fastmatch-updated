@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import { signSession } from '@/lib/auth';
+import { signSession, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
 import { sendEmail } from '@/lib/emails/send';
 import { welcomeVerificationEmail } from '@/lib/emails/welcomeEmail';
 import { sendSms } from '@/lib/sms/send';
 import { verificationCodeSms } from '@/lib/sms/verificationSms';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { signEmailVerificationToken } from '@/lib/tokens';
 import { calculateAge } from '@/lib/age';
 
-const JWT_SECRET = process.env.JWT_SECRET as string;
 
 const bodySchema = z.object({
   name: z.string().min(1),
@@ -76,9 +75,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // Verification is required via BOTH email and SMS — emailVerified and
   // mobileVerified are tracked separately; nothing in this app should treat
   // the member as "verified" until both are true.
-  const verifyToken = jwt.sign({ memberId: member.id, purpose: 'verify_email' }, JWT_SECRET, {
-    expiresIn: '7d',
-  });
+  const verifyToken = signEmailVerificationToken(member);
   const verifyUrl = `${process.env.APP_URL}/verify-email?token=${verifyToken}`;
   const { subject, html } = welcomeVerificationEmail({ memberName: member.name, verifyUrl });
 
@@ -114,14 +111,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     console.error(`Registration ${member.id}: verification SMS failed`, err);
   }
 
-  const token = signSession(member.id);
+  const token = signSession(member);
 
   const res = NextResponse.json({ id: member.id, name: member.name, emailSent, smsSent });
-  res.cookies.set('fm_session', token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 30,
-  });
+  res.cookies.set('fm_session', token, SESSION_COOKIE_OPTIONS);
   return res;
 });

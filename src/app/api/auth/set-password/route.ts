@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { signSession } from '@/lib/auth';
+import { signSession, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
 import { calculateAge } from '@/lib/age';
 import { parseDateOfBirth } from '@/lib/friendBooking';
 import { sendMobileVerification } from '@/lib/memberVerification';
@@ -132,11 +132,6 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const smsSent = updated.mobileVerified ? null : await sendMobileVerification(updated);
 
   const res = NextResponse.json({ ok: true, name: updated.name, mobileVerified: updated.mobileVerified, smsSent });
-  res.cookies.set('fm_session', signSession(updated.id), {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 30,
-  });
+  res.cookies.set('fm_session', signSession(updated), SESSION_COOKIE_OPTIONS);
   return res;
 });

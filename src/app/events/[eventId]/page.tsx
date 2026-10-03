@@ -21,10 +21,8 @@ interface EventDetail {
   ageMin: number;
   ageMax: number;
   cost: string;
-  maxMen: number;
-  maxWomen: number;
-  menBooked: number;
-  womenBooked: number;
+  // Every place taken (worked out by the server; the counts stay private).
+  soldOut: boolean;
   alreadyBooked: boolean;
   fastmatchDiscounts: boolean;
   groupDiscounts: boolean;
@@ -114,10 +112,10 @@ export default function EventDetailPage() {
 
   // The event's own local time, with "(Perth time)" if the viewer's differs.
   const when = formatEventForViewer(event.startsAt, event.city.name);
-  // Used only to switch the button to "Sold out". The count itself is never
-  // shown — Gil doesn't want members to see how many have booked.
-  const spotsLeft = event.maxMen + event.maxWomen - (event.menBooked + event.womenBooked);
-  const canBook = !event.alreadyBooked && spotsLeft > 0;
+  // Switches the button to "Sold out". How many have booked is never sent to
+  // the page — Gil doesn't want members to see how full a night is.
+  const soldOut = event.soldOut;
+  const canBook = !event.alreadyBooked && !soldOut;
   const showFriends = !!me && canBook && event.groupDiscounts;
 
   const friends = [
@@ -375,8 +373,8 @@ export default function EventDetailPage() {
               {event.alreadyBooked ? (
                 <FormSuccess>You&apos;re already booked in for this event.</FormSuccess>
               ) : (
-                <Button onClick={handleBook} disabled={booking || spotsLeft <= 0 || checkingCode} loading={booking} block size="hero">
-                  {spotsLeft <= 0
+                <Button onClick={handleBook} disabled={booking || soldOut || checkingCode} loading={booking} block size="hero">
+                  {soldOut
                     ? 'Sold out'
                     : booking
                       ? 'Booking…'

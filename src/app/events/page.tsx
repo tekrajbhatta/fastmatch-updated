@@ -14,9 +14,9 @@ interface EventListItem {
   startsAt: string;
   ageMin: number;
   ageMax: number;
-  // No booked counts here on purpose. /api/events still returns them (the
-  // admin screens need them), but members must not see how full an event is
-  // — a half-empty night shouldn't talk anyone out of coming.
+  // No booked counts here on purpose: members must not see how full an event
+  // is (a half-empty night shouldn't talk anyone out of coming), and
+  // /api/events no longer sends them at all.
   bookedByMe: boolean;
   theme: { name: string };
   city: { name: string };

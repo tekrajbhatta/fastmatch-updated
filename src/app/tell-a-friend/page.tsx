@@ -50,7 +50,7 @@ export default function TellAFriendPage() {
       <div className="flex w-full max-w-[480px] flex-col gap-4">
         {sent && (
           <FormSuccess>
-            Thanks! We&apos;ve emailed {sent.name} (<span className="[overflow-wrap:anywhere]">{sent.email}</span>) an invitation to join FastMatch. Want to invite someone else?
+            Thanks! If {sent.name} (<span className="[overflow-wrap:anywhere]">{sent.email}</span>) isn&apos;t with FastMatch yet, we&apos;ve emailed them an invitation to join. Want to invite someone else?
           </FormSuccess>
         )}
 

@@ -77,3 +77,17 @@ describe('excludeBookedIn — blasts’ “Exclude booked members”', () => {
     expect(buildMemberWhere({ gender: 'MALE' }).bookings).toBeUndefined();
   });
 });
+
+describe('blast audiences never include accounts waiting for their first password', () => {
+  it('leaves them out of every blast, "Ignore preference" included', async () => {
+    const { recipientFilter } = await import('../campaigns/audience');
+    for (const ignorePreference of [false, true]) {
+      const where = buildMemberWhere(recipientFilter({}, { sendEmail: true, sendSms: true, ignorePreference }));
+      expect(where.awaitingPasswordSetup).toBe(false);
+    }
+  });
+
+  it('still lists them on the Members screen', () => {
+    expect(buildMemberWhere({}).awaitingPasswordSetup).toBeUndefined();
+  });
+});

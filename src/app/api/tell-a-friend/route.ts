@@ -9,6 +9,7 @@ import { sendEmail } from '@/lib/emails/send';
 import { tellAFriendEmail } from '@/lib/emails/friendEmail';
 import { setPasswordToken } from '@/lib/memberBooking';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { hitRateLimit, LIMITS, rateKey } from '@/lib/rateLimit';
 
 const bodySchema = z.object({
   email: z.string().trim().email('Please enter your friend’s email address.'),
@@ -38,13 +39,20 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (f.email.toLowerCase() === member.email.toLowerCase()) {
     return NextResponse.json({ error: 'That’s your own email. Please enter your friend’s.' }, { status: 400 });
   }
-  const existing = await prisma.member.findUnique({ where: { email: f.email } });
-  if (existing) {
+
+  const invites = await hitRateLimit(rateKey('tell-a-friend', member.id), LIMITS.tellAFriend.limit, LIMITS.tellAFriend.windowMs);
+  if (!invites.allowed) {
     return NextResponse.json(
-      { error: existing.awaitingPasswordSetup ? `${f.email} has already been invited to FastMatch.` : `${f.email} is already a FastMatch member.` },
-      { status: 409 },
+      { error: "You've sent a lot of invitations in the last hour. Please try again later." },
+      { status: 429 },
     );
   }
+
+  // Someone already on FastMatch (or already invited) gets nothing, but the
+  // reply is the same as for a new invitation: telling the member otherwise
+  // would let anyone check whether a person is on a dating site.
+  const existing = await prisma.member.findUnique({ where: { email: f.email } });
+  if (existing) return NextResponse.json({ ok: true, name: f.name, email: f.email });
 
   const friend = await prisma.member.create({
     data: {

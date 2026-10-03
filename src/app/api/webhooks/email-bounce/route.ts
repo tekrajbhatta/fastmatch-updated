@@ -1,38 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { verifyMailgunSignature, permanentFailure } from '@/lib/mailgunWebhook';
 
 /**
- * Email provider webhook for bounces. This is the modern equivalent of the old
- * system's "bounces go to a separate inbox" — instead of a human reading a
- * mailbox, the provider POSTs the bounce event here automatically, and the
- * member's emailBounced flag is set immediately so they're excluded from
- * future campaign sends. Nothing lands in Gil's inbox either way.
+ * Mailgun's bounce reports. In the Mailgun dashboard (Sending > Webhooks),
+ * point "Permanent Failure" at https://<site>/api/webhooks/email-bounce and
+ * copy the "HTTP webhook signing key" into MAILGUN_WEBHOOK_SIGNING_KEY.
  *
- * PROVIDER: Mailgun. Note that Mailgun does NOT post this shape by default —
- * its webhook payload is `{ signature: {...}, "event-data": { event: 'failed',
- * recipient, ... } }`. Two things are still outstanding before this endpoint
- * is production-ready:
- *   1. Map Mailgun's `event-data` shape onto the fields used below.
- *   2. Verify Mailgun's HMAC signature (timestamp + token signed with the
- *      Mailgun signing key) — do not process unverified requests in
- *      production, or anyone can mark arbitrary members as bounced.
- * Until then this endpoint safely ignores anything it doesn't recognise.
+ * A member whose address permanently fails is marked bounced, which leaves
+ * them out of email blasts (see src/lib/campaigns/audience.ts). Nothing lands
+ * in Gil's inbox either way.
+ *
+ * Every report must carry Mailgun's signature: an unsigned or forged request
+ * is refused, so nobody else can mark members as bounced. With no signing key
+ * configured, every report is refused.
  */
 export const POST = withErrorHandling(async (req: NextRequest) => {
-  const payload = await req.json();
-
-  // Minimal shape this endpoint currently understands:
-  // { type: 'bounced', email: string, reason?: string }
-  // See the note above about mapping Mailgun's own `event-data` payload.
-  if (payload.type !== 'bounced' || !payload.email) {
-    return NextResponse.json({ ok: true }); // ignore anything else this endpoint doesn't handle
+  // Read here, not at module scope — see the note in src/lib/emails/send.ts.
+  const signingKey = process.env.MAILGUN_WEBHOOK_SIGNING_KEY ?? '';
+  if (!signingKey) {
+    return NextResponse.json({ error: 'Bounce reports are not configured.' }, { status: 503 });
   }
 
-  await prisma.member.updateMany({
-    where: { email: payload.email },
-    data: { emailBounced: true, bounceReason: payload.reason ?? 'Bounced' },
-  });
+  const payload = await req.json().catch(() => null);
+  if (!payload || !verifyMailgunSignature((payload as Record<string, unknown>).signature, signingKey)) {
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+  }
 
+  const failure = permanentFailure(payload);
+  if (failure) {
+    // Email matching ignores capitals, as everywhere else in the site.
+    await prisma.member.updateMany({
+      where: { email: failure.email },
+      data: { emailBounced: true, bounceReason: failure.reason },
+    });
+  }
+
+  // 200 for everything else too (deliveries, temporary failures...), so
+  // Mailgun doesn't keep retrying reports there's nothing to do with.
   return NextResponse.json({ ok: true });
 });

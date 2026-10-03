@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { getSessionMember } from '@/lib/auth';
+import { getSessionMember, signSession, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const bodySchema = z.object({
@@ -24,7 +24,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (!ok) return NextResponse.json({ error: 'Current password is incorrect.' }, { status: 401 });
 
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
-  await prisma.member.update({ where: { id: member.id }, data: { passwordHash } });
+  const updated = await prisma.member.update({ where: { id: member.id }, data: { passwordHash } });
 
-  return NextResponse.json({ ok: true });
+  // Sessions are tied to the password, so the change signs out every other
+  // device. This one gets a fresh session and stays logged in.
+  const res = NextResponse.json({ ok: true });
+  res.cookies.set('fm_session', signSession(updated), SESSION_COOKIE_OPTIONS);
+  return res;
 });

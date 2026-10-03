@@ -446,3 +446,15 @@ model Feedback {
 
   @@index([createdAt])
 }
+
+// Attempt counters for rate limiting: failed logins, mobile code guesses,
+// code resends, password resets, Contact Us and Tell A Friend. One row per
+// key (a hashed IP, email or member id with a prefix, never the raw value);
+// the count starts again once resetAt passes. See src/lib/rateLimit.ts.
+model RateLimit {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
+
+  @@index([resetAt])
+}

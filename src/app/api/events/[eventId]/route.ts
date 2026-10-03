@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { getSessionMember } from '@/lib/auth';
+import { toPublicEvent } from '@/lib/publicEvent';
 
 // GET /api/events/:eventId — single event detail page. If the requester is
 // logged in, also reports whether they already have a booking for it.
@@ -30,5 +31,7 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     alreadyBooked = !!existing && existing.status !== 'PENDING';
   }
 
-  return NextResponse.json({ ...event, menBooked, womenBooked, alreadyBooked });
+  // Only what the page shows (see toPublicEvent), for every event a link can
+  // reach, hidden, cancelled and past ones included.
+  return NextResponse.json({ ...toPublicEvent(event, { men: menBooked, women: womenBooked }), alreadyBooked });
 });

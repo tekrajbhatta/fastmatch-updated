@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSessionMember } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { toPublicEvent } from '@/lib/publicEvent';
 
 // GET /api/events?cityId=&themeId= — public browse list: upcoming, public
 // events only, with a live count of PAID bookings per gender (used for "Sold out").
@@ -25,12 +26,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
       ...(cityId ? { cityId } : {}),
       ...(themeId ? { themeId } : {}),
     },
-    include: {
-      venue: true,
-      theme: true,
-      city: true,
-      _count: { select: { bookings: true } },
-    },
+    include: { venue: true, theme: true, city: true },
     orderBy: { startsAt: 'asc' },
   });
 
@@ -56,7 +52,9 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
         prisma.booking.count({ where: { eventId: e.id, status: 'CONFIRMED', member: { gender: 'MALE' } } }),
         prisma.booking.count({ where: { eventId: e.id, status: 'CONFIRMED', member: { gender: 'FEMALE' } } }),
       ]);
-      return { ...e, menBooked: men, womenBooked: women, bookedByMe: bookedIds.has(e.id) };
+      // Only what the pages show (see toPublicEvent): never the counts,
+      // maximums, expenses or the admin's own flags.
+      return { ...toPublicEvent(e, { men, women }), bookedByMe: bookedIds.has(e.id) };
     })
   );
 

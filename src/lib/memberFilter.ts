@@ -18,6 +18,10 @@ export interface MemberFilter {
   // Blasts' "Exclude booked members": leave out anyone with a paid booking
   // for this event — or, with eventId null, for any upcoming event.
   excludeBookedIn?: { eventId: string | null };
+  // Accounts still waiting for their first password (friends booked in by
+  // someone else, Tell A Friend invitees) never chose to join: blasts always
+  // leave them out. The Members screen still lists them.
+  excludeAwaitingPasswordSetup?: boolean;
 }
 
 export function buildMemberWhere(filter: MemberFilter): Prisma.MemberWhereInput {
@@ -35,6 +39,7 @@ export function buildMemberWhere(filter: MemberFilter): Prisma.MemberWhereInput 
   if (filter.marketingOptInOnly) where.marketingOptIn = true;
   if (filter.contactMethods?.length) where.contactMethod = { in: filter.contactMethods };
   if (filter.excludeBounced) where.emailBounced = false;
+  if (filter.excludeAwaitingPasswordSetup) where.awaitingPasswordSetup = false;
   if (filter.excludeBookedIn) {
     // Paid bookings only — an unpaid one isn't a booking (see pendingBooking.ts).
     const eventId = filter.excludeBookedIn.eventId;

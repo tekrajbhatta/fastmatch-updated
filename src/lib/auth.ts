@@ -1,8 +1,8 @@
 import { cache } from 'react';
 import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
 import { prisma } from './prisma';
+import { readSessionToken, sessionStillValid, signSessionToken, SESSION_DAYS } from './tokens';
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
@@ -15,28 +15,44 @@ if (!JWT_SECRET) {
 // separate admin table isn't needed for a single-operator business).
 // isAdmin is not exposed on any public API response.
 
-export function signSession(memberId: string): string {
-  return jwt.sign({ memberId }, JWT_SECRET, { expiresIn: '30d' });
+// A session is tied to the member's current password (see tokens.ts): pass
+// the member as stored, AFTER any password change, so this device stays
+// logged in while every other one is signed out.
+export function signSession(member: { id: string; passwordHash: string }): string {
+  return signSessionToken(member);
 }
 
+/** The fm_session cookie's settings, the same wherever a session is issued. */
+export const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'lax' as const,
+  maxAge: 60 * 60 * 24 * SESSION_DAYS,
+};
+
+// The session token, from the cookie only. (An "Authorization: Bearer"
+// header was also accepted; nothing in the site used it, and it let any
+// emailed link's token be replayed as a login without a browser.)
 function getTokenFromRequest(req: NextRequest): string | null {
-  const cookie = req.cookies.get('fm_session')?.value;
-  if (cookie) return cookie;
-  const header = req.headers.get('authorization');
-  if (header?.startsWith('Bearer ')) return header.slice(7);
-  return null;
+  return req.cookies.get('fm_session')?.value ?? null;
+}
+
+/**
+ * The logged-in member for this token, or null. Only a session token counts
+ * (never an unsubscribe, email-confirmation, set-password or reset link), and
+ * not once the member's password has changed since it was issued.
+ */
+async function memberForSessionToken(token: string | null | undefined) {
+  if (!token) return null;
+  const claims = readSessionToken(token);
+  if (!claims) return null; // expired/invalid/not a session — treat as logged out, not an error
+  const member = await prisma.member.findUnique({ where: { id: claims.memberId } });
+  if (!member || !sessionStillValid(claims, member)) return null;
+  return member;
 }
 
 export async function getSessionMember(req: NextRequest) {
-  const token = getTokenFromRequest(req);
-  if (!token) return null;
-
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as { memberId: string };
-    return await prisma.member.findUnique({ where: { id: payload.memberId } });
-  } catch {
-    return null; // expired/invalid token — treat as logged out, not an error
-  }
+  return memberForSessionToken(getTokenFromRequest(req));
 }
 
 export async function requireAdmin(req: NextRequest) {
@@ -55,13 +71,5 @@ export async function requireAdmin(req: NextRequest) {
 export const getCurrentMember = cache(async () => {
   // Next 15 made cookies() async (it returns a Promise); in Next 14 it was
   // synchronous. This must stay awaited while the project is on Next 15.
-  const token = (await cookies()).get('fm_session')?.value;
-  if (!token) return null;
-
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as { memberId: string };
-    return await prisma.member.findUnique({ where: { id: payload.memberId } });
-  } catch {
-    return null;
-  }
+  return memberForSessionToken((await cookies()).get('fm_session')?.value);
 });

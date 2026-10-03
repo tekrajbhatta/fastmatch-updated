@@ -1,10 +1,11 @@
-import jwt from 'jsonwebtoken';
+import { signEmailVerificationToken } from './tokens';
 import type { Member } from '@prisma/client';
 import { prisma } from './prisma';
 import { sendEmail } from './emails/send';
 import { welcomeVerificationEmail } from './emails/welcomeEmail';
 import { sendSms } from './sms/send';
 import { verificationCodeSms } from './sms/verificationSms';
+import { clearRateLimit, rateKey } from './rateLimit';
 
 /**
  * The two verification sends a new registrant gets, reusable for members the
@@ -19,10 +20,7 @@ import { verificationCodeSms } from './sms/verificationSms';
 
 export async function sendEmailVerification(member: Pick<Member, 'id' | 'name' | 'email'>): Promise<boolean> {
   try {
-    // Read here, not at module scope — see the note in src/lib/emails/send.ts.
-    const token = jwt.sign({ memberId: member.id, purpose: 'verify_email' }, process.env.JWT_SECRET as string, {
-      expiresIn: '7d',
-    });
+    const token = signEmailVerificationToken(member);
     const verifyUrl = `${process.env.APP_URL}/verify-email?token=${token}`;
     const { subject, html } = welcomeVerificationEmail({ memberName: member.name, verifyUrl });
     await sendEmail({ to: member.email, subject, html });
@@ -40,6 +38,7 @@ export async function sendMobileVerification(member: Pick<Member, 'id' | 'mobile
       where: { id: member.id },
       data: { mobileVerificationCode: code, mobileVerificationExpires: new Date(Date.now() + 15 * 60 * 1000) },
     });
+    await clearRateLimit(rateKey('mobile-code', member.id)); // a new code: five fresh guesses
     await sendSms({ to: member.mobile, body: verificationCodeSms(code) });
     return true;
   } catch (err) {
