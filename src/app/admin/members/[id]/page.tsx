@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, Badge, Button, Field, Input, Select, Loader, BackLink } from '@/components/ui';
 import { venueLine } from '@/lib/venue';
+import { calculateAge } from '@/lib/age';
+import { timeZoneForCity } from '@/lib/timezone';
 
 interface Booking {
   id: string; badge: number; status: string; paidAmount: string; checkedIn: boolean;
-  event: { id: string; name: string; startsAt: string; venue: { name: string; address: string | null }; };
+  event: { id: string; name: string; startsAt: string; venue: { name: string; address: string | null }; city?: { name: string } };
 }
 interface MemberDetail {
   id: string; name: string; email: string; mobile: string; gender: string;
@@ -96,7 +98,7 @@ export default function MemberDetailPage() {
 
   if (!member) return <Loader label="Loading member…" />;
 
-  const age = calculateAge(member.dateOfBirth);
+  const age = calculateAge(new Date(member.dateOfBirth));
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -150,7 +152,7 @@ export default function MemberDetailPage() {
               <div>
                 <div className="text-sm font-bold text-ink">{b.event.name}</div>
                 <div className="text-xs text-ink/50">
-                  {venueLine(b.event.venue)} · {new Date(b.event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} · Badge #{b.badge}
+                  {venueLine(b.event.venue)} · {new Date(b.event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: timeZoneForCity(b.event.city?.name) })} · Badge #{b.badge}
                 </div>
               </div>
               <div className="flex gap-1.5">
@@ -208,16 +210,4 @@ export default function MemberDetailPage() {
       </div>
     </div>
   );
-}
-
-// Age is derived from dateOfBirth rather than stored, so it can never drift.
-// Mirrors src/lib/age.ts, which the server-side 18+ and event age-range
-// checks use — kept as a local copy because this is a client component.
-function calculateAge(dateOfBirth: string): number {
-  const dob = new Date(dateOfBirth);
-  const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear();
-  const monthDiff = today.getMonth() - dob.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) age--;
-  return age;
 }

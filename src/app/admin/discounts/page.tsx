@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { Field, Input, Select, Button, Card, Badge, Loader } from '@/components/ui';
+import { discountDay, formatDiscountDay } from '@/lib/discountDates';
+import { timeZoneForCity } from '@/lib/timezone';
 
-interface ScopeEvent { id: string; number: number; name: string; startsAt: string; venue: { name: string } }
+interface ScopeEvent { id: string; number: number; name: string; startsAt: string; venue: { name: string }; city?: { name: string } }
 
 interface DiscountCode {
   id: string; code: string; type: string; amount: string | null;
@@ -19,9 +21,10 @@ interface EventOption extends ScopeEvent { draft: boolean; status: string }
 const emptyForm = { code: '', type: 'PERCENT_OFF', amount: '', validFrom: '', validTo: '', scopeEventId: '' };
 
 // "#12 28-40 years at Soultrap Bar, 2 Oct 2026", as in the blast forms, with
-// the year so past events can be told apart.
+// the year so past events can be told apart. The date is the event city's.
 function eventLabel(e: ScopeEvent) {
-  return `#${e.number} ${e.name} at ${e.venue.name}, ${new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  const date = new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: timeZoneForCity(e.city?.name) });
+  return `#${e.number} ${e.name} at ${e.venue.name}, ${date}`;
 }
 
 export default function AdminDiscountsPage() {
@@ -61,7 +64,7 @@ export default function AdminDiscountsPage() {
 
   function openEdit(c: DiscountCode) {
     setEditing(c.id);
-    setForm({ code: c.code, type: c.type, amount: c.amount ?? '', validFrom: c.validFrom.slice(0, 10), validTo: c.validTo.slice(0, 10), scopeEventId: c.scopeEventId ?? '' });
+    setForm({ code: c.code, type: c.type, amount: c.amount ?? '', validFrom: discountDay(c.validFrom), validTo: discountDay(c.validTo), scopeEventId: c.scopeEventId ?? '' });
     setShowForm(true);
   }
 
@@ -102,6 +105,7 @@ export default function AdminDiscountsPage() {
               <div />
               <Field label="Valid from"><Input type="date" required value={form.validFrom} onChange={(e) => setForm({ ...form, validFrom: e.target.value })} /></Field>
               <Field label="Valid to"><Input type="date" required value={form.validTo} onChange={(e) => setForm({ ...form, validTo: e.target.value })} /></Field>
+              <p className="col-span-2 -mt-2 mb-3 text-xs text-ink/50">From 12:00 am on the first day to 11:59 pm on the last, Sydney time.</p>
               <div className="col-span-2">
                 <Field label="Event">
                   <Select value={form.scopeEventId} onChange={(e) => setForm({ ...form, scopeEventId: e.target.value })}>
@@ -139,7 +143,7 @@ export default function AdminDiscountsPage() {
                 <div className="font-mono font-extrabold text-ink">{c.code}</div>
                 <div className="text-xs text-ink/50">
                   {c.type === 'PERCENT_OFF' ? `${c.amount}% off` : c.type === 'FIXED_REDUCTION' ? `$${c.amount} off` : 'Free'} · Used {c.usedCount} times
-                  <br />{new Date(c.validFrom).toLocaleDateString('en-AU')} to {new Date(c.validTo).toLocaleDateString('en-AU')}
+                  <br />{formatDiscountDay(c.validFrom)} to {formatDiscountDay(c.validTo)}
                   {c.scopeEvent && (
                     <><br />Only for {'deleted' in c.scopeEvent ? 'an event that has been deleted' : eventLabel(c.scopeEvent)}</>
                   )}

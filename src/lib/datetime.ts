@@ -1,3 +1,5 @@
+import { wallTimeIn, instantFromWallTime } from './zonedTime';
+
 /**
  * Conversion between a stored UTC timestamp and the value an
  * `<input type="datetime-local">` expects.
@@ -19,6 +21,12 @@
  * The create form had the mirror problem: it posted the naive string straight
  * to the API, where `new Date("2026-09-17T19:00")` parses in the SERVER's
  * timezone, not the admin's. Both forms now go through here.
+ *
+ * 3. Both conversions then used the BROWSER's timezone, so an event was
+ *    entered on the admin's own clock rather than the event city's: a Perth
+ *    7:00 pm entered on a Sydney computer was saved as 4:00 pm Perth time.
+ *    The input now always holds the event city's clock (src/lib/zonedTime.ts),
+ *    whatever device it's typed on.
  */
 
 /**
@@ -55,27 +63,22 @@ export function formatEventWhen(d: Date, timeZone: string = EVENT_TIME_ZONE): st
   return `${date} at ${time}`;
 }
 
-/** Stored UTC ISO -> "YYYY-MM-DDTHH:mm" in the viewer's local time. */
-export function toDateTimeLocalValue(iso: string | Date): string {
-  const d = typeof iso === 'string' ? new Date(iso) : iso;
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  // Local getters on purpose — getFullYear/getMonth/... are the viewer's
-  // clock, which is what the input displays.
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+/**
+ * Stored UTC ISO -> "YYYY-MM-DDTHH:mm" on the clock of `timeZone`: the event
+ * city's (timeZoneForCity). Empty for an unparseable value.
+ */
+export function toDateTimeLocalValue(iso: string | Date, timeZone: string): string {
+  return wallTimeIn(iso, timeZone);
 }
 
 /**
- * "YYYY-MM-DDTHH:mm" from the input -> UTC ISO for the API.
- *
- * `new Date(naiveString)` parses as local time, which is correct HERE because
- * the string came from a local-time input in the same browser. The same
- * expression on the server would parse in the server's timezone instead —
- * which is exactly the create-form bug — so the conversion must happen
- * client-side, before the value is sent.
+ * "YYYY-MM-DDTHH:mm" from the input, read on the clock of `timeZone` (the
+ * event city's) -> UTC ISO for the API. Empty for anything that isn't a real
+ * date and time, so the form can say so instead of sending it.
  */
-export function fromDateTimeLocalValue(local: string): string {
-  return new Date(local).toISOString();
+export function fromDateTimeLocalValue(local: string, timeZone: string): string {
+  const at = instantFromWallTime(local, timeZone);
+  return Number.isNaN(at.getTime()) ? '' : at.toISOString();
 }
 
 /**

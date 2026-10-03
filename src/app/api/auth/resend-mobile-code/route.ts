@@ -5,6 +5,7 @@ import { sendSms } from '@/lib/sms/send';
 import { verificationCodeSms } from '@/lib/sms/verificationSms';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { clearRateLimit, hitRateLimit, LIMITS, rateKey } from '@/lib/rateLimit';
+import { newMobileCode } from '@/lib/mobileCode';
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const member = await getSessionMember(req);
@@ -23,7 +24,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     );
   }
 
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const code = newMobileCode();
   await prisma.member.update({
     where: { id: member.id },
     data: { mobileVerificationCode: code, mobileVerificationExpires: new Date(Date.now() + 15 * 60 * 1000) },

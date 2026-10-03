@@ -21,7 +21,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
       where,
       include: {
         member: { select: { id: true, name: true, email: true, mobile: true } },
-        event: { select: { id: true, number: true, name: true, startsAt: true, venue: { select: { name: true } } } },
+        event: { select: { id: true, number: true, name: true, startsAt: true, venue: { select: { name: true } }, city: { select: { name: true } } } },
       },
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * PAGE_SIZE,

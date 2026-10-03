@@ -35,23 +35,23 @@ describe('buildMemberWhere', () => {
     expect(where.dateOfBirth).toBeDefined();
     const dob = where.dateOfBirth as any;
     expect(dob.lte).toBeInstanceOf(Date);
-    expect(dob.gte).toBeInstanceOf(Date);
+    expect(dob.gt).toBeInstanceOf(Date);
     // The assertion here was inverted as delivered (it expected lte < gte),
     // which describes an impossible range and failed. Prisma reads this as
-    // gte <= dateOfBirth <= lte, so for ages 25-40 today:
-    //   gte = today - 41 years  (the OLDEST birth date still within age 40)
+    // gt < dateOfBirth <= lte, so for ages 25-40 today:
+    //   gt  = today - 41 years  (born on this day is already 41: excluded)
     //   lte = today - 25 years  (the YOUNGEST birth date still at least 25)
-    // i.e. someone aged 25-40 was born between those two dates, so gte is
+    // i.e. someone aged 25-40 was born between those two dates, so gt is
     // necessarily EARLIER than lte. Do not "fix" this by changing
     // buildMemberWhere — inverting the range there would make every age-
     // filtered query in Members and Reports return nothing at all.
-    expect(dob.gte.getTime()).toBeLessThan(dob.lte.getTime());
+    expect(dob.gt.getTime()).toBeLessThan(dob.lte.getTime());
 
     // Sanity-check the actual ages the boundaries represent.
     const yearsAgo = (d: Date) =>
       (Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
     expect(yearsAgo(dob.lte)).toBeCloseTo(25, 0);
-    expect(yearsAgo(dob.gte)).toBeCloseTo(41, 0);
+    expect(yearsAgo(dob.gt)).toBeCloseTo(41, 0);
   });
 
   it('marketingOptInOnly filters to opted-in members only', () => {

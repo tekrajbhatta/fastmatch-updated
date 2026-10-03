@@ -18,7 +18,8 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
   const events = await prisma.event.findMany({
     where: { seriesId: params.seriesId },
     orderBy: { startsAt: 'asc' },
-    include: { _count: { select: { bookings: true } } },
+    // The city, to show each start on its clock.
+    include: { _count: { select: { bookings: true } }, city: { select: { name: true } } },
   });
   return NextResponse.json(events);
 });

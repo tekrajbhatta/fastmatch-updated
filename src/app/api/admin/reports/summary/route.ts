@@ -3,6 +3,9 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { birthDateRange } from '@/lib/age';
+import { EVENT_TIME_ZONE } from '@/lib/datetime';
+import { startOfDayIn, endOfDayIn } from '@/lib/zonedTime';
 
 // GET /api/admin/reports/summary — combinable filters (theme, city, gender,
 // real attendee age range from DOB, event date range), all driving the same
@@ -18,8 +21,16 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const gender = (params.get('gender') as 'MALE' | 'FEMALE') || undefined;
   const ageMin = params.get('ageMin') ? Number(params.get('ageMin')) : undefined;
   const ageMax = params.get('ageMax') ? Number(params.get('ageMax')) : undefined;
-  const dateFrom = params.get('dateFrom') ? new Date(params.get('dateFrom')!) : undefined;
-  const dateTo = params.get('dateTo') ? new Date(params.get('dateTo')!) : undefined;
+  // Whole days in Sydney: "to 30 September" includes that evening's events.
+  // (These were read as midnight UTC, 10–11 am in Sydney, so the last day's
+  // events were left out.)
+  const day = (key: string, edge: typeof startOfDayIn) => {
+    const v = params.get(key);
+    const at = v ? edge(v, EVENT_TIME_ZONE) : undefined;
+    return at && !Number.isNaN(at.getTime()) ? at : undefined;
+  };
+  const dateFrom = day('dateFrom', startOfDayIn);
+  const dateTo = day('dateTo', endOfDayIn);
 
   const eventWhere: Prisma.EventWhereInput = {
     ...(themeId ? { themeId } : {}),
@@ -41,16 +52,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   // interpretation applied — override if a different one is wanted.
   if (cityId) memberWhere.cityId = cityId;
   if (ageMin != null || ageMax != null) {
-    const today = new Date();
-    memberWhere.dateOfBirth = {};
-    if (ageMin != null) {
-      const cutoff = new Date(today); cutoff.setFullYear(cutoff.getFullYear() - ageMin);
-      (memberWhere.dateOfBirth as any).lte = cutoff;
-    }
-    if (ageMax != null) {
-      const cutoff = new Date(today); cutoff.setFullYear(cutoff.getFullYear() - ageMax - 1);
-      (memberWhere.dateOfBirth as any).gte = cutoff;
-    }
+    memberWhere.dateOfBirth = birthDateRange(ageMin, ageMax);
   }
 
   const bookingWhere: Prisma.BookingWhereInput = {

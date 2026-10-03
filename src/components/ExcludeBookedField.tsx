@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Select } from '@/components/ui';
+import { timeZoneForCity } from '@/lib/timezone';
 
 interface UpcomingEvent { id: string; number: number; name: string; startsAt: string; venue: { name: string }; city: { name: string } }
 
@@ -42,7 +43,7 @@ export default function ExcludeBookedField({
             <option value="">Booked into any upcoming event</option>
             {events.map((e) => (
               <option key={e.id} value={e.id}>
-                Booked into #{e.number} {e.name} at {e.venue.name}, {new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
+                Booked into #{e.number} {e.name} at {e.venue.name}, {new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: timeZoneForCity(e.city.name) })}
               </option>
             ))}
           </Select>

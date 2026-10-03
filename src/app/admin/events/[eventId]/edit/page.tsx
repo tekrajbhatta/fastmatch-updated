@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Field, Input, Select, Button, Card, Loader, BackLink } from '@/components/ui';
@@ -8,6 +8,7 @@ import PhotoUploadField from '@/components/PhotoUploadField';
 import EventFlagFields from '@/components/EventFlagFields';
 import VenueInfoPanel, { venueFillPatch } from '@/components/VenueInfoPanel';
 import { toDateTimeLocalValue, fromDateTimeLocalValue } from '@/lib/datetime';
+import { timeZoneForCity } from '@/lib/timezone';
 
 interface City { id: string; name: string; }
 interface Theme { id: string; name: string; }
@@ -30,6 +31,10 @@ export default function EditEventPage() {
   // rather than useSearchParams, which would need a Suspense boundary.
   const [copiedFrom, setCopiedFrom] = useState<string | null>(null);
   const [isDraft, setIsDraft] = useState(false);
+  // The start time as loaded. Saving with the date, time and city untouched
+  // sends this back exactly, so the "has the time changed?" check can't be
+  // tripped (it texts every attendee) by a value that only looks the same.
+  const loaded = useRef<{ startsAt: string; wall: string; cityId: string; cityName: string } | null>(null);
   useEffect(() => {
     setCopiedFrom(new URLSearchParams(window.location.search).get('copiedFrom'));
   }, []);
@@ -42,9 +47,12 @@ export default function EditEventPage() {
       const e = events.find((ev) => ev.id === eventId);
       if (e) {
         setIsDraft(!!e.draft);
+        // Shown on the event city's clock, as it's advertised.
+        const wall = toDateTimeLocalValue(e.startsAt, timeZoneForCity(e.city?.name));
+        loaded.current = { startsAt: e.startsAt, wall, cityId: e.cityId, cityName: e.city?.name ?? '' };
         setForm({
           name: e.name, description: e.description ?? '', photoUrl: e.photoUrl ?? '', themeId: e.themeId, cityId: e.cityId, venueId: e.venueId,
-          startsAt: toDateTimeLocalValue(e.startsAt), ageMin: e.ageMin, ageMax: e.ageMax,
+          startsAt: wall, ageMin: e.ageMin, ageMax: e.ageMax,
           maxMen: e.maxMen, maxWomen: e.maxWomen, cost: e.cost,
           expenses: e.expenses ?? '', visibility: e.visibility, confirmed: !!e.confirmed,
           fastmatchDiscounts: e.fastmatchDiscounts ?? true, groupDiscounts: e.groupDiscounts ?? true,
@@ -53,10 +61,21 @@ export default function EditEventPage() {
     });
   }, [eventId]);
 
+  // The city whose clock the start time is on (the loaded event's own city
+  // until the list of cities arrives).
+  const cityName: string | undefined = form
+    ? cities.find((c) => c.id === form.cityId)?.name ?? (form.cityId === loaded.current?.cityId ? loaded.current?.cityName : undefined)
+    : undefined;
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setNotifyFailures([]);
+    const was = loaded.current;
+    const startsAt = was && form.startsAt === was.wall && form.cityId === was.cityId
+      ? was.startsAt
+      : fromDateTimeLocalValue(form.startsAt, timeZoneForCity(cityName));
+    if (!startsAt) { setError('Please enter a valid start date and time.'); return; }
     setSaving(true);
     const res = await fetch(`/api/admin/events/${eventId}`, {
       method: 'PATCH',
@@ -68,7 +87,7 @@ export default function EditEventPage() {
         ageMin: Number(form.ageMin), ageMax: Number(form.ageMax),
         maxMen: Number(form.maxMen), maxWomen: Number(form.maxWomen),
         cost: Number(form.cost), expenses: form.expenses ? Number(form.expenses) : undefined,
-        startsAt: fromDateTimeLocalValue(form.startsAt),
+        startsAt,
         // Saving this form is what takes a duplicated event out of draft.
         draft: false,
       }),
@@ -114,8 +133,10 @@ export default function EditEventPage() {
           </Field>
           <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm({ ...form, photoUrl: url })}
             hint="Optional. Shown at the top of the event page." />
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Start date & time">
+          {/* Bottom-aligned: the start label names the city's clock, and a
+              long city name wraps it onto a second line. */}
+          <div className="grid grid-cols-2 items-end gap-3">
+            <Field label={`Start date & time (${cityName ?? 'event city'} time)`}>
               <Input type="datetime-local" required value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} />
             </Field>
             <Field label="City">

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button, Loader } from '@/components/ui';
 import { adminEventGroup, sortAdminEvents, GROUP_ORDER, type AdminEventGroup } from '@/lib/adminEventGroups';
+import EventWhen from '@/components/EventWhen';
 
 interface AdminEvent {
   id: string;
@@ -133,7 +134,7 @@ export default function AdminEventsPage() {
                 {/* Cell order must mirror the <th> order above: Date & Time,
                     Theme, City, Venue, Ages, Men, Women, Visibility, Action. */}
                 <td className="whitespace-nowrap px-4 py-3">
-                  {new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}, {new Date(e.startsAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}
+                  <EventWhen startsAt={e.startsAt} city={e.city.name} />
                 </td>
                 <td className="px-4 py-3">{e.theme.name}</td>
                 <td className="px-4 py-3">{e.city.name}</td>

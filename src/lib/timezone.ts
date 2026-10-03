@@ -78,17 +78,32 @@ export function formatEventForViewer(startsAt: string | Date, eventCityName: str
   };
 }
 
-/** The instant a calendar day ("2026-09-01") starts in a timezone — for date filters. */
-export function startOfDayIn(ymd: string, timeZone: string): Date {
-  const [y, m, d] = ymd.split('-').map(Number);
-  const utcMidnight = Date.UTC(y, m - 1, d);
-  // Offset of that zone around then, e.g. "GMT+10:00".
-  const name = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' })
-    .formatToParts(new Date(utcMidnight))
-    .find((p) => p.type === 'timeZoneName')?.value ?? 'GMT';
-  const match = /GMT([+-])(\d{2}):(\d{2})/.exec(name);
-  const offsetMin = match ? (match[1] === '+' ? 1 : -1) * (Number(match[2]) * 60 + Number(match[3])) : 0;
-  return new Date(utcMidnight - offsetMin * 60_000);
+/**
+ * The instant a calendar day ("2026-09-01") starts in a timezone — for date
+ * filters. (It used to take the offset at UTC midnight, an hour out on the
+ * days clocks change; src/lib/zonedTime.ts gets those right.)
+ */
+export { startOfDayIn } from './zonedTime';
+
+/**
+ * For admin screens: an event's date and time on its own city's clock, as
+ * the event is advertised. `note` is "Perth time" when the admin's own clock
+ * reads differently, so a Sydney admin isn't left converting in their head.
+ * Browser-only (reads the viewer's clock settings).
+ */
+export function eventClock(startsAt: string | Date, eventCityName: string) {
+  const at = new Date(startsAt);
+  const timeZone = timeZoneForCity(eventCityName);
+  const viewer = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return {
+    timeZone,
+    /** at.toLocaleDateString('en-AU', options), on the event city's clock */
+    date: (options: Intl.DateTimeFormatOptions) => at.toLocaleDateString('en-AU', { ...options, timeZone }),
+    /** "7:30 pm" */
+    time: at.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone }),
+    /** "Perth time", or null */
+    note: zoneNote(at, timeZone, viewer, eventCityName),
+  };
 }
 
 /** "2026-09" and "September 2026" for an instant, in a timezone. */

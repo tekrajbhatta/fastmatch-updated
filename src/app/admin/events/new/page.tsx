@@ -8,6 +8,7 @@ import PhotoUploadField from '@/components/PhotoUploadField';
 import EventFlagFields from '@/components/EventFlagFields';
 import VenueInfoPanel, { venueFillPatch } from '@/components/VenueInfoPanel';
 import { fromDateTimeLocalValue } from '@/lib/datetime';
+import { timeZoneForCity } from '@/lib/timezone';
 
 interface City { id: string; name: string; }
 interface Theme { id: string; name: string; }
@@ -45,6 +46,9 @@ export default function NewEventPage() {
   // already chosen above — picking a Sydney venue for a Melbourne event
   // shouldn't be possible.
   const venuesInCity = venues.filter((v) => v.city.id === form.cityId);
+  // The start time is typed on the event city's clock, whatever device it's
+  // typed on: 7:00 pm for a Perth event means 7:00 pm in Perth.
+  const cityName = cities.find((c) => c.id === form.cityId)?.name;
 
   // Changing the city can strand a venue selection that no longer belongs to
   // it; clear it rather than silently submitting a mismatched pair.
@@ -58,15 +62,17 @@ export default function NewEventPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    // Converted here, in the browser, on the event city's clock. Posting the
+    // raw datetime-local string made the SERVER parse it in ITS timezone.
+    const startsAt = fromDateTimeLocalValue(form.startsAt, timeZoneForCity(cityName));
+    if (!startsAt) { setError('Please enter a valid start date and time.'); return; }
     setSaving(true);
     const res = await fetch('/api/admin/events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...form,
-        // Converted here, in the browser. Posting the raw datetime-local
-        // string made the SERVER parse it in ITS timezone, not the admin's.
-        startsAt: fromDateTimeLocalValue(form.startsAt),
+        startsAt,
         ageMin: Number(form.ageMin),
         ageMax: Number(form.ageMax),
         maxMen: Number(form.maxMen),
@@ -108,8 +114,10 @@ export default function NewEventPage() {
           </Field>
           <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm((f) => ({ ...f, photoUrl: url }))}
             hint="Optional. Shown at the top of the event page." />
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Start date & time">
+          {/* Bottom-aligned: the start label names the city's clock, and a
+              long city name wraps it onto a second line. */}
+          <div className="grid grid-cols-2 items-end gap-3">
+            <Field label={`Start date & time (${cityName ?? 'event city'} time)`}>
               <Input type="datetime-local" required value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} />
             </Field>
             <Field label="City">

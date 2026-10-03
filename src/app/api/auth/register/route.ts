@@ -10,6 +10,8 @@ import { verificationCodeSms } from '@/lib/sms/verificationSms';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { signEmailVerificationToken } from '@/lib/tokens';
 import { calculateAge } from '@/lib/age';
+import { newMobileCode } from '@/lib/mobileCode';
+import { hitRateLimit, isRateLimited, rateKey, clientIp, LIMITS } from '@/lib/rateLimit';
 
 
 const bodySchema = z.object({
@@ -53,6 +55,16 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Please select a valid city.' }, { status: 400 });
   }
 
+  // One new account per internet connection per hour. Only accounts actually
+  // created count, so a typo or a refused sign-up doesn't use it up.
+  const signupKey = rateKey('register-ip', clientIp(req));
+  if (await isRateLimited(signupKey, LIMITS.registerIp.limit)) {
+    return NextResponse.json(
+      { error: 'An account has already been created from this internet connection in the last hour. Please try again later, or email gil@fastmatch.com.au.' },
+      { status: 429 },
+    );
+  }
+
   const passwordHash = await bcrypt.hash(data.password, 12);
 
   const member = await prisma.member.create({
@@ -71,6 +83,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       // confirmation-email step already planned in the spec
     },
   });
+  await hitRateLimit(signupKey, LIMITS.registerIp.limit, LIMITS.registerIp.windowMs);
 
   // Verification is required via BOTH email and SMS — emailVerified and
   // mobileVerified are tracked separately; nothing in this app should treat
@@ -94,7 +107,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     console.error(`Registration ${member.id}: verification email failed`, err);
   }
 
-  const smsCode = String(Math.floor(100000 + Math.random() * 900000)); // 6 digits
+  const smsCode = newMobileCode(); // 6 digits
   await prisma.member.update({
     where: { id: member.id },
     data: {

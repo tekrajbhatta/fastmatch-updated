@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { calculateAge, suitsAge, approximateDateOfBirth } from '@/lib/age';
+import { calculateAge, suitsAge, approximateDateOfBirth, ageAt, birthDateRange, latestAdultDateOfBirth } from '@/lib/age';
 
 /**
  * The event age-range check and the 18+ registration check both hinge on
@@ -131,12 +131,81 @@ describe('suitsAge — events-page suggestions', () => {
 
 describe('approximateDateOfBirth', () => {
   it('gives a birthday that reads as the age typed — on any day of the year', () => {
-    for (const today of [new Date(2026, 8, 28), new Date(2026, 1, 10), new Date(2026, 0, 1), new Date(2026, 11, 31)]) {
+    for (const today of ['2026-09-28T02:00:00Z', '2026-02-10T02:00:00Z', '2026-01-01T02:00:00Z', '2026-12-31T02:00:00Z', '2028-02-29T02:00:00Z']) {
       for (const age of [18, 35, 70]) {
-        const dob = approximateDateOfBirth(age, today);
-        const years = today.getFullYear() - dob.getFullYear() - (new Date(today.getFullYear(), dob.getMonth(), dob.getDate()) > today ? 1 : 0);
-        expect(years).toBe(age);
+        const now = new Date(today);
+        expect(calculateAge(approximateDateOfBirth(age, now), now), `${today} ${age}`).toBe(age);
       }
     }
+  });
+
+  it('is a plain calendar date, like every other date of birth (midnight UTC)', () => {
+    const dob = approximateDateOfBirth(30, new Date('2026-10-03T02:00:00Z'));
+    expect(dob.toISOString()).toBe('1996-04-03T00:00:00.000Z');
+  });
+});
+
+/**
+ * The birthday fix: "today" is the date in Sydney and a date of birth is a
+ * calendar date, so nothing depends on the clock of the machine doing the
+ * sum. The suite runs under several timezones to prove it.
+ */
+describe('ages count Sydney days, whatever the machine’s clock', () => {
+  const dob = new Date('2008-08-25'); // turns 18 on 25 August 2026
+
+  it('counts a birthday from midnight in Sydney (when it is still the day before in UTC)', () => {
+    expect(calculateAge(dob, new Date('2026-08-24T13:59:00Z'))).toBe(17); // 11:59 pm, 24 Aug, Sydney
+    expect(calculateAge(dob, new Date('2026-08-24T14:00:00Z'))).toBe(18); // midnight, 25 Aug, Sydney
+  });
+
+  it('ageAt reads the Sydney date of the moment too', () => {
+    // 9 am on 25 August in Sydney is still 24 August in UTC.
+    expect(ageAt(dob, new Date('2026-08-24T23:00:00Z'))).toBe(18);
+    expect(ageAt(dob, new Date('2026-08-24T13:00:00Z'))).toBe(17);
+  });
+
+  it('latestAdultDateOfBirth is the birthday of someone turning 18 today in Sydney', () => {
+    expect(latestAdultDateOfBirth(new Date('2026-08-24T14:00:00Z'))).toBe('2008-08-25');
+    expect(latestAdultDateOfBirth(new Date('2026-08-24T13:59:00Z'))).toBe('2008-08-24');
+    expect(calculateAge(new Date(`${latestAdultDateOfBirth(new Date('2028-02-29T02:00:00Z'))}`), new Date('2028-02-29T02:00:00Z'))).toBe(18);
+  });
+});
+
+/**
+ * Member and report filters turn an age range into a date-of-birth range for
+ * the database. It must agree with calculateAge on every boundary — the old
+ * one also took in people on their (max + 1)th birthday.
+ */
+describe('birthDateRange', () => {
+  const within = (dob: Date, r: { lte?: Date; gt?: Date }) =>
+    (r.lte ? dob <= r.lte : true) && (r.gt ? dob > r.gt : true);
+
+  it('agrees with calculateAge for every birthday around the edges, leap days included', () => {
+    for (const today of ['2026-10-03', '2027-02-28', '2028-02-29', '2028-03-01', '2026-12-31', '2026-01-01']) {
+      const now = new Date(`${today}T02:00:00Z`); // midday-ish in Sydney
+      const [ty] = today.split('-').map(Number);
+      for (const [min, max] of [[18, 25], [25, 40], [30, 30], [55, 70]]) {
+        const range = birthDateRange(min, max, now);
+        // every day across the two edge years
+        for (const y of [ty - max - 1, ty - min]) {
+          for (let t = Date.UTC(y, 0, 1); t < Date.UTC(y + 1, 0, 1); t += 24 * 3600 * 1000) {
+            const dob = new Date(t);
+            const age = calculateAge(dob, now);
+            expect(within(dob, range), `${today} ${min}-${max} born ${dob.toISOString().slice(0, 10)} age ${age}`).toBe(age >= min && age <= max);
+          }
+        }
+      }
+    }
+  });
+
+  it('leaves out someone on their 41st birthday from "up to 40"', () => {
+    const now = new Date('2026-10-03T02:00:00Z');
+    expect(within(new Date('1985-10-03'), birthDateRange(null, 40, now))).toBe(false);
+    expect(within(new Date('1985-10-04'), birthDateRange(null, 40, now))).toBe(true);
+  });
+
+  it('only sets the bounds asked for', () => {
+    expect(birthDateRange(18, null)).toEqual({ lte: expect.any(Date) });
+    expect(birthDateRange(null, 40)).toEqual({ gt: expect.any(Date) });
   });
 });

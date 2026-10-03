@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { buildOccurrenceDates } from '@/lib/eventSeries';
+import { timeZoneForCity } from '@/lib/timezone';
 
 const baseEventSchema = z.object({
   name: z.string().min(1),
@@ -26,7 +28,8 @@ const baseEventSchema = z.object({
     .object({
       frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY']),
       interval: z.number().int().positive().default(1),
-      endDate: z.string(), // generates occurrences up to and including this date, not a fixed count
+      // Generates occurrences up to and including this date, not a fixed count.
+      endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Please choose an end date for the repeat.'),
     })
     .optional(),
 });
@@ -65,7 +68,13 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   const data = parsed.data;
 
-  const startDates = buildOccurrenceDates(new Date(data.startsAt), data.repeat);
+  const first = new Date(data.startsAt);
+  if (Number.isNaN(first.getTime())) return NextResponse.json({ error: 'Please enter a valid start date and time.' }, { status: 400 });
+  const city = await prisma.city.findUnique({ where: { id: data.cityId } });
+  if (!city) return NextResponse.json({ error: 'Please select a valid city.' }, { status: 400 });
+
+  // Repeats are stepped on the event city's clock (src/lib/eventSeries.ts).
+  const startDates = buildOccurrenceDates(first, timeZoneForCity(city.name), data.repeat);
 
   const series = data.repeat
     ? await prisma.eventSeries.create({
@@ -102,24 +111,3 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   return NextResponse.json({ events, seriesId: series?.id ?? null });
 });
-
-function buildOccurrenceDates(
-  first: Date,
-  repeat?: { frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY'; interval: number; endDate: string }
-): Date[] {
-  if (!repeat) return [first];
-
-  const end = new Date(repeat.endDate);
-  const dates: Date[] = [first];
-  const SANITY_CAP = 200; // guards against a runaway loop from a bad/far-future end date
-
-  while (dates.length < SANITY_CAP) {
-    const d = new Date(dates[dates.length - 1]);
-    if (repeat.frequency === 'DAILY') d.setDate(d.getDate() + repeat.interval);
-    if (repeat.frequency === 'WEEKLY') d.setDate(d.getDate() + 7 * repeat.interval);
-    if (repeat.frequency === 'MONTHLY') d.setMonth(d.getMonth() + repeat.interval);
-    if (d > end) break;
-    dates.push(d);
-  }
-  return dates;
-}

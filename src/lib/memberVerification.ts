@@ -6,6 +6,7 @@ import { welcomeVerificationEmail } from './emails/welcomeEmail';
 import { sendSms } from './sms/send';
 import { verificationCodeSms } from './sms/verificationSms';
 import { clearRateLimit, rateKey } from './rateLimit';
+import { newMobileCode } from './mobileCode';
 
 /**
  * The two verification sends a new registrant gets, reusable for members the
@@ -33,7 +34,7 @@ export async function sendEmailVerification(member: Pick<Member, 'id' | 'name' |
 
 export async function sendMobileVerification(member: Pick<Member, 'id' | 'mobile'>): Promise<boolean> {
   try {
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const code = newMobileCode();
     await prisma.member.update({
       where: { id: member.id },
       data: { mobileVerificationCode: code, mobileVerificationExpires: new Date(Date.now() + 15 * 60 * 1000) },

@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button, Loader } from '@/components/ui';
+import { timeZoneForCity } from '@/lib/timezone';
 
 interface Item {
   id: string;
   message: string;
   createdAt: string;
   member: { id: string; name: string; email: string; mobile: string };
-  event: { id: string; number: number; name: string; startsAt: string; venue: { name: string } } | null;
+  event: { id: string; number: number; name: string; startsAt: string; venue: { name: string }; city?: { name: string } } | null;
 }
 
 /** "Member Feedback", as on the old admin: every message members have sent, newest first. */
@@ -48,7 +49,7 @@ export default function MemberFeedbackPage() {
                 <>
                   About event{' '}
                   <Link href={`/admin/events/${f.event.id}`} className="text-plum hover:underline">
-                    #{f.event.number} {f.event.name} at {f.event.venue.name}, {new Date(f.event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    #{f.event.number} {f.event.name} at {f.event.venue.name}, {new Date(f.event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: timeZoneForCity(f.event.city?.name) })}
                   </Link>
                 </>
               ) : 'General comment'}

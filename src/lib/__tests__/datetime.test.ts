@@ -12,32 +12,35 @@ import { toDateTimeLocalValue, fromDateTimeLocalValue, formatEventWhen } from '@
  * single save.
  */
 describe('datetime-local round trip', () => {
+  const SYD = 'Australia/Sydney';
+
   it('survives a round trip unchanged — the actual bug', () => {
     const stored = '2026-09-17T09:00:00.000Z';
-    const roundTripped = fromDateTimeLocalValue(toDateTimeLocalValue(stored));
+    const roundTripped = fromDateTimeLocalValue(toDateTimeLocalValue(stored, SYD), SYD);
     expect(new Date(roundTripped).getTime()).toBe(new Date(stored).getTime());
   });
 
   it('is stable over repeated saves', () => {
     let v = '2026-09-17T09:00:00.000Z';
-    for (let i = 0; i < 5; i++) v = fromDateTimeLocalValue(toDateTimeLocalValue(v));
+    for (let i = 0; i < 5; i++) v = fromDateTimeLocalValue(toDateTimeLocalValue(v, SYD), SYD);
     expect(new Date(v).toISOString()).toBe('2026-09-17T09:00:00.000Z');
   });
 
-  it('shows the LOCAL clock in the input, not the UTC one', () => {
-    // The old `.slice(0,16)` produced the UTC clock. Whatever the test
-    // machine's timezone, the value must match local getters.
-    const d = new Date('2026-09-17T09:00:00.000Z');
-    const pad = (n: number) => String(n).padStart(2, '0');
-    expect(toDateTimeLocalValue(d)).toBe(
-      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-    );
+  it("shows the EVENT CITY's clock in the input, not the device's or UTC's", () => {
+    // Whatever the machine's timezone: 09:00 UTC is 7 pm in Sydney, 5 pm in Perth.
+    expect(toDateTimeLocalValue('2026-09-17T09:00:00.000Z', SYD)).toBe('2026-09-17T19:00');
+    expect(toDateTimeLocalValue('2026-09-17T09:00:00.000Z', 'Australia/Perth')).toBe('2026-09-17T17:00');
+  });
+
+  it('saves what was typed on the event city’s clock: 7 pm in Perth is 7 pm in Perth', () => {
+    expect(fromDateTimeLocalValue('2026-11-13T19:00', 'Australia/Perth')).toBe('2026-11-13T11:00:00.000Z');
+    expect(fromDateTimeLocalValue('2026-11-13T19:00', SYD)).toBe('2026-11-13T08:00:00.000Z');
   });
 
   it('demonstrates what the old slice(0,16) did wrong', () => {
     const stored = '2026-09-17T09:00:00.000Z';
     const oldWay = new Date(stored.slice(0, 16)).toISOString();
-    const newWay = fromDateTimeLocalValue(toDateTimeLocalValue(stored));
+    const newWay = fromDateTimeLocalValue(toDateTimeLocalValue(stored, SYD), SYD);
     expect(newWay).toBe(stored);
     // Only differs where local time isn't UTC — true on the admin's machine
     // and on the Sydney droplet, which is what made this bite.
@@ -45,7 +48,9 @@ describe('datetime-local round trip', () => {
   });
 
   it('returns empty string for an unparseable value rather than throwing', () => {
-    expect(toDateTimeLocalValue('not a date')).toBe('');
+    expect(toDateTimeLocalValue('not a date', SYD)).toBe('');
+    expect(fromDateTimeLocalValue('', SYD)).toBe('');
+    expect(fromDateTimeLocalValue('2026-02-30T19:00', SYD)).toBe('');
   });
 });
 

@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { birthDateRange } from './age';
 
 // Shared shape used by both GET /api/admin/members (search/filter screen)
 // and Campaign.filter (who a newsletter/SMS blast goes to). One filter
@@ -49,20 +50,9 @@ export function buildMemberWhere(filter: MemberFilter): Prisma.MemberWhereInput 
   }
 
   if (filter.ageMin != null || filter.ageMax != null) {
-    const today = new Date();
-    // ageMin N years old -> born on or before (today - N years)
-    // ageMax N years old -> born on or after (today - N - 1 years)
-    where.dateOfBirth = {};
-    if (filter.ageMin != null) {
-      const cutoff = new Date(today);
-      cutoff.setFullYear(cutoff.getFullYear() - filter.ageMin);
-      where.dateOfBirth.lte = cutoff;
-    }
-    if (filter.ageMax != null) {
-      const cutoff = new Date(today);
-      cutoff.setFullYear(cutoff.getFullYear() - filter.ageMax - 1);
-      where.dateOfBirth.gte = cutoff;
-    }
+    // Same definition of age as everywhere else (src/lib/age.ts). The upper
+    // bound used to include people on their (max + 1)th birthday.
+    where.dateOfBirth = birthDateRange(filter.ageMin, filter.ageMax);
   }
 
   return where;

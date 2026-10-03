@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, Button, Loader, BackLink } from '@/components/ui';
 import { venueLine, venueBlock } from '@/lib/venue';
+import { timeZoneForCity } from '@/lib/timezone';
 import { Spinner } from '@/components/Spinner';
 
 interface EventDetail {
@@ -30,9 +31,11 @@ export default function AdminEventDetailPage() {
 
   function createBlastForEvent() {
     if (!event) return;
+    // The event's own local time, as members read it — not the admin's device clock.
     const date = new Date(event.startsAt);
-    const dateStr = date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
-    const timeStr = date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+    const timeZone = timeZoneForCity(event.city.name);
+    const dateStr = date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone });
+    const timeStr = date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone });
 
     // This is the actual fix for "creating a blast means retyping the same
     // info" — carries the event's real details through as query params so
@@ -41,7 +44,7 @@ export default function AdminEventDetailPage() {
     const params = new URLSearchParams({
       subject: `${event.theme.name}, ${event.name}`,
       heading: event.theme.name,
-      eventDetails: `When: ${dateStr}, ${timeStr}\nWhere: ${venueBlock(event.venue)}, ${event.city.name}\nCost: $${event.cost}`,
+      eventDetails: `When: ${dateStr}, ${timeStr}\nWhere: ${venueBlock(event.venue, event.city.name)}\nCost: $${event.cost}`,
       bookingLink: `${window.location.origin}/events/${event.id}`,
       // Only for the blast form's "← Back to event" link.
       fromEvent: event.id,
@@ -82,7 +85,7 @@ export default function AdminEventDetailPage() {
           long scroll away. */}
       <BackLink href="/admin/events">Back to events</BackLink>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">{event.name}</h1>
-      <p className="mb-6 text-sm text-ink/60">{venueLine(event.venue)} · {new Date(event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'long' })}</p>
+      <p className="mb-6 text-sm text-ink/60">{venueLine(event.venue)} · {new Date(event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', timeZone: timeZoneForCity(event.city.name) })}</p>
 
       <Card className="mb-3">
         <Link href={`/admin/events/${event.id}/bookings`} className="block font-bold text-ink hover:text-plum">View bookings</Link>

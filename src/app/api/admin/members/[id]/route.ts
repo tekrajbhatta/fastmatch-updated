@@ -15,7 +15,7 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     where: { id: params.id },
     include: {
       city: true,
-      bookings: { include: { event: { include: { venue: true } } }, orderBy: { createdAt: 'desc' } },
+      bookings: { include: { event: { include: { venue: true, city: { select: { name: true } } } } }, orderBy: { createdAt: 'desc' } },
     },
   });
 

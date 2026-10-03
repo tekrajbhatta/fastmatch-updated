@@ -7,6 +7,7 @@ import { withErrorHandling } from '@/lib/withErrorHandling';
 import { ageAt } from '@/lib/age';
 import { EVENT_TIME_ZONE } from '@/lib/datetime';
 import { monthIn, startOfDayIn } from '@/lib/timezone';
+import { addDays } from '@/lib/zonedTime';
 import {
   buildReport, reportProblem, showsSignups, ageGroupOf,
   type BookingFact, type EventFact, type SignupFact, type Place,
@@ -57,7 +58,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const tz = EVENT_TIME_ZONE;
   const from = q.dateFrom ? startOfDayIn(q.dateFrom, tz) : undefined;
   // "To 30 September" includes the whole of the 30th.
-  const to = q.dateTo ? new Date(startOfDayIn(q.dateTo, tz).getTime() + 24 * 60 * 60 * 1000) : undefined;
+  const to = q.dateTo ? startOfDayIn(addDays(q.dateTo, 1), tz) : undefined;
   const range = from || to ? { ...(from ? { gte: from } : {}), ...(to ? { lt: to } : {}) } : undefined;
 
   const eventWhere: Prisma.EventWhereInput = {

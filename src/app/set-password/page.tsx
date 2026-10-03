@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { SplitLayout, FormCard, LoadingNote } from '@/components/site/layout';
 import { Field, TextInput, SelectInput, Checkbox, FormError, FormSuccess } from '@/components/site/form';
 import { Button, linkClass } from '@/components/site/button';
+import { latestAdultDateOfBirth } from '@/lib/age';
 
 interface Prefill {
   name: string; email: string; mobile: string; gender: 'MALE' | 'FEMALE'; cityId: string;
@@ -71,7 +72,8 @@ function SetPasswordInner() {
   }
 
   // No future dates, and nobody under 18.
-  const maxDob = (() => { const d = new Date(); d.setFullYear(d.getFullYear() - 18); return d.toISOString().slice(0, 10); })();
+  // Someone turning 18 today (in Sydney, as the server checks it) can pick their birthday.
+  const maxDob = latestAdultDateOfBirth();
 
   return (
     <SplitLayout

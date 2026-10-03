@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { discountValidity } from '@/lib/discountDates';
 
 const codeSchema = z.object({
   code: z.string().min(1).toUpperCase(),
@@ -11,6 +12,7 @@ const codeSchema = z.object({
   scopeThemeId: z.string().nullable().optional(),
   // "Event": null or empty = All events; otherwise the one event it works for.
   scopeEventId: z.string().nullable().optional().transform((v) => v || null),
+  // "YYYY-MM-DD": whole days in Sydney (src/lib/discountDates.ts).
   validFrom: z.string(),
   validTo: z.string(),
 });
@@ -31,6 +33,12 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   const data = parsed.data;
 
+  const validity = discountValidity(data.validFrom, data.validTo);
+  if (!validity) return NextResponse.json({ error: 'Please choose the "Valid from" and "Valid to" dates.' }, { status: 400 });
+  if (validity.validTo < validity.validFrom) {
+    return NextResponse.json({ error: '"Valid to" can\'t be before "Valid from".' }, { status: 400 });
+  }
+
   if (data.scopeEventId && !(await prisma.event.findUnique({ where: { id: data.scopeEventId }, select: { id: true } }))) {
     return NextResponse.json({ error: 'Please choose a valid event.' }, { status: 400 });
   }
@@ -50,8 +58,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       amount: data.amount,
       scopeThemeId: data.scopeThemeId ?? null,
       scopeEventId: data.scopeEventId,
-      validFrom: new Date(data.validFrom),
-      validTo: new Date(data.validTo),
+      ...validity,
     },
   });
   return NextResponse.json(created);
@@ -65,7 +72,7 @@ async function withScopeEvents<T extends { scopeEventId: string | null }>(codes:
   const events = ids.length
     ? await prisma.event.findMany({
         where: { id: { in: ids } },
-        select: { id: true, number: true, name: true, startsAt: true, venue: { select: { name: true } } },
+        select: { id: true, number: true, name: true, startsAt: true, venue: { select: { name: true } }, city: { select: { name: true } } },
       })
     : [];
   const byId = new Map(events.map((e) => [e.id, e]));

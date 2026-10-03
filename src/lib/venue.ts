@@ -23,14 +23,28 @@ export function venueLine(venue: { name: string; address?: string | null }): str
  *   ggbar.com.au
  *
  * Blank fields are dropped rather than left as empty lines.
+ *
+ * With a city, it goes after the address ("23 Walker St, North Sydney,
+ * Sydney"), or after the name when there's no address, and is left off when
+ * that line already ends with it. (It used to be tacked onto the end of the
+ * whole block, which is usually the website.)
  */
-export function venueBlock(venue: {
-  name: string;
-  address?: string | null;
-  phone?: string | null;
-  websiteUrl?: string | null;
-}): string {
-  return [venue.name, venue.address, venue.phone, venue.websiteUrl]
+export function venueBlock(
+  venue: {
+    name: string;
+    address?: string | null;
+    phone?: string | null;
+    websiteUrl?: string | null;
+  },
+  cityName?: string | null,
+): string {
+  const city = cityName?.trim();
+  const withCity = (line: string | null | undefined) => {
+    const l = line?.trim();
+    return l && city && !l.toLowerCase().endsWith(city.toLowerCase()) ? `${l}, ${city}` : l;
+  };
+  const address = venue.address?.trim();
+  return [address ? venue.name : withCity(venue.name), withCity(address), venue.phone, venue.websiteUrl]
     .map((v) => v?.trim())
     .filter(Boolean)
     .join('\n');

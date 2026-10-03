@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button, Card, Field, Input, Select, Loader, BackLink } from '@/components/ui';
 import { venueLine } from '@/lib/venue';
 import { PAYMENT_METHODS } from '@/lib/paymentMethod';
+import { eventClock } from '@/lib/timezone';
 
 interface EventSummary {
   id: string; name: string; startsAt: string; cost: string; cityId: string;
@@ -83,7 +84,8 @@ export default function AddMemberPage() {
   }
 
   if (!event) return <Loader />;
-  const date = new Date(event.startsAt);
+  // The event's date on its city's clock, as it's advertised.
+  const clock = eventClock(event.startsAt, event.city.name);
 
   if (warnings) {
     return (
@@ -104,7 +106,7 @@ export default function AddMemberPage() {
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Add a new member</h1>
       <p className="mb-6 text-sm text-ink/60">
         Registers them and books them into {event.name} · {venueLine(event.venue)} ·{' '}
-        {date.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}.{' '}
+        {clock.date({ weekday: 'short', day: 'numeric', month: 'short' })}.{' '}
         Already a member?{' '}
         <Link href={`/admin/events/${eventId}/bookings/new`} className="font-bold text-plum hover:underline">Add a new booking</Link> instead.
       </p>

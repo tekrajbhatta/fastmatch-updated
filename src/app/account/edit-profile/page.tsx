@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FormCard, LoadingNote, SplitLayout } from '@/components/site/layout';
 import { Button } from '@/components/site/button';
 import { Field, FormError, FormSuccess, SelectInput, TextInput } from '@/components/site/form';
+import { latestAdultDateOfBirth } from '@/lib/age';
 
 interface City { id: string; name: string; }
 
@@ -46,7 +47,8 @@ export default function EditProfilePage() {
   }
 
   // Nobody under 18.
-  const maxDob = (() => { const d = new Date(); d.setFullYear(d.getFullYear() - 18); return d.toISOString().slice(0, 10); })();
+  // Someone turning 18 today (in Sydney, as the server checks it) can pick their birthday.
+  const maxDob = latestAdultDateOfBirth();
 
   return (
     <SplitLayout title="Edit profile" back={{ href: '/account', label: 'Back to my account' }}>

@@ -5,7 +5,7 @@ import { prisma } from './prisma';
 // Simple fixed-window counters, kept in the database so they survive a
 // restart (the site runs as one process, but an in-memory count would reset
 // on every deploy). Used for failed logins, mobile code guesses, code
-// resends, password resets, Contact Us and Tell A Friend.
+// resends, password resets, sign-ups, Contact Us and Tell A Friend.
 
 export const MINUTE = 60 * 1000;
 export const HOUR = 60 * MINUTE;
@@ -27,6 +27,8 @@ export const LIMITS = {
   resetIp: { limit: 20, windowMs: HOUR },
   /** Contact Us messages per visitor address. */
   contactIp: { limit: 5, windowMs: HOUR },
+  /** New accounts per visitor address (only accounts actually created count). */
+  registerIp: { limit: 1, windowMs: HOUR },
   /** Tell A Friend invitations per member (it needs sign-in, so per member rather than per address). */
   tellAFriend: { limit: 5, windowMs: HOUR },
 } as const;

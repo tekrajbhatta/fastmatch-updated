@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { Field, Input, Select, Button, Card, Loader } from '@/components/ui';
+import { timeZoneForCity } from '@/lib/timezone';
 import {
   CATEGORY_OPTIONS, GROUP_OPTIONS, REPORT_TYPES, reportProblem,
   type Dimension, type ReportType, type Metrics, type CategoryRow,
@@ -254,7 +255,7 @@ export default function ReportsPage() {
               <Select value={selectedEvent} onChange={(e) => setSelectedEvent(e.target.value)}>
                 {events.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} · {e.theme.name} · {e.venue.name} · Ages {e.ageMin}-{e.ageMax}
+                    {new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: timeZoneForCity(e.city.name) })} · {e.theme.name} · {e.venue.name} · Ages {e.ageMin}-{e.ageMax}
                   </option>
                 ))}
               </Select>
@@ -369,14 +370,16 @@ function FragmentRows({ c, cols }: { c: CategoryRow; cols: (keyof Metrics)[] }) 
 function EventStatement({ r }: { r: EventReport }) {
   const s = r.statement;
   const when = new Date(r.event.startsAt);
+  // The event's own local time; the city is named right alongside.
+  const timeZone = timeZoneForCity(r.event.city);
   return (
     <Card>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-extrabold text-ink">Event report: #{r.event.number} {r.event.venue}</h2>
           <p className="text-sm text-ink/60">
-            {when.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} ·{' '}
-            {when.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })} · {r.event.city} · {r.event.theme} · {r.event.name}
+            {when.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone })} ·{' '}
+            {when.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone })} · {r.event.city} · {r.event.theme} · {r.event.name}
           </p>
         </div>
         <Button variant="ghost" onClick={() => window.print()} className="print:hidden">Print</Button>

@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, Badge, Loader, BackLink } from '@/components/ui';
+import EventWhen from '@/components/EventWhen';
 
 interface SeriesEvent {
   id: string; number: number; name: string; startsAt: string; visibility: string; status: string;
-  _count: { bookings: number };
+  _count: { bookings: number }; city: { name: string };
 }
 
 export default function SeriesPage() {
@@ -77,7 +78,7 @@ export default function SeriesPage() {
               <tr key={e.id} className="border-t border-ink/5">
                 <td className="px-4 py-3"><input type="checkbox" checked={checked.has(e.id)} onChange={() => toggle(e.id)} /></td>
                 <td className="px-4 py-3 text-ink/40">#{e.number}</td>
-                <td className="px-4 py-3">{new Date(e.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}, {new Date(e.startsAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}</td>
+                <td className="px-4 py-3"><EventWhen startsAt={e.startsAt} city={e.city?.name} /></td>
                 <td className="px-4 py-3">{e._count.bookings}</td>
                 <td className="px-4 py-3">
                   {/* A booked event that "Delete selected" cancelled says so,
