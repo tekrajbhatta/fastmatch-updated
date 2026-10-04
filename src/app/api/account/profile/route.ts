@@ -9,6 +9,7 @@ import { confirmEmailChangeEmail, emailAlreadyUsedEmail } from '@/lib/emails/ema
 import { hitRateLimit, rateKey, LIMITS } from '@/lib/rateLimit';
 import { parseDateOfBirth } from '@/lib/friendBooking';
 import { calculateAge } from '@/lib/age';
+import { sendMobileVerification } from '@/lib/memberVerification';
 
 const schema = z.object({
   name: z.string().min(1),
@@ -66,12 +67,26 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
     );
   }
 
+  // A new mobile number isn't confirmed until its code is entered: a member
+  // could otherwise switch to any number and stay "confirmed". (Changes the
+  // admin makes are trusted.) Each new number is a paid text, so it shares
+  // the "Resend code" limit.
+  const digits = (m: string) => m.replace(/\D/g, '');
+  const mobileChanged = digits(data.mobile) !== digits(member.mobile);
+  if (mobileChanged && !(await hitRateLimit(rateKey('resend-code', member.id), LIMITS.codeResends.limit, LIMITS.codeResends.windowMs)).allowed) {
+    return NextResponse.json(
+      { error: "You've asked for several codes in the last hour. Please wait a while before changing your mobile again." },
+      { status: 429 },
+    );
+  }
+
   // Everything except the email is saved now.
   const { email: _email, ...rest } = data;
   const updated = await prisma.member.update({
     where: { id: member.id },
-    data: { ...rest, ...(dob ? { dateOfBirth: dob } : {}) },
+    data: { ...rest, ...(dob ? { dateOfBirth: dob } : {}), ...(mobileChanged ? { mobileVerified: false } : {}) },
   });
+  const smsSent = mobileChanged ? await sendMobileVerification(updated) : undefined;
 
   if (emailChanged) {
     const owner = await prisma.member.findUnique({ where: { email: newEmail } });
@@ -95,5 +110,5 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
 
   const { passwordHash, mobileVerificationCode, ...safe } = updated;
   // emailChangePending: the address a confirmation link went to (the email itself is unchanged).
-  return NextResponse.json({ ...safe, emailChangePending: emailChanged ? newEmail : null });
+  return NextResponse.json({ ...safe, emailChangePending: emailChanged ? newEmail : null, mobileChangePending: mobileChanged, smsSent });
 });

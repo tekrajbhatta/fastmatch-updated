@@ -71,7 +71,9 @@ export default function AdminDiscountsPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const payload = { ...form, amount: form.amount ? Number(form.amount) : undefined, scopeEventId: form.scopeEventId || null };
+    // An empty amount is sent as "none", so the server says it's needed
+    // (sending nothing used to keep the old amount when editing).
+    const payload = { ...form, amount: form.amount === '' || form.type === 'FREE' ? null : Number(form.amount), scopeEventId: form.scopeEventId || null };
     const res = editing
       ? await fetch(`/api/admin/discount-codes/${editing}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       : await fetch('/api/admin/discount-codes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -101,7 +103,12 @@ export default function AdminDiscountsPage() {
                   <option value="FREE">Free</option>
                 </Select>
               </Field>
-              <Field label="Amount"><Input type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></Field>
+              {form.type === 'FREE' ? <div /> : (
+                <Field label={form.type === 'PERCENT_OFF' ? 'Amount (% off, 1 to 100)' : 'Amount ($ off)'}>
+                  <Input type="number" required min={form.type === 'PERCENT_OFF' ? 1 : 0.01} max={form.type === 'PERCENT_OFF' ? 100 : undefined} step="any"
+                    value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+                </Field>
+              )}
               <div />
               <Field label="Valid from"><Input type="date" required value={form.validFrom} onChange={(e) => setForm({ ...form, validFrom: e.target.value })} /></Field>
               <Field label="Valid to"><Input type="date" required value={form.validTo} onChange={(e) => setForm({ ...form, validTo: e.target.value })} /></Field>

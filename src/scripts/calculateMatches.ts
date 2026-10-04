@@ -12,13 +12,15 @@
 import { prisma } from '../lib/prisma';
 import { calculateMatchesForEvent } from '../lib/calculateMatches';
 import { sendMatchEmails } from '../lib/sendMatchEmails';
-import { eventsDueForResults } from '../lib/nightlyResults';
+import { eventsDueForResults, resultsDue } from '../lib/nightlyResults';
 
 async function run() {
-  const eventsToClose = await prisma.event.findMany({
-    where: eventsDueForResults(),
+  const now = new Date();
+  const eventsToClose = (await prisma.event.findMany({
+    where: eventsDueForResults(now),
+    include: { city: true },
     orderBy: { startsAt: 'asc' },
-  });
+  })).filter((e) => resultsDue(e, now)); // only once their choices have closed
 
   // Each event on its own: one that fails is logged and the rest still go.
   let failed = 0;

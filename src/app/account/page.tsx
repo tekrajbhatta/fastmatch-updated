@@ -6,8 +6,9 @@ import Link from 'next/link';
 import { Container, FormCard, PageLoader, SplitLayout } from '@/components/site/layout';
 import { Button, ButtonLink } from '@/components/site/button';
 import { Notice } from '@/components/site/form';
+import ResendConfirmation from '@/components/ResendConfirmation';
 
-interface Me { id: string; name: string; email: string; agreedTerms: boolean; isAdmin: boolean; }
+interface Me { id: string; name: string; email: string; agreedTerms: boolean; isAdmin: boolean; emailVerified: boolean; }
 
 export default function AccountPage() {
   const router = useRouter();
@@ -80,6 +81,14 @@ export default function AccountPage() {
             <Button onClick={acceptTerms} disabled={accepting} loading={accepting} block className="!h-auto min-h-[54px] !whitespace-normal py-3 leading-snug">
               I agree to the Terms &amp; Privacy Policy
             </Button>
+          </Notice>
+        )}
+
+        {!me.emailVerified && (
+          <Notice className="flex flex-col gap-3">
+            <p className="font-bold text-ink-900">Your email address isn&apos;t confirmed yet, so you can&apos;t book events.</p>
+            <p className="text-[15px] text-ink-600">Use the link in the email we sent you, or get a new one:</p>
+            <ResendConfirmation />
           </Notice>
         )}
 

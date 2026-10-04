@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { SplitLayout, FormCard, LoadingNote } from '@/components/site/layout';
 import { FormError, FormSuccess } from '@/components/site/form';
 import { ButtonLink, linkClass } from '@/components/site/button';
+import ResendConfirmation from '@/components/ResendConfirmation';
 
 // Landing page for the link in the welcome/verification email
 // (`${APP_URL}/verify-email?token=...`). The API route existed but this page
@@ -17,6 +18,12 @@ function VerifyEmailInner() {
   const [error, setError] = useState('This link is invalid or has expired.');
   // Set when the link was for a new address from My Account.
   const [changedTo, setChangedTo] = useState<string | null>(null);
+  // For a link that didn't work: a signed-in member still unconfirmed can get
+  // a new one here; anyone else logs in first.
+  const [canResend, setCanResend] = useState(false);
+  useEffect(() => {
+    fetch('/api/auth/me').then((r) => r.json()).then((d) => setCanResend(!!d.member && !d.member.emailVerified)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -64,7 +71,11 @@ function VerifyEmailInner() {
         {state === 'error' && (
           <>
             <FormError>{error}</FormError>
-            <Link href="/login" className={`${linkClass} self-center text-[15px]`}>Log in</Link>
+            {canResend ? (
+              <ResendConfirmation />
+            ) : (
+              <Link href="/login?next=%2Faccount" className={`${linkClass} self-center text-[15px]`}>Log in to get a new link</Link>
+            )}
           </>
         )}
       </FormCard>

@@ -1,8 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { calculateMatchesForEvent } from '@/lib/calculateMatches';
 import { sendMatchEmails } from '@/lib/sendMatchEmails';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+
+/**
+ * GET /api/admin/events/:id/close — what the "Close event now" card shows:
+ * how many are checked in and how many of them have sent choices (for the
+ * confirmation), and once results are in, when they were worked out and how
+ * many people were emailed.
+ */
+export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
+  const params = await ctx.params;
+  const admin = await requireAdmin(req);
+  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+
+  const event = await prisma.event.findUniqueOrThrow({ where: { id: params.id } });
+  const [checkedIn, raters, emailedMatches] = await Promise.all([
+    prisma.booking.count({ where: { eventId: event.id, status: 'CONFIRMED', checkedIn: true } }),
+    prisma.rating.findMany({ where: { eventId: event.id }, distinct: ['raterId'], select: { raterId: true } }),
+    prisma.match.findMany({ where: { eventId: event.id, emailSent: true }, select: { memberAId: true, memberBId: true } }),
+  ]);
+  const emailed = new Set(emailedMatches.flatMap((m) => [m.memberAId, m.memberBId]));
+  return NextResponse.json({
+    checkedIn,
+    submitted: raters.length,
+    matchesCalculated: event.matchesCalculated,
+    matchesCalculatedAt: event.matchesCalculatedAt,
+    emailed: emailed.size,
+  });
+});
 
 // POST /api/admin/events/:id/close — host's "Close event now & calculate early"
 // override. Normally matches wait for the midnight job; this lets a host force

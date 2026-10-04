@@ -1,21 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
-import { discountValidity } from '@/lib/discountDates';
-
-const codeSchema = z.object({
-  code: z.string().min(1).toUpperCase(),
-  type: z.enum(['PERCENT_OFF', 'FIXED_REDUCTION', 'FREE']),
-  amount: z.number().nonnegative().optional(),
-  scopeThemeId: z.string().nullable().optional(),
-  // "Event": null or empty = All events; otherwise the one event it works for.
-  scopeEventId: z.string().nullable().optional().transform((v) => v || null),
-  // "YYYY-MM-DD": whole days in Sydney (src/lib/discountDates.ts).
-  validFrom: z.string(),
-  validTo: z.string(),
-});
+import { Prisma } from '@prisma/client';
+import { discountInputSchema, checkDiscountInput, DUPLICATE_CODE } from '@/lib/discountInput';
 
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireAdmin(req);
@@ -29,39 +17,31 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
-  const parsed = codeSchema.safeParse(await req.json());
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  const data = parsed.data;
-
-  const validity = discountValidity(data.validFrom, data.validTo);
-  if (!validity) return NextResponse.json({ error: 'Please choose the "Valid from" and "Valid to" dates.' }, { status: 400 });
-  if (validity.validTo < validity.validFrom) {
-    return NextResponse.json({ error: '"Valid to" can\'t be before "Valid from".' }, { status: 400 });
-  }
+  // The same checks as editing (src/lib/discountInput.ts).
+  const parsed = discountInputSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Please check the code\'s details.' }, { status: 400 });
+  const checked = checkDiscountInput(parsed.data);
+  if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
+  const data = checked.data;
 
   if (data.scopeEventId && !(await prisma.event.findUnique({ where: { id: data.scopeEventId }, select: { id: true } }))) {
     return NextResponse.json({ error: 'Please choose a valid event.' }, { status: 400 });
   }
 
-  const existing = await prisma.discountCode.findUnique({ where: { code: data.code } });
-  if (existing) {
-    return NextResponse.json(
-      { error: 'That code already exists. Edit it instead of creating a new one.' },
-      { status: 409 }
-    );
+  if (await prisma.discountCode.findUnique({ where: { code: data.code }, select: { id: true } })) {
+    return NextResponse.json({ error: `${DUPLICATE_CODE} Edit it instead of creating a new one.` }, { status: 409 });
   }
 
-  const created = await prisma.discountCode.create({
-    data: {
-      code: data.code,
-      type: data.type,
-      amount: data.amount,
-      scopeThemeId: data.scopeThemeId ?? null,
-      scopeEventId: data.scopeEventId,
-      ...validity,
-    },
-  });
-  return NextResponse.json(created);
+  try {
+    const created = await prisma.discountCode.create({
+      data: { ...data, scopeThemeId: parsed.data.scopeThemeId ?? null },
+    });
+    return NextResponse.json(created);
+  } catch (err) {
+    // Created by someone else a moment ago.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return NextResponse.json({ error: DUPLICATE_CODE }, { status: 409 });
+    throw err;
+  }
 });
 
 // Each code with the event it's limited to (for the list's "Only for" line).

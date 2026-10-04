@@ -94,11 +94,15 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
     notified = bookings.length;
   }
 
-  return NextResponse.json({ ...event, notified, notifyFailures });
+  // What the attendees were told about, so the screen can word any failures.
+  return NextResponse.json({ ...event, notified, notifyFailures, notifiedAbout: { time: timeChanged, venue: venueChanged, cancelled } });
 });
 
-// DELETE /api/admin/events/:id — same rule as the series bulk action: no
-// bookings -> actually deleted; has bookings -> cancelled instead.
+// DELETE /api/admin/events/:id — the event page's "Delete event", offered
+// only for an event with no bookings at all (any status). One with bookings
+// is refused rather than quietly cancelled: cancelling is its own decision.
+// (Its ratings and matches need bookings, so there are none either; feedback,
+// blasts and discount codes that mention it cope with it being gone.)
 export const DELETE = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
@@ -109,11 +113,9 @@ export const DELETE = withErrorHandling(async (req: NextRequest, ctx: { params: 
     include: { _count: { select: { bookings: true } } },
   });
 
-  if (event._count.bookings === 0) {
-    await prisma.event.delete({ where: { id: params.id } });
-    return NextResponse.json({ ok: true, action: 'deleted' });
+  if (event._count.bookings > 0) {
+    return NextResponse.json({ error: 'This event has bookings, so it can\'t be deleted.' }, { status: 409 });
   }
-
-  await prisma.event.update({ where: { id: params.id }, data: { status: 'CANCELLED' } });
-  return NextResponse.json({ ok: true, action: 'cancelled' });
+  await prisma.event.delete({ where: { id: params.id } });
+  return NextResponse.json({ ok: true, action: 'deleted' });
 });

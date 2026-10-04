@@ -148,7 +148,9 @@ export default function AdminEventsPage() {
                 {/* A solid white chip rather than <Badge>: the badge's pale
                     tint vanishes against the coloured rows. */}
                 <td className="px-4 py-3">
-                  {e.draft ? (
+                  {e.status === 'CANCELLED' ? (
+                    <span className="inline-block whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-xs font-bold text-coral">Cancelled</span>
+                  ) : e.draft ? (
                     <span className="inline-block whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-xs font-bold text-coral">Draft</span>
                   ) : (
                     <span className={`inline-block whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-xs font-bold ${e.visibility === 'PUBLIC' ? 'text-green-dark' : 'text-ink/60'}`}>

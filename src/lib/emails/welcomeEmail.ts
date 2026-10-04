@@ -30,3 +30,19 @@ export function welcomeVerificationEmail(opts: { memberName: string; verifyUrl: 
 
   return { subject: 'Confirm your FastMatch membership', html };
 }
+
+/**
+ * A fresh confirmation link for a member who already has an account but never
+ * confirmed their address (asked for from My Account or the confirm page).
+ * Not "Welcome… thanks for joining": they joined a while ago.
+ */
+export function confirmEmailAgainEmail(opts: { memberName: string; verifyUrl: string }) {
+  const html = emailLayout(`
+    <h1 style="${HEADING}">Confirm your email address</h1>
+    <p style="${PARA_BUTTON}">Hi ${escapeHtml(opts.memberName)}, here's a new link to confirm the email address on your FastMatch account:</p>
+    <p style="${PARA_BUTTON}"><a href="${opts.verifyUrl}" style="${BUTTON}">Confirm my email</a></p>
+    <p style="${PARA}">It works for 7 days. Once your email and mobile are both confirmed, you can book events.</p>
+    <p style="${PARA}">The FastMatch Team</p>
+  `);
+  return { subject: 'Confirm your FastMatch email address', html };
+}

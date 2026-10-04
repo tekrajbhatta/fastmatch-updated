@@ -1,20 +1,50 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Container, DecorRing, FormCard, SplitLayout, PageLoader } from '@/components/site/layout';
 import { FormError } from '@/components/site/form';
 import { Button, ButtonLink, buttonClass, linkClass } from '@/components/site/button';
+import { eventClock } from '@/lib/timezone';
 
 interface Me { id: string; name: string; email: string; mobile: string; }
 interface RosterEntry { badge: number; memberId: string; name: string; }
 type Choice = 'NO' | 'FRIEND' | 'DATE';
 
+/** Where the member stands tonight (GET /api/events/:id/night). */
+interface Night {
+  event: { name: string; theme: string; startsAt: string; city: string; cancelled: boolean };
+  checkIn: 'not-yet' | 'open' | 'closed';
+  opensAt: string;
+  closesAt: string;
+  booking: { checkedIn: boolean; badge: number } | null;
+  choicesOpen: boolean;
+  matchesCalculated: boolean;
+  myChoices: Record<string, Choice>;
+}
+
+/** Late arrivals appear on the list without anyone reloading. */
+const REFRESH_EVERY_MS = 25_000;
+
+// Choices not yet sent are kept in the browser, so a reload (or the phone
+// locking) doesn't lose them. Best-effort: private browsing can refuse.
+const draftKey = (eventId: string, memberId: string) => `fm-choices:${eventId}:${memberId}`;
+function readDraft(key: string): Record<string, Choice> {
+  try { return JSON.parse(localStorage.getItem(key) ?? '{}') ?? {}; } catch { return {}; }
+}
+function writeDraft(key: string, ratings: Record<string, Choice>) {
+  try { localStorage.setItem(key, JSON.stringify(ratings)); } catch { /* not kept; no harm */ }
+}
+function clearDraft(key: string) {
+  try { localStorage.removeItem(key); } catch { /* nothing to clear */ }
+}
+
 export default function CheckinPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const [me, setMe] = useState<Me | null>(null);
-  const [step, setStep] = useState<'loading' | 'confirm' | 'roster' | 'submitted'>('loading');
+  const [night, setNight] = useState<Night | null>(null);
+  const [step, setStep] = useState<'loading' | 'confirm' | 'roster' | 'submitted' | 'closed'>('loading');
   // Tracked separately from `step`. Previously a logged-out visitor and a
   // still-loading page were the SAME 'loading' step, so the "Please log in"
   // message flashed at every member before their own details appeared.
@@ -25,23 +55,55 @@ export default function CheckinPage() {
   const [activePerson, setActivePerson] = useState<RosterEntry | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [closedMessage, setClosedMessage] = useState<string | null>(null);
   const [checkingIn, setCheckingIn] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const draft = useRef<string | null>(null);
+
+  const loadRoster = useCallback(async () => {
+    setRefreshing(true);
+    const res = await fetch(`/api/events/${eventId}/checkin`).catch(() => null);
+    setRefreshing(false);
+    if (res?.ok) { setRoster(await res.json()); setError(null); }
+    else setError('Checked in, but the attendee list could not be loaded. Tap Refresh to try again.');
+  }, [eventId]);
+
+  // Choices already sent, plus any not yet sent from an earlier visit.
+  const startRating = useCallback((member: Me, n: Night) => {
+    draft.current = draftKey(eventId, member.id);
+    setRatings({ ...n.myChoices, ...readDraft(draft.current) });
+    setMyBadge(n.booking?.badge ?? null);
+    loadRoster();
+    setStep('roster');
+  }, [eventId, loadRoster]);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((data) => {
-        setMe(data.member);
-        if (data.member) setStep('confirm');
-      })
-      .finally(() => setLoaded(true));
-  }, []);
+    Promise.all([
+      fetch('/api/auth/me').then((r) => r.json()).catch(() => ({})),
+      fetch(`/api/events/${eventId}/night`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]).then(([meData, n]: [{ member?: Me | null }, Night | null]) => {
+      const member = meData?.member ?? null;
+      setMe(member);
+      setNight(n);
+      if (!member) return;
+      if (n?.booking?.checkedIn) {
+        // Back on the page later (a reload, the phone locked): straight to the list.
+        if (!n.choicesOpen) {
+          setClosedMessage(n.matchesCalculated
+            ? 'The matches for this event have been worked out, so choices can no longer be sent.'
+            : 'Choices for this event closed at midnight.');
+          setStep('closed');
+        } else startRating(member, n);
+      } else setStep('confirm');
+    }).finally(() => setLoaded(true));
+  }, [eventId, startRating]);
 
-  async function loadRoster() {
-    const res = await fetch(`/api/events/${eventId}/checkin`);
-    if (res.ok) setRoster(await res.json());
-    else setError('Checked in, but the attendee list could not be loaded. Pull down to refresh.');
-  }
+  // Late arrivals appear on their own.
+  useEffect(() => {
+    if (step !== 'roster') return;
+    const timer = setInterval(loadRoster, REFRESH_EVERY_MS);
+    return () => clearInterval(timer);
+  }, [step, loadRoster]);
 
   async function handleCheckIn() {
     setError(null);
@@ -64,13 +126,15 @@ export default function CheckinPage() {
       return;
     }
 
-    setMyBadge(data.badge);
-    await loadRoster();
-    setStep('roster');
+    if (me && night) startRating(me, { ...night, booking: { checkedIn: true, badge: data.badge } });
   }
 
   function selectRating(memberId: string, choice: Choice) {
-    setRatings((r) => ({ ...r, [memberId]: choice }));
+    setRatings((r) => {
+      const next = { ...r, [memberId]: choice };
+      if (draft.current) writeDraft(draft.current, next);
+      return next;
+    });
   }
 
   async function handleSubmitMatches() {
@@ -84,12 +148,19 @@ export default function CheckinPage() {
     });
     const data = await res.json().catch(() => ({}));
     setSubmitting(false);
+    // Too late: choices have closed (midnight, or the results are in).
+    if (res.status === 409 && data.closed) {
+      setClosedMessage(typeof data.error === 'string' ? data.error : 'Choices for this event have closed.');
+      setStep('closed');
+      return;
+    }
     // Same failure mode as check-in: silently doing nothing on the last screen
     // of the night would lose someone's ratings with no way to tell.
     if (!res.ok) {
       setError(typeof data.error === 'string' ? data.error : 'Your matches could not be submitted. Please try again.');
       return;
     }
+    if (draft.current) clearDraft(draft.current);
     setStep('submitted');
   }
 
@@ -107,6 +178,30 @@ export default function CheckinPage() {
           <ButtonLink href={`/login?next=${encodeURIComponent(`/events/${eventId}/checkin`)}`} block>Log in</ButtonLink>
         </FormCard>
       </Container>
+    );
+  }
+
+  // Not open yet, or closed: say so, rather than a check-in button.
+  if (step === 'confirm' && me && night && night.checkIn !== 'open') {
+    const opens = eventClock(night.opensAt, night.event.city);
+    return (
+      <SplitLayout title={`Hi, ${me.name.split(' ')[0]}`} lead={`${night.event.theme}, ${night.event.name}`}>
+        <FormCard>
+          <p className="text-[17px] font-bold text-ink-900">
+            {night.event.cancelled
+              ? 'This event was cancelled.'
+              : night.checkIn === 'not-yet'
+                ? `Check-in opens an hour before the event starts: ${opens.date({ weekday: 'long', day: 'numeric', month: 'long' })}, ${opens.time}${opens.note ? ` (${opens.note})` : ''}.`
+                : 'Check-in for this event has closed.'}
+          </p>
+          {night.checkIn === 'not-yet' && !night.event.cancelled && (
+            <p className="text-[15px] leading-normal text-ink-600">
+              Come back to this page at the venue, or scan the QR code there, and you&apos;ll be able to check in and see who&apos;s here.
+            </p>
+          )}
+          <ButtonLink href="/events" variant="secondary" block>Upcoming events</ButtonLink>
+        </FormCard>
+      </SplitLayout>
     );
   }
 
@@ -156,6 +251,10 @@ export default function CheckinPage() {
             <span aria-hidden="true" className="h-2.5 w-2.5 animate-pulse rounded-full bg-match-400" />
             <span className="font-bold text-plum-700">{roster.length} checked in.</span>
             <span>Tap a name once you've met them.</span>
+            {/* The list also refreshes on its own every 25 seconds. */}
+            <button type="button" onClick={loadRoster} disabled={refreshing} className={`${linkClass} ml-auto text-sm disabled:opacity-50`}>
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
           </div>
 
           <div className="space-y-2.5">
@@ -198,7 +297,7 @@ export default function CheckinPage() {
           <Button onClick={handleSubmitMatches} disabled={submitting} loading={submitting} block className="mt-6">
             {submitting ? 'Submitting…' : 'Submit matches'}
           </Button>
-          <p className="mt-3 text-center text-sm text-ink-600">Your matches will be processed automatically at midnight tonight.</p>
+          <p className="mt-3 text-center text-sm text-ink-600">Send your choices before midnight tonight. You can change them and send again until then.</p>
         </div>
       </Container>
     );
@@ -211,10 +310,22 @@ export default function CheckinPage() {
           <DecorRing className="-right-16 -top-20 w-[clamp(160px,20vw,240px)] opacity-60" />
           <span aria-hidden="true" className="relative flex h-16 w-16 items-center justify-center rounded-[32px_32px_32px_8px] bg-match-400 font-display text-3xl font-extrabold text-plum-900">✓</span>
           <h1 className="relative font-display text-[clamp(34px,4vw,52px)] font-extrabold leading-[1.05] tracking-[-0.03em] text-white">Matches submitted</h1>
-          <p className="relative max-w-[460px] text-[17px] leading-normal text-plum-200 text-pretty">Your matches are processed automatically at midnight tonight. You'll get an email, and it'll show on your My Match History page too.</p>
+          <p className="relative max-w-[460px] text-[17px] leading-normal text-plum-200 text-pretty">Results are worked out after midnight. They&apos;ll be emailed to you and shown on your My Match History page. You can still change your choices until midnight.</p>
           <a href="/matches" className={`relative mt-2 ${buttonClass({ onDark: true })}`}>Go to My Match History</a>
         </div>
       </Container>
+    );
+  }
+
+  if (step === 'closed') {
+    return (
+      <SplitLayout title="Choices have closed" lead={night ? `${night.event.theme}, ${night.event.name}` : undefined}>
+        <FormCard>
+          <p className="text-[17px] font-bold text-ink-900">{closedMessage}</p>
+          <p className="text-[15px] leading-normal text-ink-600">Your results are on My Match History, and in your email.</p>
+          <ButtonLink href="/matches" block>Go to My Match History</ButtonLink>
+        </FormCard>
+      </SplitLayout>
     );
   }
 

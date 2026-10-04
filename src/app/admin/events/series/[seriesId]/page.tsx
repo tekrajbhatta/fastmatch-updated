@@ -56,9 +56,9 @@ export default function SeriesPage() {
       <BackLink href="/admin/events">Back to events</BackLink>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Event series</h1>
       <p className="mb-6 text-sm text-ink/60">
-        Select the events you want, then apply an action to just those, not the whole series. Deleting is fully
-        reversible in effect: events with no bookings are removed, events with bookings are cancelled instead so
-        anyone who's already paid is protected.
+        Select the events you want, then apply an action to just those, not the whole series. Deleting can&apos;t be
+        undone: events with no bookings are removed for good. An event with bookings isn&apos;t deleted but cancelled
+        instead (taken off the site and closed to booking), and the people booked aren&apos;t told, so let them know yourself.
       </p>
 
       <div className="mb-3 flex items-center gap-2">

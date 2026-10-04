@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSessionMember } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { checkInState, checkInWindow } from '@/lib/eventNight';
+import { formatEventWhen } from '@/lib/datetime';
+import { timeZoneForCity } from '@/lib/timezone';
 
 // POST /api/events/:eventId/checkin
 // Scanning/tapping the event's single shared QR hits this — since the
@@ -19,6 +22,26 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
 
   if (!booking || booking.status !== 'CONFIRMED') {
     return NextResponse.json({ error: 'No confirmed booking found for this event.' }, { status: 403 });
+  }
+  // Already in (a reload, or the link opened twice): nothing to change.
+  if (booking.checkedIn) return NextResponse.json({ badge: booking.badge });
+
+  // Only on the night (Gil): from an hour before the start until midnight.
+  // Members used to be able to check in days early, which put them on
+  // everyone's rating list.
+  const event = await prisma.event.findUniqueOrThrow({ where: { id: params.eventId }, include: { city: true } });
+  const state = checkInState(event);
+  if (state !== 'open') {
+    const tz = timeZoneForCity(event.city.name);
+    return NextResponse.json(
+      {
+        error: state === 'not-yet'
+          ? `Check-in opens an hour before the event starts: ${formatEventWhen(checkInWindow(event).opens, tz)} (${event.city.name} time).`
+          : 'Check-in for this event has closed.',
+        checkIn: state,
+      },
+      { status: 403 },
+    );
   }
 
   const updated = await prisma.booking.update({

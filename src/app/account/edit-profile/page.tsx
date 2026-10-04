@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { FormCard, LoadingNote, SplitLayout } from '@/components/site/layout';
-import { Button } from '@/components/site/button';
+import { Button, linkClass } from '@/components/site/button';
 import { Field, FormError, FormSuccess, SelectInput, TextInput } from '@/components/site/form';
 import { latestAdultDateOfBirth } from '@/lib/age';
 
@@ -20,6 +21,8 @@ export default function EditProfilePage() {
   // changes when it's clicked).
   const [emailChangePending, setEmailChangePending] = useState<string | null>(null);
   const [currentEmail, setCurrentEmail] = useState('');
+  // A new mobile needs its code entering before the member can book again.
+  const [mobileChange, setMobileChange] = useState<{ smsSent: boolean } | null>(null);
   // The form waits for the member's current details: shown empty, anything
   // typed before they arrived was overwritten when they did.
   const [loaded, setLoaded] = useState(false);
@@ -47,6 +50,7 @@ export default function EditProfilePage() {
     if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Please check your details.'); return; }
     setSaved(true);
     setEmailChangePending(data.emailChangePending ?? null);
+    setMobileChange(data.mobileChangePending ? { smsSent: data.smsSent !== false } : null);
     // The account still has its current address until the link is clicked.
     if (data.emailChangePending) setForm((f) => ({ ...f, email: currentEmail }));
   }
@@ -84,6 +88,12 @@ export default function EditProfilePage() {
               Profile updated.
               {emailChangePending && (
                 <> We&apos;ve sent a link to {emailChangePending}. Your email address changes when you click it; until then it stays {currentEmail}.</>
+              )}
+              {mobileChange && (
+                <>
+                  {' '}{mobileChange.smsSent ? 'We\'ve texted a code to your new mobile.' : 'We couldn\'t text a code to your new mobile just now.'}{' '}
+                  Please confirm it before you book: <Link href={mobileChange.smsSent ? '/verify-mobile' : '/verify-mobile?smsFailed=1'} className={linkClass}>enter the code</Link>.
+                </>
               )}
             </FormSuccess>
           )}

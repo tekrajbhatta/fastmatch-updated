@@ -10,13 +10,12 @@ import type { Event } from '@prisma/client';
  *   cancelled  — the admin cancelled it
  *   not-open   — hidden from the public, an unsaved duplicate, or closed
  *
- * PENDING GIL (question 5): bookings close when the event starts. Whether
- * they should close earlier (say an hour before, or at midnight the day
- * before) is Gil's call; change BOOKING_CUTOFF_MINUTES once he answers.
+ * Online booking stays open until the event starts (Gil, 4 Oct: "people can
+ * book till start time").
  */
 export type EventAvailability = 'open' | 'finished' | 'cancelled' | 'not-open';
 
-/** Minutes before the start that online booking closes. 0 = at the start time. */
+/** Minutes before the start that online booking closes: 0, at the start time (Gil). */
 export const BOOKING_CUTOFF_MINUTES = 0;
 
 export function eventAvailability(

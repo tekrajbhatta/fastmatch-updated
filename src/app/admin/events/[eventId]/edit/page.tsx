@@ -31,10 +31,15 @@ export default function EditEventPage() {
   // rather than useSearchParams, which would need a Suspense boundary.
   const [copiedFrom, setCopiedFrom] = useState<string | null>(null);
   const [isDraft, setIsDraft] = useState(false);
+  const [isCancelled, setIsCancelled] = useState(false);
   // The start time as loaded. Saving with the date, time and city untouched
   // sends this back exactly, so the "has the time changed?" check can't be
   // tripped (it texts every attendee) by a value that only looks the same.
-  const loaded = useRef<{ startsAt: string; wall: string; cityId: string; cityName: string } | null>(null);
+  const loaded = useRef<{ startsAt: string; wall: string; cityId: string; cityName: string; venueId: string; visibility: string; attendees: number } | null>(null);
+  // Saving a new time or venue, or hiding the event (which cancels it), emails
+  // and texts every paid attendee: the admin is asked first.
+  const [pendingNotice, setPendingNotice] = useState<string | null>(null);
+  const [notifiedAbout, setNotifiedAbout] = useState<{ time: boolean; venue: boolean; cancelled: boolean } | null>(null);
   useEffect(() => {
     setCopiedFrom(new URLSearchParams(window.location.search).get('copiedFrom'));
   }, []);
@@ -47,9 +52,13 @@ export default function EditEventPage() {
       const e = events.find((ev) => ev.id === eventId);
       if (e) {
         setIsDraft(!!e.draft);
+        setIsCancelled(e.status === 'CANCELLED');
         // Shown on the event city's clock, as it's advertised.
         const wall = toDateTimeLocalValue(e.startsAt, timeZoneForCity(e.city?.name));
-        loaded.current = { startsAt: e.startsAt, wall, cityId: e.cityId, cityName: e.city?.name ?? '' };
+        loaded.current = {
+          startsAt: e.startsAt, wall, cityId: e.cityId, cityName: e.city?.name ?? '',
+          venueId: e.venueId, visibility: e.visibility, attendees: (e.menBooked ?? 0) + (e.womenBooked ?? 0),
+        };
         setForm({
           name: e.name, description: e.description ?? '', photoUrl: e.photoUrl ?? '', themeId: e.themeId, cityId: e.cityId, venueId: e.venueId,
           startsAt: wall, ageMin: e.ageMin, ageMax: e.ageMax,
@@ -67,7 +76,7 @@ export default function EditEventPage() {
     ? cities.find((c) => c.id === form.cityId)?.name ?? (form.cityId === loaded.current?.cityId ? loaded.current?.cityName : undefined)
     : undefined;
 
-  async function handleSave(e: React.FormEvent) {
+  async function handleSave(e: React.FormEvent, confirmed = false) {
     e.preventDefault();
     setError(null);
     setNotifyFailures([]);
@@ -76,6 +85,20 @@ export default function EditEventPage() {
       ? was.startsAt
       : fromDateTimeLocalValue(form.startsAt, timeZoneForCity(cityName));
     if (!startsAt) { setError('Please enter a valid start date and time.'); return; }
+
+    // The same three changes the server notifies about (see its PATCH).
+    if (!confirmed && was && was.attendees > 0) {
+      const changes = [
+        new Date(startsAt).getTime() !== new Date(was.startsAt).getTime() && 'the new date and time',
+        form.venueId !== was.venueId && 'the new venue',
+        was.visibility === 'PUBLIC' && form.visibility === 'NOT_PUBLIC' && 'the event being cancelled (unticking "Visible to the public" cancels it)',
+      ].filter(Boolean) as string[];
+      if (changes.length) {
+        setPendingNotice(`This will email and text ${was.attendees} attendee${was.attendees === 1 ? '' : 's'} about ${changes.join(' and ')}.`);
+        return;
+      }
+    }
+    setPendingNotice(null);
     setSaving(true);
     const res = await fetch(`/api/admin/events/${eventId}`, {
       method: 'PATCH',
@@ -99,6 +122,7 @@ export default function EditEventPage() {
     // didn't get their notification.
     if (Array.isArray(data.notifyFailures) && data.notifyFailures.length > 0) {
       setNotifyFailures(data.notifyFailures);
+      setNotifiedAbout(data.notifiedAbout ?? null);
       return;
     }
     router.push(`/admin/events/${eventId}`);
@@ -110,6 +134,9 @@ export default function EditEventPage() {
     <div className="mx-auto max-w-lg">
       <BackLink href={`/admin/events/${eventId}`}>Back to event</BackLink>
       <h1 className="mb-6 text-2xl font-extrabold text-ink">Edit event</h1>
+      {isCancelled && (
+        <p className="mb-4 rounded-lg bg-coral/10 p-3 text-sm font-bold text-coral">This event was cancelled. It isn&apos;t on the site and can&apos;t be booked.</p>
+      )}
       {isDraft && (
         <p className="mb-4 rounded-lg bg-amber/15 p-3 text-sm text-ink">
           <strong>{copiedFrom ? `This is a copy of event #${copiedFrom}, saved as a draft.` : 'This event is a draft.'}</strong>{' '}
@@ -185,10 +212,25 @@ export default function EditEventPage() {
               <ul className="mt-1 list-inside list-disc text-ink/70">
                 {notifyFailures.map((f, i) => <li key={i}>{f.member} ({f.channel.toUpperCase()})</li>)}
               </ul>
-              <p className="mt-1 text-ink/60">Please contact them directly about the new time.</p>
+              <p className="mt-1 text-ink/60">
+                Please contact them directly about{' '}
+                {notifiedAbout?.cancelled
+                  ? 'the cancellation'
+                  : [notifiedAbout?.time && 'the new date and time', notifiedAbout?.venue && 'the new venue'].filter(Boolean).join(' and ') || 'the change'}.
+              </p>
             </div>
           )}
-          <Button type="submit" disabled={saving} loading={saving} className="w-full">{saving ? 'Saving…' : 'Save changes'}</Button>
+          {pendingNotice ? (
+            <div className="rounded-lg bg-amber/15 p-3 text-sm text-ink">
+              <p className="mb-3 font-bold">{pendingNotice}</p>
+              <div className="flex gap-2">
+                <Button type="button" onClick={(ev) => handleSave(ev, true)} disabled={saving} loading={saving}>{saving ? 'Saving…' : 'Save and notify them'}</Button>
+                <Button type="button" variant="ghost" onClick={() => setPendingNotice(null)} disabled={saving}>Go back</Button>
+              </div>
+            </div>
+          ) : (
+            <Button type="submit" disabled={saving} loading={saving} className="w-full">{saving ? 'Saving…' : 'Save changes'}</Button>
+          )}
         </form>
       </Card>
     </div>

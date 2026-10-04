@@ -61,11 +61,9 @@ export default function BookedPage() {
             <span aria-hidden="true" className="relative flex h-16 w-16 items-center justify-center rounded-[32px_32px_32px_8px] bg-match-400 font-display text-3xl font-extrabold text-plum-900">✓</span>
             <h1 className="relative font-display text-[clamp(34px,4vw,52px)] font-extrabold leading-[1.05] tracking-[-0.03em] text-white">You&apos;re booked in!</h1>
             <p className="relative max-w-[460px] text-[17px] leading-normal text-plum-200 text-pretty">
-              A confirmation email is on its way. On the night, come back to this page (or your email link) to check in.
+              A confirmation email is on its way. On the night, check in from an hour before the start: open the
+              check-in link in that email, or scan the QR code at the venue.
             </p>
-            <ButtonLink href={`/events/${eventId}/checkin`} onDark className="relative mt-2">
-              Preview: check in on the night
-            </ButtonLink>
           </>
         )}
         {state === 'waiting' && (
