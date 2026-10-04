@@ -1,16 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { SplitLayout, FormCard } from '@/components/site/layout';
-import { Field, TextInput, SelectInput, Checkbox, RadioCards, FormError } from '@/components/site/form';
+import { Field, TextInput, SelectInput, Checkbox, RadioCards, FormError, FormSuccess } from '@/components/site/form';
 import { Button, linkClass } from '@/components/site/button';
 
 interface City { id: string; name: string; }
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [cities, setCities] = useState<City[]>([]);
   const [form, setForm] = useState({
     name: '', gender: 'MALE', email: '', password: '', cityId: '', dateOfBirth: '', mobile: '',
@@ -18,6 +16,8 @@ export default function RegisterPage() {
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Where the "finish signing up" email went, once sent.
+  const [sentTo, setSentTo] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/cities').then((r) => r.json()).then((data) => {
@@ -41,12 +41,31 @@ export default function RegisterPage() {
       setError(typeof data.error === 'string' ? data.error : 'Please check your details and try again.');
       return;
     }
-    // Straight to SMS-code entry — booking requires BOTH email and mobile
-    // verification, and the code was just texted during registration.
-    // The account exists either way; if the text didn't get out, say so there
-    // rather than claiming a code was sent that never arrived.
-    router.push(data.smsSent === false ? '/verify-mobile?smsFailed=1' : '/verify-mobile');
-    router.refresh();
+    // The same answer whether or not the address is already a member's: the
+    // email that arrives says which (src/lib/pendingSignup.ts). The account is
+    // made from its link, and the mobile code texted then.
+    setSentTo(form.email.trim());
+    window.scrollTo({ top: 0 });
+  }
+
+  if (sentTo) {
+    return (
+      <SplitLayout title="Check your email" lead="One more step to finish creating your profile." stickyIntro>
+        <FormCard>
+          <FormSuccess>We&apos;ve sent an email to {sentTo}.</FormSuccess>
+          <p className="text-[15px] leading-normal text-ink-600">
+            Click the link in it to confirm your email address and finish signing up. Then we&apos;ll text a
+            code to your mobile, and you&apos;re ready to book. The link works for 7 days.
+          </p>
+          <p className="text-[15px] leading-normal text-ink-600">
+            Can&apos;t see it? Check your spam folder. If you already have an account, the email tells you how to log in.
+          </p>
+          <p className="text-center text-[15px] text-ink-600">
+            Already a member? <Link href="/login" className={linkClass}>Log in</Link>
+          </p>
+        </FormCard>
+      </SplitLayout>
+    );
   }
 
   return (

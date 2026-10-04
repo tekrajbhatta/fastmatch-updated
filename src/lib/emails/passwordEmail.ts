@@ -1,5 +1,6 @@
 import { emailLayout } from './layout';
 import { BRAND_COLORS } from '../brand';
+import { escapeHtml } from '../escapeHtml';
 
 // Inline styles only — email clients ignore <style>. Same values as
 // welcomeEmail.ts so the family reads as one.
@@ -14,7 +15,7 @@ const BUTTON =
 export function passwordResetEmail(opts: { memberName: string; resetUrl: string; validMinutes: number }) {
   const html = emailLayout(`
     <h1 style="${HEADING}">Reset your password</h1>
-    <p style="${PARA}">Hi ${opts.memberName},</p>
+    <p style="${PARA}">Hi ${escapeHtml(opts.memberName)},</p>
     <p style="${PARA_BUTTON}">We received a request to reset the password for your FastMatch account. Choose a new one here:</p>
     <p style="${PARA_BUTTON}"><a href="${opts.resetUrl}" style="${BUTTON}">Choose a new password</a></p>
     <p style="${PARA}">This link works for ${opts.validMinutes} minutes. If it has expired, just ask for another from the login page.</p>

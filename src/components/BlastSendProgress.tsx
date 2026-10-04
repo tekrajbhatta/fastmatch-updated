@@ -13,22 +13,32 @@ import { ProgressBar, Spinner } from '@/components/Spinner';
  *
  * `children` are the controls for an in-progress send (Pause/Resume/Cancel)
  * or a link to the blast's history.
+ *
+ * `sentCount` is how far through the list the send has got; `failedCount` how
+ * many of those a message didn't reach. Failures used to be counted as sent.
  */
 export default function BlastSendProgress({
-  status, sentCount, total, children,
+  status, sentCount, failedCount = 0, total, children,
 }: {
   status: 'STARTING' | 'SENDING' | 'PAUSED' | 'SENT' | string;
   sentCount?: number;
+  failedCount?: number;
   total: number;
   children?: ReactNode;
 }) {
   const people = `${total.toLocaleString()} member${total === 1 ? '' : 's'}`;
+  const failed = failedCount > 0 ? ` · ${failedCount.toLocaleString()} failed` : '';
 
   if (status === 'SENT') {
+    const delivered = Math.max(0, (sentCount ?? total) - failedCount);
     return (
       <div role="status" className="mb-4 rounded-lg border border-green/40 bg-green/10 p-3 text-center text-sm">
-        <div className="text-xl font-extrabold text-green-dark">{sentCount} / {total} sent</div>
-        <div className="mb-2 text-ink/60">Blast delivered to everyone in the filtered list.</div>
+        <div className="text-xl font-extrabold text-green-dark">{failedCount > 0 ? blastOutcome(delivered, failedCount) : `${sentCount} / ${total} sent`}</div>
+        <div className="mb-2 text-ink/60">
+          {failedCount > 0
+            ? 'Done. Some messages couldn’t be sent (the server log has the details); everyone else has theirs.'
+            : 'Blast delivered to everyone in the filtered list.'}
+        </div>
         <ProgressBar value={sentCount ?? total} max={Math.max(total, 1)} label="Blast sending progress" trackClassName="bg-green/20" barClassName="bg-green-dark" />
         {children && <div className="mt-2">{children}</div>}
       </div>
@@ -41,7 +51,7 @@ export default function BlastSendProgress({
     <div role="status" aria-live="polite" className="mb-4 rounded-lg bg-cream/50 p-3 text-center text-sm">
       <div className="mb-1 flex items-center justify-center gap-2 text-xl font-extrabold text-plum">
         {!paused && <Spinner className="h-5 w-5" />}
-        {starting ? `Sending to ${people}…` : `${sentCount ?? 0} / ${total}`}
+        {starting ? `Sending to ${people}…` : `${sentCount ?? 0} / ${total}${failed}`}
       </div>
       <div className="mb-3 text-ink/50">
         {starting
@@ -56,4 +66,9 @@ export default function BlastSendProgress({
       {children && <div className="mt-3">{children}</div>}
     </div>
   );
+}
+
+/** "1,234 sent", or "1,230 sent, 4 failed": for the progress box and a blast's History. */
+export function blastOutcome(sent: number, failed: number): string {
+  return failed > 0 ? `${sent.toLocaleString()} sent, ${failed.toLocaleString()} failed` : `${sent.toLocaleString()} sent`;
 }

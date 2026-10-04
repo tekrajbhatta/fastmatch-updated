@@ -92,14 +92,36 @@ export function signEmailVerificationToken(member: { id: string; email: string }
   );
 }
 
+export const EMAIL_CHANGE_DAYS = 2;
+
+/**
+ * "Confirm your new email address" link, sent to the NEW address when a
+ * member changes theirs on My Account. Carries the new address and the one
+ * it replaces: it stops working once the address has changed some other way,
+ * or the password has changed, or after two days.
+ */
+export function signEmailChangeToken(member: { id: string; email: string; passwordHash: string }, newEmail: string): string {
+  return jwt.sign(
+    {
+      memberId: member.id,
+      purpose: 'change_email',
+      email: newEmail.trim().toLowerCase(),
+      from: member.email.toLowerCase(),
+      pwd: passwordFingerprint(member.passwordHash),
+    },
+    secret(),
+    { expiresIn: `${EMAIL_CHANGE_DAYS}d` },
+  );
+}
+
 /**
  * Reads a purpose-bound token (anything but a session). `reason` separates an
  * expired or forged link from one meant for something else.
  */
 export function readPurposeToken(
   token: string,
-  purpose: 'password_reset' | 'verify_email' | 'set_password' | 'unsubscribe',
-): { ok: true; memberId: string; pwd?: string; email?: string } | { ok: false; reason: 'invalid' | 'wrong_purpose' } {
+  purpose: 'password_reset' | 'verify_email' | 'set_password' | 'unsubscribe' | 'change_email',
+): { ok: true; memberId: string; pwd?: string; email?: string; from?: string } | { ok: false; reason: 'invalid' | 'wrong_purpose' } {
   let payload: unknown;
   try {
     payload = jwt.verify(token, secret());
@@ -114,5 +136,6 @@ export function readPurposeToken(
     memberId: p.memberId,
     pwd: typeof p.pwd === 'string' ? p.pwd : undefined,
     email: typeof p.email === 'string' ? p.email : undefined,
+    from: typeof p.from === 'string' ? p.from : undefined,
   };
 }

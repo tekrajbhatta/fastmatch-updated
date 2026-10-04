@@ -4,7 +4,7 @@ import { sendEmail } from '@/lib/emails/send';
 import { emailLayout } from '@/lib/emails/layout';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { clientIp, hitRateLimit, LIMITS, rateKey } from '@/lib/rateLimit';
-import { escapeHtml } from '@/lib/escapeHtml';
+import { escapeHtml, oneLine } from '@/lib/escapeHtml';
 
 const bodySchema = z.object({
   name: z.string().min(1),
@@ -31,7 +31,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     <p style="white-space:pre-wrap;">${escapeHtml(data.message)}</p>
   `);
 
-  await sendEmail({ to: 'gil@fastmatch.com.au', subject: `Contact Us: ${data.name}`, html });
+  // The subject isn't HTML, so it isn't escaped, but it is kept to one line.
+  await sendEmail({ to: 'gil@fastmatch.com.au', subject: `Contact Us: ${oneLine(data.name)}`, html });
 
   return NextResponse.json({ ok: true });
 });

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { SplitLayout, FormCard } from '@/components/site/layout';
 import { Field, TextInput, FormError } from '@/components/site/form';
 import { Button, linkClass } from '@/components/site/button';
+import { safeNext } from '@/lib/safeNext';
 
 function LoginInner() {
   const router = useRouter();
@@ -37,7 +38,8 @@ function LoginInner() {
     // Admins land on the admin dashboard, not the member events list — an
     // explicit ?next= (e.g. bounced off /admin, or off a member page) still
     // wins, so they end up wherever they were actually headed.
-    router.push(safeNext(nextParam, data.isAdmin ? '/admin' : '/events'));
+    // Only a page on this site (src/lib/safeNext.ts).
+    router.push(safeNext(nextParam, data.isAdmin ? '/admin' : '/events', window.location.origin));
     router.refresh();
   }
 
@@ -68,16 +70,6 @@ function LoginInner() {
       </FormCard>
     </SplitLayout>
   );
-}
-
-// `next` arrives from the URL, so it is attacker-controllable: a link to
-// /login?next=https://evil.example would otherwise bounce a member straight
-// off-site immediately after they typed their password. Only same-site
-// absolute paths are allowed — and "//host" is rejected too, since browsers
-// read it as a protocol-relative URL to another origin.
-function safeNext(next: string | null, fallback: string): string {
-  if (!next || !next.startsWith('/') || next.startsWith('//')) return fallback;
-  return next;
 }
 
 // useSearchParams() forces client-side rendering, which Next requires to sit

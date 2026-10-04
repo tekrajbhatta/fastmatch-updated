@@ -15,6 +15,8 @@ function VerifyEmailInner() {
   const token = useSearchParams().get('token');
   const [state, setState] = useState<'verifying' | 'done' | 'error'>('verifying');
   const [error, setError] = useState('This link is invalid or has expired.');
+  // Set when the link was for a new address from My Account.
+  const [changedTo, setChangedTo] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -24,8 +26,11 @@ function VerifyEmailInner() {
     }
     fetch(`/api/auth/verify-email?token=${encodeURIComponent(token)}`)
       .then(async (r) => {
-        if (r.ok) return setState('done');
         const data = await r.json().catch(() => null);
+        if (r.ok) {
+          if (data?.changedTo) setChangedTo(data.changedTo);
+          return setState('done');
+        }
         if (data?.error) setError(data.error);
         setState('error');
       })
@@ -36,7 +41,16 @@ function VerifyEmailInner() {
     <SplitLayout title="Email verification">
       <FormCard>
         {state === 'verifying' && <LoadingNote>Verifying your email…</LoadingNote>}
-        {state === 'done' && (
+        {state === 'done' && changedTo && (
+          <>
+            <FormSuccess>Your email address is now {changedTo}.</FormSuccess>
+            <p className="text-[15px] leading-normal text-ink-600">
+              It&apos;s confirmed, and it&apos;s the address to log in with from now on.
+            </p>
+            <ButtonLink href="/account" block>My account</ButtonLink>
+          </>
+        )}
+        {state === 'done' && !changedTo && (
           <>
             <FormSuccess>Your email is verified.</FormSuccess>
             <p className="text-[15px] leading-normal text-ink-600">

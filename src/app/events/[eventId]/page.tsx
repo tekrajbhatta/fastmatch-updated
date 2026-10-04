@@ -23,6 +23,10 @@ interface EventDetail {
   cost: string;
   // Every place taken (worked out by the server; the counts stay private).
   soldOut: boolean;
+  /** Every place for the signed-in member's gender is taken. */
+  fullForYou: boolean;
+  /** Whether it can be booked, and if not why (src/lib/eventAvailability.ts). */
+  availability: 'open' | 'finished' | 'cancelled' | 'not-open';
   alreadyBooked: boolean;
   fastmatchDiscounts: boolean;
   groupDiscounts: boolean;
@@ -112,10 +116,14 @@ export default function EventDetailPage() {
 
   // The event's own local time, with "(Perth time)" if the viewer's differs.
   const when = formatEventForViewer(event.startsAt, event.city.name);
-  // Switches the button to "Sold out". How many have booked is never sent to
+  // Switches the button to "Sold out": the whole night is full, or every
+  // place for this member's gender is. How many have booked is never sent to
   // the page — Gil doesn't want members to see how full a night is.
-  const soldOut = event.soldOut;
-  const canBook = !event.alreadyBooked && !soldOut;
+  const soldOut = event.soldOut || event.fullForYou;
+  // A finished, cancelled or hidden event shows why instead of the booking
+  // panel: it used to look bookable, and could be paid for after the night.
+  const closed = event.availability !== 'open';
+  const canBook = !event.alreadyBooked && !soldOut && !closed;
   const showFriends = !!me && canBook && event.groupDiscounts;
 
   const friends = [
@@ -370,7 +378,11 @@ export default function EventDetailPage() {
 
               {error && <FormError>{error}</FormError>}
 
-              {event.alreadyBooked ? (
+              {closed ? (
+                <p role="status" className="rounded-[20px] bg-plum-50 px-5 py-4 text-center text-[17px] font-bold text-ink-900">
+                  {CLOSED_MESSAGE[event.availability as Exclude<EventDetail['availability'], 'open'>]}
+                </p>
+              ) : event.alreadyBooked ? (
                 <FormSuccess>You&apos;re already booked in for this event.</FormSuccess>
               ) : (
                 <Button onClick={handleBook} disabled={booking || soldOut || checkingCode} loading={booking} block size="hero">
@@ -392,6 +404,12 @@ export default function EventDetailPage() {
     </>
   );
 }
+
+const CLOSED_MESSAGE = {
+  finished: 'This event has finished.',
+  cancelled: 'This event was cancelled.',
+  'not-open': 'This event isn’t open for booking.',
+} as const;
 
 const CARD_TITLE = 'font-display text-[clamp(22px,1.8vw,26px)] font-extrabold leading-tight tracking-[-0.02em] text-ink-900';
 

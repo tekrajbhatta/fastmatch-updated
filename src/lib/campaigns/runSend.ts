@@ -4,6 +4,8 @@ import { sendEmail } from '../emails/send';
 import { sendSmsBulk, withOptOut } from '../sms/send';
 import { resolveCampaignEmailHtml } from '../emails/campaignEmail';
 import { recipientFilter } from './audience';
+import { isPermanentAddressRejection } from './sendFailure';
+import { oneLine } from '../escapeHtml';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
@@ -52,7 +54,7 @@ export async function startCampaignSend(campaignId: string) {
 export async function processCampaignSendBatch(sendId: string) {
   const send = await prisma.campaignSend.findUniqueOrThrow({ where: { id: sendId }, include: { campaign: true } });
   if (send.status !== 'SENDING') {
-    return { done: send.status !== 'PENDING', sentCount: send.sentCount, status: send.status };
+    return { done: send.status !== 'PENDING', sentCount: send.sentCount, failedCount: send.failedCount, status: send.status };
   }
 
   const campaign = send.campaign;
@@ -65,12 +67,19 @@ export async function processCampaignSendBatch(sendId: string) {
   // likely to trip provider rate limits. (Email stays per-recipient: each
   // message carries its own personalised unsubscribe link.)
   const smsRecipients: string[] = [];
+  // Which recipients each number belongs to, to put failed texts against them.
+  const byMobile = new Map<string, string[]>();
+  // Recipients something failed for in this batch (counted once each).
+  const failedIds = new Set<string>();
 
   for (let i = send.sentCount; i < batchEnd; i++) {
     const recipient = await prisma.member.findUnique({ where: { id: recipientIds[i] } });
     if (recipient) {
       if (
         campaign.sendEmail &&
+        // A bounced address is skipped, not the whole member: they may still
+        // get the text part of the blast.
+        !recipient.emailBounced &&
         (recipient.contactMethod === 'EMAIL_AND_SMS' || recipient.contactMethod === 'EMAIL' || campaign.ignorePreference)
       ) {
         try {
@@ -89,19 +98,28 @@ export async function processCampaignSendBatch(sendId: string) {
             },
             unsubscribeUrl
           );
-          await sendEmail({ to: recipient.email, subject: campaign.subject ?? '', html });
-        } catch {
-          await prisma.member.update({
-            where: { id: recipient.id },
-            data: { emailBounced: true, bounceReason: 'Rejected on send' },
-          });
+          // One line even for a blast saved before subjects were kept to one.
+          await sendEmail({ to: recipient.email, subject: oneLine(campaign.subject ?? ''), html });
+        } catch (err) {
+          failedIds.add(recipient.id);
+          // Only the mail server refusing the address itself marks it bounced;
+          // a temporary failure leaves the member alone (src/lib/campaigns/sendFailure.ts).
+          if (isPermanentAddressRejection(err)) {
+            await prisma.member.update({
+              where: { id: recipient.id },
+              data: { emailBounced: true, bounceReason: 'Rejected on send' },
+            });
+          }
         }
       }
       if (
         campaign.sendSms &&
         (recipient.contactMethod === 'EMAIL_AND_SMS' || recipient.contactMethod === 'SMS' || campaign.ignorePreference)
       ) {
-        if (recipient.mobile) smsRecipients.push(recipient.mobile);
+        if (recipient.mobile) {
+          smsRecipients.push(recipient.mobile);
+          byMobile.set(recipient.mobile, [...(byMobile.get(recipient.mobile) ?? []), recipient.id]);
+        }
       }
     }
   }
@@ -117,18 +135,22 @@ export async function processCampaignSendBatch(sendId: string) {
         `Campaign send ${sendId}: ${result.failed.length} of ${smsRecipients.length} SMS recipient(s) rejected.`,
         result.failed
       );
+      for (const f of result.failed) for (const id of byMobile.get(f.to) ?? []) failedIds.add(id);
     }
   }
 
+  // sentCount is how far through the list the send has got; failedCount how
+  // many of those a message didn't reach, so they're no longer counted as sent.
   const sentCount = batchEnd;
+  const failedCount = send.failedCount + failedIds.size;
   const isComplete = sentCount >= recipientIds.length;
 
   await prisma.campaignSend.update({
     where: { id: sendId },
     data: isComplete
-      ? { sentCount, status: 'SENT', completedAt: new Date() }
-      : { sentCount },
+      ? { sentCount, failedCount, status: 'SENT', completedAt: new Date() }
+      : { sentCount, failedCount },
   });
 
-  return { done: isComplete, sentCount, status: isComplete ? ('SENT' as const) : ('SENDING' as const) };
+  return { done: isComplete, sentCount, failedCount, status: isComplete ? ('SENT' as const) : ('SENDING' as const) };
 }

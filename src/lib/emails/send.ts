@@ -75,6 +75,13 @@ export async function sendEmail({ to, subject, html }: SendEmailArgs) {
     // caller's own handling still runs — campaign sends rely on this to mark
     // a recipient as bounced.
     console.error(`Failed to send email to ${to}:`, err);
-    throw new Error(`Email send failed: ${err instanceof Error ? err.message : String(err)}`);
+    // Keeps the mail server's answer (responseCode 550, code EENVELOPE...)
+    // so a blast can tell a dead address from a temporary outage.
+    const e = err as { responseCode?: number; code?: string; command?: string } | null;
+    throw Object.assign(new Error(`Email send failed: ${err instanceof Error ? err.message : String(err)}`, { cause: err }), {
+      responseCode: e?.responseCode,
+      code: e?.code,
+      command: e?.command,
+    });
   }
 }

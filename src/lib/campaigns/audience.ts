@@ -5,9 +5,11 @@ import type { MemberFilter } from '../memberFilter';
  *
  * Unless "Ignore preference" is ticked, a blast only reaches members who:
  *   - opted in to offers (marketingOptIn),
- *   - accept the channel being sent (Email and SMS / Email / SMS — "Do not
- *     contact" never matches),
- *   - and, for email, haven't bounced.
+ *   - and accept at least one of the channels being sent (Email and SMS /
+ *     Email / SMS — "Do not contact" never matches).
+ * Whatever the settings, email only counts for an address that hasn't
+ * bounced; a bounced member can still get the text part of a blast (they
+ * used to be dropped from the whole send).
  *
  * With "Exclude booked members", anyone already booked (into the chosen event,
  * or any upcoming one) is left out too.
@@ -24,15 +26,10 @@ export function recipientFilter(
   base: MemberFilter,
   blast: { sendEmail: boolean; sendSms: boolean; ignorePreference: boolean; excludeBooked?: boolean; excludeBookedEventId?: string | null },
 ): MemberFilter {
-  const contactMethods: ('EMAIL_AND_SMS' | 'EMAIL' | 'SMS')[] = [];
-  if (blast.sendEmail) contactMethods.push('EMAIL_AND_SMS', 'EMAIL');
-  if (blast.sendSms) contactMethods.push('EMAIL_AND_SMS', 'SMS');
-
   return {
     ...base,
     marketingOptInOnly: !blast.ignorePreference,
-    contactMethods: blast.ignorePreference ? undefined : [...new Set(contactMethods)],
-    excludeBounced: blast.sendEmail && !blast.ignorePreference,
+    reachableBy: { email: blast.sendEmail, sms: blast.sendSms, respectContactMethod: !blast.ignorePreference },
     excludeAwaitingPasswordSetup: true,
     // Applies whatever "Ignore preference" says: it's about who's coming, not consent.
     ...(blast.excludeBooked ? { excludeBookedIn: { eventId: blast.excludeBookedEventId ?? null } } : {}),

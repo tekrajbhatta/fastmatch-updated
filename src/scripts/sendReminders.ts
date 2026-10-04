@@ -30,7 +30,18 @@ async function run() {
     where: {
       status: 'CONFIRMED',
       reminderSent: false,
-      event: { startsAt: { gte: windowStart, lte: windowEnd } },
+      event: {
+        startsAt: { gte: windowStart, lte: windowEnd },
+        // Never "see you tomorrow" for an event that isn't on: not a
+        // cancelled one, and not a hidden one either, since unticking
+        // "Visible to the public" is how the admin cancels and it texts
+        // everyone a cancellation.
+        // PENDING GIL (question 3): if hiding comes to mean something other
+        // than cancelling, hidden events should get reminders again.
+        status: { not: 'CANCELLED' },
+        visibility: 'PUBLIC',
+        draft: false,
+      },
     },
     include: { member: { include: { city: true } }, event: { include: { venue: true, city: true } } },
   });

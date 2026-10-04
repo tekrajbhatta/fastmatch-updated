@@ -1,4 +1,5 @@
 import { BRAND_COLORS } from '../brand';
+import { escapeHtml, safeHref, safeSrc } from '../escapeHtml';
 
 /**
  * Resolves what a campaign should actually send: the raw emailBody override
@@ -7,6 +8,11 @@ import { BRAND_COLORS } from '../brand';
  * fields (heading/freeText/eventDetailsText/bookingLink/photoUrl) — the
  * normal path, since that's what "load a template then tweak the photo for
  * this blast" actually edits. Matches FastmatchLive's pattern.
+ *
+ * emailBody is the one thing sent exactly as written, unescaped: it is meant
+ * to be HTML. Only an admin can set it (through the API; no form has a field
+ * for it), and nothing a member typed is ever merged into a blast. The
+ * structured fields are plain text from the blast form and are escaped.
  */
 export function resolveCampaignEmailHtml(
   campaign: {
@@ -48,8 +54,9 @@ export function resolveCampaignEmailHtml(
 // with new artwork; only the default fallback below updates automatically
 // from brand.ts.
 function campaignBanner(bannerImageUrl?: string | null) {
-  if (bannerImageUrl) {
-    return `<img src="${bannerImageUrl}" alt="" style="width:100%;display:block;" />`;
+  const bannerSrc = safeSrc(bannerImageUrl);
+  if (bannerSrc) {
+    return `<img src="${bannerSrc}" alt="" style="width:100%;display:block;" />`;
   }
   // The real logo on white, replacing the text approximation of it that used
   // to sit on a plum block. Absolute URL because email clients can't resolve
@@ -94,10 +101,13 @@ export function renderCampaignEmailHtml(fields: {
   venueLogoUrl?: string | null;
   unsubscribeUrl: string;
 }) {
+  // The text fields are plain text, typed into the blast form (or copied in
+  // from a venue), so each is escaped. Their line breaks are still kept:
+  // here as paragraphs, in the heading as <br/>, in the details by pre-line.
   const paragraphs = (fields.freeText || '')
     .split('\n')
     .filter((line) => line.trim())
-    .map((line) => `<p style="margin:0 0 14px;">${line}</p>`)
+    .map((line) => `<p style="margin:0 0 14px;">${escapeHtml(line)}</p>`)
     .join('');
 
   // Light background with dark text, NOT the plum block this briefly used.
@@ -106,33 +116,36 @@ export function renderCampaignEmailHtml(fields: {
   // is no reliable way to override Apple Mail's data detectors from an inline
   // style, so the background gives way instead of the text.
   const eventDetailsHtml = fields.eventDetailsText
-    ? `<div style="background-color:${BRAND_COLORS.cream};color:${BRAND_COLORS.ink};border-left:4px solid ${BRAND_COLORS.green};border-radius:8px;padding:16px 20px;margin:18px 0;white-space:pre-line;font-size:14px;">${fields.eventDetailsText}</div>`
+    ? `<div style="background-color:${BRAND_COLORS.cream};color:${BRAND_COLORS.ink};border-left:4px solid ${BRAND_COLORS.green};border-radius:8px;padding:16px 20px;margin:18px 0;white-space:pre-line;font-size:14px;">${escapeHtml(fields.eventDetailsText)}</div>`
     : '';
 
   // 70% rather than full width, centred. Full-bleed made the photo dominate
   // the email; this keeps it clearly secondary to the copy.
-  const photoHtml = fields.photoUrl
-    ? `<img src="${fields.photoUrl}" alt="" width="330" style="width:70%;max-width:330px;height:auto;border-radius:12px;margin:18px auto;display:block;" />`
+  const photoSrc = safeSrc(fields.photoUrl);
+  const photoHtml = photoSrc
+    ? `<img src="${photoSrc}" alt="" width="330" style="width:70%;max-width:330px;height:auto;border-radius:12px;margin:18px auto;display:block;" />`
     : '';
 
   // The venue's logo, centred just under the event details (Gil). Width
   // capped so a large upload can't dominate the email.
-  const venueLogoHtml = fields.venueLogoUrl
-    ? `<img src="${fields.venueLogoUrl}" alt="" width="160" style="width:160px;max-width:50%;height:auto;margin:4px auto 18px;display:block;" />`
+  const venueLogoSrc = safeSrc(fields.venueLogoUrl);
+  const venueLogoHtml = venueLogoSrc
+    ? `<img src="${venueLogoSrc}" alt="" width="160" style="width:160px;max-width:50%;height:auto;margin:4px auto 18px;display:block;" />`
     : '';
 
   // ALWAYS rendered. It used to appear only when the blast had a booking link,
   // so leaving that field blank silently shipped a marketing email with no
-  // call to action at all. An empty field now falls back to the events page.
+  // call to action at all. An empty field now falls back to the events page,
+  // and so does one that isn't an http(s) link (a javascript: one, say).
   const bookingUrl =
-    fields.bookingLink?.trim() || `${(process.env.APP_URL ?? '').replace(/\/+$/, '')}/events`;
+    safeHref(fields.bookingLink) || `${(process.env.APP_URL ?? '').replace(/\/+$/, '')}/events`;
   const bookingButtonHtml = `<p style="text-align:center;margin:24px 0 8px;"><a href="${bookingUrl}" style="background:${BRAND_COLORS.redCta};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:bold;">Book Now</a></p>`;
 
   return `
     <div style="max-width:520px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:${BRAND_COLORS.ink};line-height:1.6;background-color:#ffffff;">
       ${campaignBanner(fields.bannerImageUrl)}
       <div style="padding:24px 24px 8px;">
-        ${fields.heading ? `<h1 style="color:${BRAND_COLORS.plum};font-size:20px;text-align:center;margin:0 0 20px;line-height:1.4;">${fields.heading.split('\n').filter((l) => l.trim()).join('<br/>')}</h1>` : ''}
+        ${fields.heading ? `<h1 style="color:${BRAND_COLORS.plum};font-size:20px;text-align:center;margin:0 0 20px;line-height:1.4;">${fields.heading.split('\n').filter((l) => l.trim()).map(escapeHtml).join('<br/>')}</h1>` : ''}
         ${photoHtml}
         ${paragraphs}
         ${eventDetailsHtml}

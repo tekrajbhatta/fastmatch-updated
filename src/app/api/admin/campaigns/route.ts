@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { oneLine } from '@/lib/escapeHtml';
 
 const campaignSchema = z.object({
   title: z.string().min(1),
@@ -15,7 +16,8 @@ const campaignSchema = z.object({
   sendEmail: z.boolean().default(true),
   fromName: z.string().default('FastMatch'),
   fromEmail: z.string().email().default('donotreply@fastmatch.com.au'),
-  subject: z.string().optional(),
+  // One line, as in campaignPatchSchema: a subject is an email header.
+  subject: z.string().transform(oneLine).optional(),
   heading: z.string().optional(),
   freeText: z.string().optional(),
   eventDetailsText: z.string().optional(),
@@ -74,7 +76,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (data.templateId) {
     const template = await prisma.campaignTemplate.findUniqueOrThrow({ where: { id: data.templateId } });
     seeded = {
-      subject: template.subject ?? undefined,
+      subject: template.subject == null ? undefined : oneLine(template.subject),
       heading: template.heading ?? undefined,
       freeText: template.freeText ?? undefined,
       eventDetailsText: template.eventDetailsText ?? undefined,

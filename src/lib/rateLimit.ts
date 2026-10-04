@@ -27,8 +27,12 @@ export const LIMITS = {
   resetIp: { limit: 20, windowMs: HOUR },
   /** Contact Us messages per visitor address. */
   contactIp: { limit: 5, windowMs: HOUR },
-  /** New accounts per visitor address (only accounts actually created count). */
-  registerIp: { limit: 1, windowMs: HOUR },
+  /** Sign-ups per visitor address (every valid sign-up counts, whatever the email). */
+  registerIp: { limit: 3, windowMs: HOUR },
+  /** Sign-up emails per address asked for, so the form can't flood an inbox. */
+  signupEmail: { limit: 3, windowMs: HOUR },
+  /** Email-change links per member (each one emails an address they typed). */
+  emailChange: { limit: 3, windowMs: HOUR },
   /** Tell A Friend invitations per member (it needs sign-in, so per member rather than per address). */
   tellAFriend: { limit: 5, windowMs: HOUR },
 } as const;

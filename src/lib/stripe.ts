@@ -30,6 +30,27 @@ export function getStripe(): Stripe {
   return client;
 }
 
+/**
+ * Put on every Checkout Session this site opens (metadata.site). The Stripe
+ * account may also take payments for other sites — FastmatchLive opens
+ * Checkout Sessions with a bookingId too — and a webhook endpoint hears
+ * about every session on the account, so the webhook only acts on ours.
+ */
+export const STRIPE_SITE_TAG = 'fastmatch.com.au';
+
+/**
+ * Is this Checkout Session one this site opened? Tagged, or (for sessions
+ * opened before the tag existed) sending the member back to this site.
+ */
+export function isOurCheckoutSession(
+  session: { metadata?: Record<string, string> | null; success_url?: string | null },
+  appUrl: string | undefined = process.env.APP_URL,
+): boolean {
+  if (session.metadata?.site === STRIPE_SITE_TAG) return true;
+  const app = (appUrl ?? '').replace(/\/+$/, '');
+  return !!app && (session.success_url ?? '').startsWith(`${app}/`);
+}
+
 // Read at call time, not module load, for the same reason as above.
 export function getStripeWebhookSecret(): string {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;

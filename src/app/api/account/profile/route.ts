@@ -3,9 +3,10 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { getSessionMember } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
-import { signEmailVerificationToken } from '@/lib/tokens';
+import { signEmailChangeToken } from '@/lib/tokens';
 import { sendEmail } from '@/lib/emails/send';
-import { welcomeVerificationEmail } from '@/lib/emails/welcomeEmail';
+import { confirmEmailChangeEmail, emailAlreadyUsedEmail } from '@/lib/emails/emailChangeEmails';
+import { hitRateLimit, rateKey, LIMITS } from '@/lib/rateLimit';
 import { parseDateOfBirth } from '@/lib/friendBooking';
 import { calculateAge } from '@/lib/age';
 
@@ -20,12 +21,18 @@ const schema = z.object({
 });
 
 // GET/PATCH /api/account/profile — a member viewing/editing their own
-// profile, including email. Changing the email re-triggers the same
-// verification flow used at registration (a new signed link sent to the new
-// address) and flips emailVerified back to false — otherwise someone could
-// silently swap in an address they don't own while staying "verified".
-// Booking is already gated on emailVerified, so this can't be skipped
-// unnoticed.
+// profile, including email.
+//
+// A new email address doesn't take effect when the form is saved. A link is
+// sent to the new address, and the address changes when it's clicked
+// (/api/auth/verify-email), already confirmed. Until then the old one stays.
+// That way:
+//   - nobody can swap in an address they don't own (and then, say, reset
+//     the password through it);
+//   - the member is told the same thing whether or not the address already
+//     belongs to someone else ("we've sent a link to it"), so this can't be
+//     used to check whether a given person is on FastMatch. If it does, its
+//     owner gets an email saying someone tried, instead of the link.
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const member = await getSessionMember(req);
   if (!member) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -48,30 +55,45 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
     if (calculateAge(d) < 18) return NextResponse.json({ error: 'You must be at least 18 years old.' }, { status: 400 });
     dob = d;
   }
-  const emailChanged = data.email.toLowerCase() !== member.email.toLowerCase();
+  const newEmail = data.email.trim();
+  const emailChanged = newEmail.toLowerCase() !== member.email.toLowerCase();
 
-  if (emailChanged) {
-    // email is @unique in the schema — check first so this surfaces as a
-    // clear 409 rather than a raw constraint violation.
-    const existing = await prisma.member.findUnique({ where: { email: data.email } });
-    if (existing && existing.id !== member.id) {
-      return NextResponse.json({ error: 'That email is already in use by another account.' }, { status: 409 });
-    }
+  // A few address changes an hour: each one emails an address they typed.
+  if (emailChanged && !(await hitRateLimit(rateKey('email-change', member.id), LIMITS.emailChange.limit, LIMITS.emailChange.windowMs)).allowed) {
+    return NextResponse.json(
+      { error: "You've asked to change your email several times in the last hour. Please try again later." },
+      { status: 429 },
+    );
   }
 
+  // Everything except the email is saved now.
+  const { email: _email, ...rest } = data;
   const updated = await prisma.member.update({
     where: { id: member.id },
-    data: { ...data, ...(dob ? { dateOfBirth: dob } : {}), ...(emailChanged ? { emailVerified: false } : {}) },
+    data: { ...rest, ...(dob ? { dateOfBirth: dob } : {}) },
   });
 
   if (emailChanged) {
-    // Tied to the NEW address (see tokens.ts).
-    const verifyToken = signEmailVerificationToken(updated);
-    const verifyUrl = `${process.env.APP_URL}/verify-email?token=${verifyToken}`;
-    const { subject, html } = welcomeVerificationEmail({ memberName: updated.name, verifyUrl });
-    await sendEmail({ to: updated.email, subject, html });
+    const owner = await prisma.member.findUnique({ where: { email: newEmail } });
+    const email = owner
+      ? emailAlreadyUsedEmail({ name: owner.name })
+      : confirmEmailChangeEmail({
+          name: updated.name,
+          confirmUrl: `${process.env.APP_URL}/verify-email?token=${signEmailChangeToken(updated, newEmail)}`,
+        });
+    try {
+      await sendEmail({ to: newEmail, ...email });
+    } catch (err) {
+      console.error(`Member ${member.id}: email-change email failed`, err);
+      // The same for every address: the email simply didn't go.
+      return NextResponse.json(
+        { error: "Your other changes are saved, but we couldn't send the email to confirm your new address just now. Please try again in a few minutes." },
+        { status: 502 },
+      );
+    }
   }
 
   const { passwordHash, mobileVerificationCode, ...safe } = updated;
-  return NextResponse.json({ ...safe, emailChanged });
+  // emailChangePending: the address a confirmation link went to (the email itself is unchanged).
+  return NextResponse.json({ ...safe, emailChangePending: emailChanged ? newEmail : null });
 });

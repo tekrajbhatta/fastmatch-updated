@@ -2,32 +2,44 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { signSession, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
 import { sendEmail } from '@/lib/emails/send';
-import { welcomeVerificationEmail } from '@/lib/emails/welcomeEmail';
-import { sendSms } from '@/lib/sms/send';
-import { verificationCodeSms } from '@/lib/sms/verificationSms';
+import { finishSignupEmail, alreadyMemberEmail, finishInvitationEmail } from '@/lib/emails/signupEmails';
 import { withErrorHandling } from '@/lib/withErrorHandling';
-import { signEmailVerificationToken } from '@/lib/tokens';
 import { calculateAge } from '@/lib/age';
-import { newMobileCode } from '@/lib/mobileCode';
-import { hitRateLimit, isRateLimited, rateKey, clientIp, LIMITS } from '@/lib/rateLimit';
-
+import { parseDateOfBirth } from '@/lib/friendBooking';
+import { setPasswordToken } from '@/lib/memberBooking';
+import { newSignupToken, PENDING_SIGNUP_DAYS, type PendingSignupData } from '@/lib/pendingSignup';
+import { hitRateLimit, rateKey, clientIp, LIMITS } from '@/lib/rateLimit';
 
 const bodySchema = z.object({
-  name: z.string().min(1),
+  name: z.string().trim().min(1),
   gender: z.enum(['MALE', 'FEMALE']),
-  email: z.string().email(),
+  email: z.string().trim().email(),
   password: z.string().min(8),
   cityId: z.string(),
-  dateOfBirth: z.string(), // ISO date
-  mobile: z.string().min(1),
+  dateOfBirth: z.string(), // YYYY-MM-DD
+  mobile: z.string().trim().min(1),
   agreedTerms: z.literal(true, {
     errorMap: () => ({ message: 'You must agree to the Terms & Conditions and Privacy Policy' }),
   }),
   marketingOptIn: z.boolean().default(true),
 });
 
+/**
+ * POST /api/auth/register — the sign-up form.
+ *
+ * Whatever the address, a valid sign-up gets the same answer, { ok: true }:
+ * "check your email". It used to say "An account with this email already
+ * exists", which let anyone check whether a given person is on FastMatch.
+ * What actually happens (src/lib/pendingSignup.ts):
+ *   - a new address is emailed a link; the account is created when it's
+ *     clicked (/api/auth/complete-signup), and the mobile code texted then;
+ *   - a member's address is emailed "you already have an account";
+ *   - someone a friend added, still without a password, is emailed a fresh
+ *     set-password link.
+ * Both paths do the same work (one password hash, one email), so the reply
+ * can't hint at the difference either.
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) {
@@ -35,19 +47,14 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
   const data = parsed.data;
 
+  const dob = parseDateOfBirth(data.dateOfBirth);
+  if (!dob) return NextResponse.json({ error: 'Please enter your date of birth.' }, { status: 400 });
   // Enforce 18+ per the Terms & Conditions — "you must be at least 18 years old"
-  const dob = new Date(data.dateOfBirth);
-  const age = calculateAge(dob);
-  if (age < 18) {
+  if (calculateAge(dob) < 18) {
     return NextResponse.json(
       { error: 'You must be at least 18 years old to register with FastMatch.' },
       { status: 403 }
     );
-  }
-
-  const existing = await prisma.member.findUnique({ where: { email: data.email } });
-  if (existing) {
-    return NextResponse.json({ error: 'An account with this email already exists.' }, { status: 409 });
   }
 
   const city = await prisma.city.findUnique({ where: { id: data.cityId } });
@@ -55,78 +62,66 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Please select a valid city.' }, { status: 400 });
   }
 
-  // One new account per internet connection per hour. Only accounts actually
-  // created count, so a typo or a refused sign-up doesn't use it up.
-  const signupKey = rateKey('register-ip', clientIp(req));
-  if (await isRateLimited(signupKey, LIMITS.registerIp.limit)) {
+  // A few sign-ups per internet connection per hour. Every sign-up that gets
+  // this far counts, whatever the address, so the limit can't hint at it.
+  const attempt = await hitRateLimit(rateKey('register-ip', clientIp(req)), LIMITS.registerIp.limit, LIMITS.registerIp.windowMs);
+  if (!attempt.allowed) {
     return NextResponse.json(
-      { error: 'An account has already been created from this internet connection in the last hour. Please try again later, or email gil@fastmatch.com.au.' },
+      { error: 'There have been several sign-ups from this internet connection in the last hour. Please try again later, or email gil@fastmatch.com.au.' },
       { status: 429 },
     );
   }
+  // And only a few emails per address per hour, so nobody can flood someone's
+  // inbox through this form. Past that, the answer is the same and nothing is sent.
+  const mayEmail = (await hitRateLimit(rateKey('signup-email', data.email), LIMITS.signupEmail.limit, LIMITS.signupEmail.windowMs)).allowed;
 
   const passwordHash = await bcrypt.hash(data.password, 12);
+  const existing = await prisma.member.findUnique({ where: { email: data.email } });
+  const appUrl = process.env.APP_URL;
 
-  const member = await prisma.member.create({
-    data: {
+  let email: { subject: string; html: string } | null = null;
+  if (existing) {
+    // Their own name, not the one typed in.
+    email = existing.awaitingPasswordSetup
+      ? finishInvitationEmail({ name: existing.name, setPasswordUrl: `${appUrl}/set-password?token=${setPasswordToken(existing.id)}` })
+      : alreadyMemberEmail({ name: existing.name, loginUrl: `${appUrl}/login`, resetUrl: `${appUrl}/forgot-password` });
+  } else if (mayEmail) {
+    const now = new Date();
+    // Expired sign-ups go whenever a new one comes in.
+    await prisma.pendingSignup.deleteMany({ where: { expiresAt: { lt: now } } });
+    const { token, tokenHash } = newSignupToken();
+    const details: PendingSignupData = {
       name: data.name,
       gender: data.gender,
-      email: data.email,
       passwordHash,
-      cityId: data.cityId,
-      dateOfBirth: dob,
+      cityId: city.id,
+      dateOfBirth: data.dateOfBirth.trim(),
       mobile: data.mobile,
-      agreedTerms: true,
-      agreedTermsAt: new Date(),
       marketingOptIn: data.marketingOptIn,
-      // emailVerified starts false — see /api/auth/verify (TODO) for the
-      // confirmation-email step already planned in the spec
-    },
-  });
-  await hitRateLimit(signupKey, LIMITS.registerIp.limit, LIMITS.registerIp.windowMs);
-
-  // Verification is required via BOTH email and SMS — emailVerified and
-  // mobileVerified are tracked separately; nothing in this app should treat
-  // the member as "verified" until both are true.
-  const verifyToken = signEmailVerificationToken(member);
-  const verifyUrl = `${process.env.APP_URL}/verify-email?token=${verifyToken}`;
-  const { subject, html } = welcomeVerificationEmail({ memberName: member.name, verifyUrl });
-
-  // Both verification sends are best-effort. The member row is already
-  // committed at this point, so letting a provider outage throw would abort
-  // the request AFTER creating the account — leaving an orphan with no
-  // session, and an email address that then 409s on every retry. Instead we
-  // log, report which send failed, and let the member re-request the
-  // verification from /verify-mobile (and the email link from their account).
-  // Nothing is bypassed: booking stays gated on emailVerified + mobileVerified.
-  let emailSent = true;
-  try {
-    await sendEmail({ to: member.email, subject, html });
-  } catch (err) {
-    emailSent = false;
-    console.error(`Registration ${member.id}: verification email failed`, err);
+    };
+    await prisma.pendingSignup.create({
+      data: {
+        tokenHash,
+        email: data.email,
+        data: details as unknown as object,
+        expiresAt: new Date(now.getTime() + PENDING_SIGNUP_DAYS * 24 * 60 * 60 * 1000),
+      },
+    });
+    email = finishSignupEmail({ name: data.name, finishUrl: `${appUrl}/complete-signup?token=${token}` });
   }
 
-  const smsCode = newMobileCode(); // 6 digits
-  await prisma.member.update({
-    where: { id: member.id },
-    data: {
-      mobileVerificationCode: smsCode,
-      mobileVerificationExpires: new Date(Date.now() + 15 * 60 * 1000), // 15 min
-    },
-  });
-
-  let smsSent = true;
-  try {
-    await sendSms({ to: member.mobile, body: verificationCodeSms(smsCode) });
-  } catch (err) {
-    smsSent = false;
-    console.error(`Registration ${member.id}: verification SMS failed`, err);
+  if (email && mayEmail) {
+    try {
+      await sendEmail({ to: data.email, ...email });
+    } catch (err) {
+      console.error('Sign-up: email failed', err);
+      // The same for every address: the email simply didn't go.
+      return NextResponse.json(
+        { error: "We couldn't send your email just now. Please try again in a few minutes." },
+        { status: 502 },
+      );
+    }
   }
 
-  const token = signSession(member);
-
-  const res = NextResponse.json({ id: member.id, name: member.name, emailSent, smsSent });
-  res.cookies.set('fm_session', token, SESSION_COOKIE_OPTIONS);
-  return res;
+  return NextResponse.json({ ok: true });
 });

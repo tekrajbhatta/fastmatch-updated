@@ -24,7 +24,9 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   const booking = await prisma.booking.findUnique({
     where: { eventId_memberId: { eventId: params.eventId, memberId: member.id } },
   });
-  if (!booking || !booking.checkedIn) {
+  // A confirmed booking only: someone cancelled or refunded no longer counts,
+  // even if they'd been ticked in.
+  if (!booking || booking.status !== 'CONFIRMED' || !booking.checkedIn) {
     return NextResponse.json({ error: 'Not checked in to this event' }, { status: 403 });
   }
 

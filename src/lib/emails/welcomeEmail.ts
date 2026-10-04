@@ -1,5 +1,6 @@
 import { emailLayout } from './layout';
 import { BRAND_COLORS } from '../brand';
+import { escapeHtml } from '../escapeHtml';
 
 // Email clients ignore <style> blocks and external stylesheets, so every rule
 // has to be inline. The heading in particular needs its font stack and size
@@ -19,7 +20,7 @@ const BUTTON =
 
 export function welcomeVerificationEmail(opts: { memberName: string; verifyUrl: string }) {
   const html = emailLayout(`
-    <h1 style="${HEADING}">Welcome to FastMatch, ${opts.memberName}!</h1>
+    <h1 style="${HEADING}">Welcome to FastMatch, ${escapeHtml(opts.memberName)}!</h1>
     <p style="${PARA}">Thanks for joining. You're one step away from booking your first event.</p>
     <p style="${PARA_BUTTON}">Please confirm your email address to activate your membership:</p>
     <p style="${PARA_BUTTON}"><a href="${opts.verifyUrl}" style="${BUTTON}">Confirm my email</a></p>

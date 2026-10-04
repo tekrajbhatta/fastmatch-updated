@@ -1,6 +1,10 @@
-import type { Prisma, PrismaClient, Event, Member, PaymentMethod } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import type { PrismaClient, Event, Member, PaymentMethod } from '@prisma/client';
+import { prisma } from './prisma';
 import { sendBookingConfirmation } from './sendBookingConfirmation';
-import { releasePendingBooking } from './pendingBooking';
+import { closeCheckout, releasePendingBooking } from './pendingBooking';
+import { confirmBookingGroup } from './memberBooking';
+import { placesTaken, countHeld, capacityProblem, holdCutoff } from './capacity';
 
 /**
  * Admin-side booking — the "Add a new booking" and "Add a new member" screens.
@@ -15,50 +19,65 @@ import { releasePendingBooking } from './pendingBooking';
  *     for a booking made ahead of the night.
  *
  * Still enforced: one booking per member per event, and the per-gender
- * capacity, so an admin can't silently overbook.
+ * capacity (paid places and places held by open payment pages, as for
+ * members), so an admin can't silently overbook.
  */
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
-export type AdminBookingPayment = { method: PaymentMethod; paidAmount: number; checkedIn: boolean };
+/** method null = paid online (only when confirming an online booking). */
+export type AdminBookingPayment = { method: PaymentMethod | null; paidAmount: number; checkedIn: boolean };
 
 export type AdminBookingResult =
-  | { ok: true; bookingId: string; badge: number }
+  | { ok: true; bookingId: string; badge: number; notified?: boolean; notice?: string }
   | { ok: false; reason: string };
-
-const STATUS_WORDS: Record<string, string> = {
-  CONFIRMED: 'a',
-  CANCELLED: 'a cancelled',
-  REFUNDED: 'a refunded',
-};
 
 export async function createAdminBooking(
   db: Db,
   event: Pick<Event, 'id' | 'maxMen' | 'maxWomen'>,
-  member: Pick<Member, 'id' | 'name' | 'gender'>,
+  member: Pick<Member, 'id' | 'name' | 'gender' | 'email'>,
   payment: AdminBookingPayment,
 ): Promise<AdminBookingResult> {
-  const existing = await db.booking.findUnique({
-    where: { eventId_memberId: { eventId: event.id, memberId: member.id } },
-  });
+  const find = () => db.booking.findUnique({ where: { eventId_memberId: { eventId: event.id, memberId: member.id } } });
+  let existing = await find();
+  if (existing?.status === 'CONFIRMED') return { ok: false, reason: 'already has a booking for this event' };
   if (existing?.status === 'PENDING') {
-    // An unpaid online booking holds nothing — clear it out of the way (and
-    // close its payment page) so the admin's booking can take its place.
-    if ((await releasePendingBooking(existing)) === 'paid') {
-      return { ok: false, reason: 'has just paid for this event online' };
-    }
-  } else if (existing) {
-    // One row per member per event (a DB constraint), so a cancelled booking
-    // has to be re-opened from the bookings screen rather than re-added here.
-    return { ok: false, reason: `already has ${STATUS_WORDS[existing.status] ?? 'a'} booking for this event` };
+    // They're paying online right now (the payment page is still open): the
+    // admin's booking confirms that one, friends and all, and closes the
+    // page. An attempt they gave up on earlier is cleared out of the way
+    // instead, as it always was: the friends on it may not be coming at all.
+    if (existing.createdAt >= holdCutoff()) return confirmPendingByAdmin(existing.id, payment);
+    if ((await releasePendingBooking(existing)) === 'paid') return { ok: false, reason: 'has just paid for this event online' };
+    existing = await find(); // a booking they'd reopened is back to what it was
   }
 
-  const booked = await db.booking.count({
-    where: { eventId: event.id, status: 'CONFIRMED', member: { gender: member.gender } },
-  });
-  const capacity = member.gender === 'MALE' ? event.maxMen : event.maxWomen;
-  if (booked >= capacity) {
-    return { ok: false, reason: `this event is full for ${member.gender === 'MALE' ? 'men' : 'women'} (${booked}/${capacity})` };
+  const taken = await placesTaken(event.id, { db, excludeMemberId: member.id, excludeEmail: member.email });
+  const problem = capacityProblem(taken, event, { men: member.gender === 'MALE' ? 1 : 0, women: member.gender === 'FEMALE' ? 1 : 0 });
+  if (problem) return { ok: false, reason: problem };
+
+  const paid = {
+    status: 'CONFIRMED' as const,
+    paidAmount: payment.paidAmount,
+    paymentMethod: payment.method,
+    checkedIn: payment.checkedIn,
+    checkedInAt: payment.checkedIn ? new Date() : null,
+    confirmedAt: new Date(),
+  };
+
+  if (existing) {
+    // A cancelled or refunded booking is reopened (one row per member per
+    // event), keeping its badge. Nothing of the old booking carries over: not
+    // its discount code (this booking didn't use one), its payment page or
+    // who brought them.
+    await db.booking.update({
+      where: { id: existing.id },
+      data: {
+        ...paid,
+        discountCodeId: null, stripePaymentIntentId: null, bookedById: null, reminderSent: false,
+        pendingFriends: Prisma.DbNull, reopenedFrom: Prisma.DbNull,
+      },
+    });
+    return { ok: true, bookingId: existing.id, badge: existing.badge };
   }
 
   // Same numbering as the member route: next badge across both genders.
@@ -66,18 +85,70 @@ export async function createAdminBooking(
   const badge = (highest._max.badge ?? 0) + 1;
 
   const booking = await db.booking.create({
-    data: {
-      eventId: event.id,
-      memberId: member.id,
-      badge,
-      status: 'CONFIRMED',
-      paidAmount: payment.paidAmount,
-      paymentMethod: payment.method,
-      checkedIn: payment.checkedIn,
-      checkedInAt: payment.checkedIn ? new Date() : null,
-    },
+    data: { eventId: event.id, memberId: member.id, badge, ...paid },
   });
   return { ok: true, bookingId: booking.id, badge };
+}
+
+/**
+ * The admin confirms an online booking that hasn't been paid — from "Add a
+ * new booking", or by marking it Paid on the bookings list. It goes through
+ * the same step a card payment does (confirmBookingGroup): the friends on it
+ * get their accounts and bookings, everyone is emailed, and the discount code
+ * is counted. Doing it any other way used to drop the friends, and leave the
+ * payment page open to be paid as well.
+ *
+ * Confirmed first, then the payment page closed: closing it makes Stripe send
+ * "expired", which removes an unpaid booking — by then this one is paid.
+ * If the page turns out to have just been paid, it's recorded as the online
+ * payment it was (the admin's amount and method aren't applied, and the
+ * screen says so); "checked in" always is.
+ *
+ * Not called inside a transaction: closing the payment page talks to Stripe.
+ */
+export async function confirmPendingByAdmin(bookingId: string, payment: AdminBookingPayment): Promise<AdminBookingResult> {
+  const b = await prisma.booking.findUnique({ where: { id: bookingId }, include: { member: true, event: true } });
+  if (!b) return { ok: false, reason: 'the booking no longer exists' };
+  if (b.status !== 'PENDING') return { ok: false, reason: "it's no longer waiting for payment" };
+
+  // Room for everyone on it, not counting the places it holds itself.
+  const taken = await placesTaken(b.eventId, { excludeBookingId: b.id, excludeEmail: b.member.email });
+  const problem = capacityProblem(taken, b.event, countHeld([b]));
+  if (problem) return { ok: false, reason: problem };
+
+  const result = await confirmBookingGroup(b.id);
+  const now = await prisma.booking.findUnique({ where: { id: b.id } });
+  if (now?.status !== 'CONFIRMED') return { ok: false, reason: 'the booking no longer exists' };
+
+  let paidOnline = false;
+  if (b.stripePaymentIntentId) {
+    try {
+      // Paid on their phone a moment ago. (A booking confirmed before and set
+      // back to unpaid by the admin has an old, long-paid page: not this.)
+      paidOnline = (await closeCheckout(b)) === 'paid' && !b.confirmedAt;
+    } catch (err) {
+      // The booking is confirmed either way; if that page is paid later, the
+      // webhook flags the payment for a refund.
+      console.error(`Booking ${b.id}: couldn't close its payment page`, err);
+    }
+  }
+  await prisma.booking.updateMany({
+    where: { id: b.id, status: 'CONFIRMED' },
+    data: {
+      checkedIn: payment.checkedIn,
+      checkedInAt: payment.checkedIn ? now.checkedInAt ?? new Date() : null,
+      ...(paidOnline ? {} : { paidAmount: payment.paidAmount, paymentMethod: payment.method }),
+    },
+  });
+  return {
+    ok: true,
+    bookingId: b.id,
+    badge: b.badge,
+    // Not confirmed here means the card payment's own webhook got there first,
+    // and has sent the emails.
+    notified: result.confirmed ? !result.notifyFailures.includes(b.id) : true,
+    ...(paidOnline ? { notice: `${b.member.name} had just paid online by card, so it's recorded as an online payment.` } : {}),
+  };
 }
 
 /**

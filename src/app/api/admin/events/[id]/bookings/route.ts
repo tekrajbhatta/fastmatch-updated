@@ -74,7 +74,8 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
       skipped.push({ memberId: id, name: member.name, reason: result.reason });
       continue;
     }
-    added.push({ memberId: id, name: member.name, badge: result.badge, notified: await notifyBooked(result.bookingId) });
+    // An unpaid online booking it confirmed has already sent its emails.
+    added.push({ memberId: id, name: member.name, badge: result.badge, notified: result.notified ?? (await notifyBooked(result.bookingId)) });
   }
 
   return NextResponse.json({ added, skipped });

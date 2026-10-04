@@ -16,7 +16,10 @@ export default function EditProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [emailChanged, setEmailChanged] = useState(false);
+  // Where the link to confirm a new address went (the address itself only
+  // changes when it's clicked).
+  const [emailChangePending, setEmailChangePending] = useState<string | null>(null);
+  const [currentEmail, setCurrentEmail] = useState('');
   // The form waits for the member's current details: shown empty, anything
   // typed before they arrived was overwritten when they did.
   const [loaded, setLoaded] = useState(false);
@@ -26,6 +29,7 @@ export default function EditProfilePage() {
     fetch('/api/account/profile').then((r) => r.json()).then((m) => {
       // Stored as UTC midnight, so the first 10 characters are the date itself.
       setForm({ name: m.name, email: m.email, mobile: m.mobile, cityId: m.cityId, dateOfBirth: m.dateOfBirth ? String(m.dateOfBirth).slice(0, 10) : '' });
+      setCurrentEmail(m.email);
       setLoaded(true);
     });
   }, []);
@@ -39,11 +43,12 @@ export default function EditProfilePage() {
     });
     const data = await res.json();
     setSaving(false);
-    // Surface the API's own message (e.g. "That email is already in use by
-    // another account.") rather than a generic one.
+    // Surface the API's own message rather than a generic one.
     if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Please check your details.'); return; }
     setSaved(true);
-    setEmailChanged(!!data.emailChanged);
+    setEmailChangePending(data.emailChangePending ?? null);
+    // The account still has its current address until the link is clicked.
+    if (data.emailChangePending) setForm((f) => ({ ...f, email: currentEmail }));
   }
 
   // Nobody under 18.
@@ -76,7 +81,10 @@ export default function EditProfilePage() {
           {error && <FormError>{error}</FormError>}
           {saved && (
             <FormSuccess>
-              Profile updated.{emailChanged ? ' Check your new email for a link to verify it. Booking is paused until you do.' : ''}
+              Profile updated.
+              {emailChangePending && (
+                <> We&apos;ve sent a link to {emailChangePending}. Your email address changes when you click it; until then it stays {currentEmail}.</>
+              )}
             </FormSuccess>
           )}
           <Button type="submit" disabled={saving} loading={saving} block className="mt-1">{saving ? 'Saving…' : 'Save changes'}</Button>

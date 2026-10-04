@@ -46,3 +46,37 @@ describe('toPublicEvent', () => {
     expect(toPublicEvent(event, { men: 13, women: 12 }).soldOut).toBe(true); // overbooked by the admin
   });
 });
+
+/**
+ * Item 23: a night full for one gender used to offer "Book" to that gender,
+ * who then filled in the form and were refused at the last step. A signed-in
+ * member is now told it's full for them; anyone else only learns whether the
+ * whole night is full.
+ */
+describe('fullForYou', () => {
+  const menFull = { men: 12, women: 5 };
+  const womenFull = { men: 5, women: 12 };
+
+  it('is never set for a visitor who isn’t signed in', () => {
+    expect(toPublicEvent(event, menFull).fullForYou).toBe(false);
+    expect(toPublicEvent(event, womenFull, null).fullForYou).toBe(false);
+  });
+
+  it('tells a man when every man’s place is taken, and only then', () => {
+    expect(toPublicEvent(event, menFull, 'MALE').fullForYou).toBe(true);
+    expect(toPublicEvent(event, { men: 11, women: 12 }, 'MALE').fullForYou).toBe(false);
+    expect(toPublicEvent(event, womenFull, 'MALE').fullForYou).toBe(false);
+    expect(toPublicEvent(event, { men: 13, women: 0 }, 'MALE').fullForYou).toBe(true); // overbooked by the admin
+  });
+
+  it('tells a woman when every woman’s place is taken, and only then', () => {
+    expect(toPublicEvent(event, womenFull, 'FEMALE').fullForYou).toBe(true);
+    expect(toPublicEvent(event, menFull, 'FEMALE').fullForYou).toBe(false);
+  });
+
+  it('doesn’t change "sold out" for everyone else, or reveal any counts', () => {
+    expect(toPublicEvent(event, menFull, 'MALE').soldOut).toBe(false);
+    const out = toPublicEvent(event, menFull, 'MALE') as Record<string, unknown>;
+    expect(Object.values(out).filter((v) => typeof v === 'number' && (v === 12 || v === 5))).toEqual([]);
+  });
+});

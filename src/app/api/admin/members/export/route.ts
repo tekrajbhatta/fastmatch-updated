@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth';
 import { buildMemberWhere, MemberFilter } from '@/lib/memberFilter';
 import { memberFilterFromParams } from '@/lib/memberFilterParams';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { csvCell } from '@/lib/csv';
 
 // GET /api/admin/members/export — CSV of the currently filtered member set,
 // same filter params as GET /api/admin/members (search/gender/cityId/ageMin/
@@ -27,7 +28,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const rows = members
     .map((m) =>
       [m.name, m.email, m.gender, m.city.name, m.mobile, m.dateOfBirth.toISOString().slice(0, 10), m.createdAt.toISOString().slice(0, 10)]
-        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .map(csvCell)
         .join(',')
     )
     .join('\n');

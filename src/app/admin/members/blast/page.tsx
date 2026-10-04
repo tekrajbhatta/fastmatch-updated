@@ -11,7 +11,7 @@ import BlastSendProgress from '@/components/BlastSendProgress';
 
 interface BlastOption { id: string; title: string; blastStatus: string; reusable: boolean; hasBeenSent: boolean }
 interface City { id: string; name: string }
-interface SendState { id?: string; status: string; sentCount: number; totalRecipients: number }
+interface SendState { id?: string; status: string; sentCount: number; failedCount?: number; totalRecipients: number }
 
 const NEW = '__new__';
 const EMPTY: BlastContent = {
@@ -217,7 +217,10 @@ export default function BlastFilteredMembersPage() {
           {previewHtml && (
             <Card className="mb-4">
               <div className="mb-2 text-sm font-extrabold text-ink">Email preview</div>
-              <iframe srcDoc={previewHtml} className="h-[420px] w-full rounded-lg border border-ink/10 bg-white" title="Email preview" />
+              {/* sandbox: without it, a srcDoc frame runs any script in the
+                  email as the logged-in admin, on this site. The template
+                  escapes what it renders; the preview shouldn't rely on that. */}
+              <iframe srcDoc={previewHtml} sandbox="" className="h-[420px] w-full rounded-lg border border-ink/10 bg-white" title="Email preview" />
             </Card>
           )}
 
@@ -252,7 +255,7 @@ export default function BlastFilteredMembersPage() {
             )}
             {starting && <BlastSendProgress status="STARTING" total={audience?.recipients ?? 0} />}
             {send && !starting && (
-              <BlastSendProgress status={send.status} sentCount={send.sentCount} total={send.totalRecipients}>
+              <BlastSendProgress status={send.status} sentCount={send.sentCount} failedCount={send.failedCount} total={send.totalRecipients}>
                 {campaignId && (
                   <Link href={`/admin/blasts/${campaignId}?tab=history`} className="text-xs font-bold text-plum underline">
                     View this blast&apos;s history
@@ -281,7 +284,7 @@ export default function BlastFilteredMembersPage() {
               &ldquo;{title}&rdquo; will be {content.sendEmail && content.sendSms ? 'emailed and texted' : content.sendEmail ? 'emailed' : 'texted'} to{' '}
               <b>{audience.recipients.toLocaleString()} members</b> right now.{dirty ? ' Your changes are saved to the blast first.' : ''}
             </p>
-            {previewHtml && <iframe srcDoc={previewHtml} className="mb-4 h-72 w-full rounded-lg border border-ink/10" title="Final preview" />}
+            {previewHtml && <iframe srcDoc={previewHtml} sandbox="" className="mb-4 h-72 w-full rounded-lg border border-ink/10" title="Final preview" />}
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setConfirming(false)} className="flex-1">Cancel</Button>
               <Button onClick={handleConfirmSend} className="flex-1">Confirm &amp; Send Now</Button>

@@ -27,7 +27,9 @@ async function run() {
       console.log(`Calculating matches for event #${event.number} (${event.name})...`);
       const result = await calculateMatchesForEvent(event.id);
       console.log(`  -> ${result.matchesCreated} matches created`);
-      await sendMatchEmails(event.id);
+      const emails = await sendMatchEmails(event.id);
+      console.log(`  -> ${emails.sent} result email(s) sent`);
+      if (emails.failed.length) console.error(`  -> ${emails.failed.length} couldn't be emailed: ${emails.failed.map((f) => f.email || f.name).join(', ')}`);
     } catch (err) {
       failed++;
       console.error(`  -> event #${event.number} failed:`, err);

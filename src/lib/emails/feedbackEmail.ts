@@ -1,5 +1,5 @@
 import { emailLayout } from './layout';
-import { escapeHtml } from '../escapeHtml';
+import { escapeHtml, oneLine } from '../escapeHtml';
 
 /** Where member feedback goes — the same inbox as the Contact Us form. */
 export const FEEDBACK_TO = 'gil@fastmatch.com.au';
@@ -22,6 +22,6 @@ export function memberFeedbackEmail(opts: {
     <div style="white-space:pre-wrap;border-left:4px solid #A4CE39;background:#F1E9F8;padding:12px 16px;border-radius:8px;">${escapeHtml(opts.message)}</div>
     <p style="margin:16px 0 0;font-size:13px;color:#666;">Reply to the member at the address above. Replying to this email won't reach them.</p>
   `);
-  const subject = opts.event ? `Feedback from ${m.name}: ${opts.event.name} (${opts.event.when})` : `Feedback from ${m.name}`;
+  const subject = oneLine(opts.event ? `Feedback from ${m.name}: ${opts.event.name} (${opts.event.when})` : `Feedback from ${m.name}`);
   return { subject, html };
 }

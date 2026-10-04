@@ -13,9 +13,10 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
   const result = await calculateMatchesForEvent(params.id);
-  if (!result.alreadyCalculated) {
-    await sendMatchEmails(params.id);
-  }
+  if (result.alreadyCalculated) return NextResponse.json(result);
 
-  return NextResponse.json(result);
+  // Who couldn't be emailed, so the admin can follow up (their matches are
+  // on My Match History either way).
+  const emails = await sendMatchEmails(params.id);
+  return NextResponse.json({ ...result, emailsSent: emails.sent, emailFailures: emails.failed.map((f) => f.name) });
 });

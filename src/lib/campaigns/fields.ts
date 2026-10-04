@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { oneLine } from '../escapeHtml';
 
 /**
  * A blast's editable content, as accepted by PATCH /api/admin/campaigns/:id
@@ -34,7 +35,9 @@ const text = z.string().max(20_000).nullable().optional();
 export const campaignPatchSchema = z
   .object({
     title: z.string().trim().min(1, 'Please give the blast a title.').max(200).optional(),
-    subject: text,
+    // Kept to one line: a subject is an email header (see oneLine). The form's
+    // single-line box can't hold a line break, but the API would accept one.
+    subject: z.string().max(20_000).transform(oneLine).nullable().optional(),
     heading: text,
     freeText: text,
     eventDetailsText: text,

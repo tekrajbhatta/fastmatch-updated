@@ -15,6 +15,8 @@ export interface MemberTableEvent {
   cityId: string;
   // Every place taken (worked out by the server; the counts stay private).
   soldOut: boolean;
+  // Every place for the signed-in member's gender taken: sold out for them too.
+  fullForYou: boolean;
   theme: { name: string };
   venue: { name: string };
   city: { name: string };
@@ -47,7 +49,7 @@ export default function MemberEventsTable({
       {events.map((e) => {
         // The event's own local time, noted if the viewer's clock differs.
         const when = formatEventForViewer(e.startsAt, e.city.name);
-        const soldOut = e.soldOut;
+        const soldOut = e.soldOut || e.fullForYou;
         return (
           <li
             key={e.id}
@@ -99,7 +101,7 @@ export default function MemberEventsTable({
             const when = formatEventForViewer(e.startsAt, e.city.name);
             // Overall only — members aren't shown how many have booked, and
             // "full for your gender" is checked when they book.
-            const soldOut = e.soldOut;
+            const soldOut = e.soldOut || e.fullForYou;
             const match = isProfileMatch(e, age);
             return (
               <tr key={e.id} className={`border-t border-line ${e.bookedByMe ? 'bg-match-400/15' : ''}`}>

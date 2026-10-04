@@ -4,13 +4,13 @@ import { Suspense, useState, useEffect } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { Field, Input, Select, Button, Card, Badge, Loader, BackLink } from '@/components/ui';
 import BlastTestSend from '@/components/BlastTestSend';
-import BlastSendProgress from '@/components/BlastSendProgress';
+import BlastSendProgress, { blastOutcome } from '@/components/BlastSendProgress';
 
 interface Campaign {
   id: string; title: string; hasBeenSent: boolean; subject: string; sendEmail: boolean; sendSms: boolean;
   reusable: boolean;
 }
-interface Send { id: string; status: string; sentCount: number; totalRecipients: number; startedAt: string; }
+interface Send { id: string; status: string; sentCount: number; failedCount?: number; totalRecipients: number; startedAt: string; }
 interface City { id: string; name: string; }
 // Matches what POST /preview already returns (capped at 200 rows).
 interface PreviewMember { id: string; name: string; email: string; mobile: string; gender: string; contactMethod: string; city: { name: string }; }
@@ -209,8 +209,11 @@ function ViewBlastInner() {
 
           <div className="mt-5 text-sm font-extrabold text-ink">Preview: how it actually renders</div>
           <p className="mb-2 text-xs text-ink/50">This is the real email, not a mockup. Edit the blast if anything here needs to change.</p>
+          {/* sandbox: without it, a srcDoc frame runs any script in the email
+              as the logged-in admin, on this site. A pasted emailBody is sent
+              exactly as written, so the preview can't assume it's harmless. */}
           {renderedHtml ? (
-            <iframe srcDoc={renderedHtml} className="h-[420px] w-full rounded-lg border border-ink/10 bg-white" title="Email preview" />
+            <iframe srcDoc={renderedHtml} sandbox="" className="h-[420px] w-full rounded-lg border border-ink/10 bg-white" title="Email preview" />
           ) : (
             <Loader label="Loading preview…" className="py-8" />
           )}
@@ -283,10 +286,10 @@ function ViewBlastInner() {
           ) : (
             <>
               {justSent && !activeSend && (
-                <BlastSendProgress status="SENT" sentCount={justSent.sentCount} total={justSent.totalRecipients} />
+                <BlastSendProgress status="SENT" sentCount={justSent.sentCount} failedCount={justSent.failedCount} total={justSent.totalRecipients} />
               )}
               {activeSend ? (
-                <BlastSendProgress status={activeSend.status} sentCount={activeSend.sentCount} total={activeSend.totalRecipients}>
+                <BlastSendProgress status={activeSend.status} sentCount={activeSend.sentCount} failedCount={activeSend.failedCount} total={activeSend.totalRecipients}>
                   <div className="flex justify-center gap-2">
                     {activeSend.status === 'SENDING' && <Button variant="ghost" onClick={handlePause}>Pause</Button>}
                     {activeSend.status === 'PAUSED' && <Button onClick={handleResume}>Resume</Button>}
@@ -310,7 +313,10 @@ function ViewBlastInner() {
             <div key={s.id} className="flex items-center justify-between rounded-lg border border-ink/10 bg-white p-3">
               <div>
                 <div className="text-sm font-bold text-ink">{new Date(s.startedAt).toLocaleString('en-AU')}</div>
-                <div className="text-xs text-ink/50">{s.sentCount} / {s.totalRecipients} sent</div>
+                {/* Failures used to be counted as sent. */}
+                <div className={`text-xs ${s.failedCount ? 'font-bold text-coral' : 'text-ink/50'}`}>
+                  {s.failedCount ? blastOutcome(s.sentCount - s.failedCount, s.failedCount) : `${s.sentCount} / ${s.totalRecipients} sent`}
+                </div>
               </div>
               <Badge tone={s.status === 'SENT' ? 'green' : 'muted'}>{s.status}</Badge>
             </div>
@@ -329,7 +335,7 @@ function ViewBlastInner() {
             <p className="mb-3 text-sm text-ink/60">
               This will send to <b>{(previewCount ?? 0).toLocaleString()} members</b> right now. This is the last chance to check before it goes out.
             </p>
-            {renderedHtml && <iframe srcDoc={renderedHtml} className="mb-4 h-72 w-full rounded-lg border border-ink/10" title="Final preview" />}
+            {renderedHtml && <iframe srcDoc={renderedHtml} sandbox="" className="mb-4 h-72 w-full rounded-lg border border-ink/10" title="Final preview" />}
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setConfirmingSend(false)} className="flex-1">Cancel</Button>
               <Button onClick={handleConfirmSend} className="flex-1">Confirm &amp; Send Now</Button>

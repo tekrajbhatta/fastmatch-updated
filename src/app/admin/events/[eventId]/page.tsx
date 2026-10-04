@@ -18,7 +18,7 @@ export default function AdminEventDetailPage() {
   const router = useRouter();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [closing, setClosing] = useState(false);
-  const [closeResult, setCloseResult] = useState<{ matchesCreated?: number; alreadyCalculated?: boolean } | null>(null);
+  const [closeResult, setCloseResult] = useState<{ matchesCreated?: number; alreadyCalculated?: boolean; emailsSent?: number; emailFailures?: string[] } | null>(null);
   const [closeError, setCloseError] = useState<string | null>(null);
   const [duplicating, setDuplicating] = useState(false);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
@@ -121,9 +121,18 @@ export default function AdminEventDetailPage() {
           Matches process automatically at midnight. Use this only to run them early (e.g. testing, or the host wants results before leaving the venue).
         </p>
         {closeResult ? (
-          <p className="text-sm font-bold text-green-dark">
-            {closeResult.alreadyCalculated ? 'Matches were already calculated for this event.' : `Done. ${closeResult.matchesCreated} matches created and result emails sent.`}
-          </p>
+          <>
+            <p className="text-sm font-bold text-green-dark">
+              {closeResult.alreadyCalculated
+                ? 'Matches were already calculated for this event.'
+                : `Done. ${closeResult.matchesCreated} matches created, ${closeResult.emailsSent ?? 0} result email${closeResult.emailsSent === 1 ? '' : 's'} sent.`}
+            </p>
+            {!!closeResult.emailFailures?.length && (
+              <p className="mt-1 text-sm font-medium text-coral">
+                {closeResult.emailFailures.length} couldn&apos;t be emailed: {closeResult.emailFailures.join(', ')}. Their matches are on My Match History.
+              </p>
+            )}
+          </>
         ) : (
           <Button onClick={handleCloseEventNow} disabled={closing} loading={closing} variant="ghost">
             {closing ? 'Calculating matches…' : 'Close event now & calculate early'}

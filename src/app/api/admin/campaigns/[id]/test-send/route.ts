@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/auth';
 import { sendEmail } from '@/lib/emails/send';
 import { sendSms, withOptOut } from '@/lib/sms/send';
 import { resolveCampaignEmailHtml } from '@/lib/emails/campaignEmail';
+import { oneLine } from '@/lib/escapeHtml';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const text = z.string().max(20_000).nullable().optional();
@@ -61,7 +62,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
         },
         `${process.env.APP_URL}/unsubscribe?token=test`
       );
-      await sendEmail({ to: email, subject: `[TEST] ${c.subject ?? ''}`, html });
+      await sendEmail({ to: email, subject: `[TEST] ${oneLine(c.subject ?? '')}`, html });
       result.email = `Test email sent to ${email}.`;
     } catch (err) {
       console.error(`Test email for blast ${params.id} to ${email} failed`, err);

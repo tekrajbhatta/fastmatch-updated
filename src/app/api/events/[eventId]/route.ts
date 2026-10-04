@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { getSessionMember } from '@/lib/auth';
 import { toPublicEvent } from '@/lib/publicEvent';
+import { placesTaken } from '@/lib/capacity';
 
 // GET /api/events/:eventId — single event detail page. If the requester is
 // logged in, also reports whether they already have a booking for it.
@@ -17,21 +18,21 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
   const member = await getSessionMember(req);
   if (event.draft && !member?.isAdmin) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const [menBooked, womenBooked] = await Promise.all([
-    prisma.booking.count({ where: { eventId: event.id, status: 'CONFIRMED', member: { gender: 'MALE' } } }),
-    prisma.booking.count({ where: { eventId: event.id, status: 'CONFIRMED', member: { gender: 'FEMALE' } } }),
-  ]);
+  // Paid places and those held by open payment pages, never counting the
+  // viewer's own unpaid attempt against them.
+  const { men: menBooked, women: womenBooked } = await placesTaken(event.id, { excludeMemberId: member?.id, excludeEmail: member?.email });
 
   let alreadyBooked = false;
   if (member) {
     const existing = await prisma.booking.findUnique({
       where: { eventId_memberId: { eventId: event.id, memberId: member.id } },
     });
-    // An unpaid booking doesn't count — the member can simply book again.
-    alreadyBooked = !!existing && existing.status !== 'PENDING';
+    // Only a paid booking counts. An unpaid one is replaced, and a cancelled
+    // or refunded one reopened, when the member books again.
+    alreadyBooked = existing?.status === 'CONFIRMED';
   }
 
   // Only what the page shows (see toPublicEvent), for every event a link can
   // reach, hidden, cancelled and past ones included.
-  return NextResponse.json({ ...toPublicEvent(event, { men: menBooked, women: womenBooked }), alreadyBooked });
+  return NextResponse.json({ ...toPublicEvent(event, { men: menBooked, women: womenBooked }, member?.gender), alreadyBooked });
 });

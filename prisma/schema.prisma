@@ -261,6 +261,12 @@ model Booking {
   checkedIn      Boolean       @default(false)
   checkedInAt    DateTime?
   reminderSent   Boolean       @default(false)
+  // When it was first confirmed (paid). Confirming it again after it was set
+  // back to unpaid doesn't re-send the emails or count its discount code twice.
+  confirmedAt    DateTime?
+  // A cancelled or refunded booking the member reopened by booking again:
+  // what it was, so it's put back if the new payment never arrives.
+  reopenedFrom   Json?
   createdAt      DateTime      @default(now())
 
   @@unique([eventId, memberId])
@@ -426,6 +432,9 @@ model CampaignSend {
   status          CampaignSendStatus @default(PENDING)
   totalRecipients Int                @default(0)
   sentCount       Int                @default(0)
+  // Recipients a message failed for (an email or text that didn't go), so
+  // the progress box and History can say "N sent, M failed".
+  failedCount     Int                @default(0)
   recipientIds    Json?              // locked in once sending starts — pause/resume continue against this exact list
   startedAt       DateTime           @default(now())
   completedAt     DateTime?
@@ -457,4 +466,19 @@ model RateLimit {
   resetAt DateTime
 
   @@index([resetAt])
+}
+
+// A sign-up waiting for its email link to be clicked (src/lib/pendingSignup.ts).
+// The account itself is only created from the link, so the sign-up form gives
+// the same answer whether or not the address already belongs to a member.
+model PendingSignup {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  email     String
+  data      Json
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
 }

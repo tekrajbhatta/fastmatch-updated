@@ -35,6 +35,7 @@ export default function AddBookingPage() {
   const router = useRouter();
   const [event, setEvent] = useState<EventSummary | null>(null);
   const [bookedIds, setBookedIds] = useState<Set<string>>(new Set());
+  const [otherStatus, setOtherStatus] = useState<Map<string, string>>(new Map());
 
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<MemberHit[]>([]);
@@ -51,8 +52,11 @@ export default function AddBookingPage() {
   const [result, setResult] = useState<AddResult | null>(null);
 
   function loadBooked() {
-    fetch(`/api/admin/events/${eventId}/bookings`).then((r) => r.json()).then((rows: { memberId: string }[]) => {
-      setBookedIds(new Set(rows.map((b) => b.memberId)));
+    fetch(`/api/admin/events/${eventId}/bookings`).then((r) => r.json()).then((rows: { memberId: string; status: string }[]) => {
+      // Only a paid booking counts. Adding someone with an unpaid online
+      // booking confirms that one; a cancelled or refunded one is reopened.
+      setBookedIds(new Set(rows.filter((b) => b.status === 'CONFIRMED').map((b) => b.memberId)));
+      setOtherStatus(new Map(rows.filter((b) => b.status !== 'CONFIRMED').map((b) => [b.memberId, b.status])));
     });
   }
 
@@ -184,6 +188,12 @@ export default function AddBookingPage() {
                       <span className="block truncate text-xs text-ink/50">{m.email} · {m.mobile}</span>
                     </span>
                     {already && <span className="text-xs font-bold text-ink/50">Already booked</span>}
+                    {!already && otherStatus.get(m.id) === 'PENDING' && (
+                      <span className="text-right text-xs text-ink/50">Unpaid online booking:<br />adding confirms it</span>
+                    )}
+                    {!already && (otherStatus.get(m.id) === 'CANCELLED' || otherStatus.get(m.id) === 'REFUNDED') && (
+                      <span className="text-right text-xs text-ink/50">{otherStatus.get(m.id) === 'CANCELLED' ? 'Cancelled' : 'Refunded'}:<br />adding reopens it</span>
+                    )}
                   </label>
                 </li>
               );

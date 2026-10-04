@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getStripe } from '@/lib/stripe';
+import { getStripe, STRIPE_SITE_TAG } from '@/lib/stripe';
 import { getSessionMember } from '@/lib/auth';
 import { calculateAge } from '@/lib/age';
 import { venueLine } from '@/lib/venue';
@@ -15,6 +15,8 @@ import {
 } from '@/lib/memberBooking';
 import { releasePendingBooking } from '@/lib/pendingBooking';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { eventAvailability, NOT_BOOKABLE } from '@/lib/eventAvailability';
+import { CHECKOUT_MINUTES } from '@/lib/capacity';
 
 // POST /api/events/:eventId/book — a member books themselves, plus any
 // friends they're bringing (paying for all of them, less the group discount).
@@ -42,9 +44,10 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
     where: { id: params.eventId },
     include: { venue: true, city: true },
   });
-  if (event.draft || event.visibility !== 'PUBLIC' || event.status !== 'UPCOMING') {
-    return NextResponse.json({ error: 'This event is not open for booking.' }, { status: 400 });
-  }
+  // Including once it has started: members could pay for an event that had
+  // already happened (src/lib/eventAvailability.ts).
+  const availability = eventAvailability(event);
+  if (availability !== 'open') return NextResponse.json({ error: NOT_BOOKABLE[availability] }, { status: 400 });
 
   // Event.ageMin/ageMax existed and were displayed on the event page, but
   // nothing enforced them — a member could book an event outside their age
@@ -59,12 +62,13 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
     );
   }
 
-  // An earlier booking that was never paid doesn't count — it's replaced
-  // below, once this one has passed its checks. Anything else does.
+  // Only a paid booking counts. One that was never paid is replaced below,
+  // once this one has passed its checks; a cancelled or refunded one is
+  // reopened (createMemberBooking).
   const existing = await prisma.booking.findUnique({
     where: { eventId_memberId: { eventId: params.eventId, memberId: member.id } },
   });
-  if (existing && existing.status !== 'PENDING') {
+  if (existing?.status === 'CONFIRMED') {
     return NextResponse.json({ error: 'You already have a booking for this event.' }, { status: 409 });
   }
 
@@ -78,7 +82,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
     return NextResponse.json({ error: prepared.error, fieldErrors: prepared.fieldErrors }, { status: prepared.status });
   }
 
-  if (existing) {
+  if (existing?.status === 'PENDING') {
     // Closes the old payment page too, so it can't be paid afterwards.
     const released = await releasePendingBooking(existing);
     if (released === 'paid') {
@@ -131,7 +135,13 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
           quantity: 1,
         },
       ],
-      metadata: { bookingId },
+      // site: this account may also take payments for other sites (see stripe.ts).
+      metadata: { bookingId, site: STRIPE_SITE_TAG },
+      // Open for 30 minutes (Stripe's minimum), during which the booking
+      // holds its places; when it expires Stripe tells the webhook, which
+      // removes the unpaid booking. A few seconds over, so Stripe never
+      // refuses it as too short.
+      expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_MINUTES * 60 + 30,
       success_url: `${process.env.APP_URL}/events/${event.id}/booked?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.APP_URL}/events/${event.id}`,
     });
