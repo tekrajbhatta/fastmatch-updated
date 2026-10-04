@@ -6,6 +6,7 @@ import { Field, Input, Select, Button, Card, BackLink } from '@/components/ui';
 import PhotoUploadField from '@/components/PhotoUploadField';
 import VenuePickerField from '@/components/VenuePickerField';
 import ExcludeBookedField from '@/components/ExcludeBookedField';
+import SmsCounter from '@/components/SmsCounter';
 
 interface Template {
   id: string; title: string; subject: string | null; heading: string | null;
@@ -157,9 +158,10 @@ function NewBlastInner() {
           {form.sendSms && (
             <div className="mb-4 rounded-lg bg-cream/40 p-4">
               <Field label="SMS message">
-                <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={3}
+                <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={3} required
                   value={form.smsBody} onChange={(e) => setForm({ ...form, smsBody: e.target.value })} />
               </Field>
+              <SmsCounter body={form.smsBody} className="-mt-2" />
             </div>
           )}
 

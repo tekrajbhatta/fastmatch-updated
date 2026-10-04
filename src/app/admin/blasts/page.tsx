@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button, Badge, Loader } from '@/components/ui';
 import { Spinner } from '@/components/Spinner';
 
-interface Campaign { id: string; title: string; hasBeenSent: boolean; blastStatus: string; sendEmail: boolean; sendSms: boolean; }
+interface Campaign { id: string; title: string; hasBeenSent: boolean; blastStatus: string; sendEmail: boolean; sendSms: boolean; reusable: boolean; }
 
 export default function BlastsListPage() {
   const router = useRouter();
@@ -51,7 +51,11 @@ export default function BlastsListPage() {
                 <div className="truncate font-bold text-ink">{b.title}</div>
                 <div className="text-xs text-ink/50">{b.sendEmail && b.sendSms ? 'Email + SMS' : b.sendEmail ? 'Email' : 'SMS'}</div>
               </div>
-              <Badge tone={statusTone(b.blastStatus)}>{b.blastStatus === 'UNUSED' ? 'Unused' : b.blastStatus.charAt(0) + b.blastStatus.slice(1).toLowerCase()}</Badge>
+              <span className="flex shrink-0 gap-1.5">
+                {/* "Stop re-using blast" used to leave no trace on the list. */}
+                {!b.reusable && <Badge tone="muted">Retired</Badge>}
+                <Badge tone={statusTone(b.blastStatus)}>{b.blastStatus === 'UNUSED' ? 'Unused' : b.blastStatus.charAt(0) + b.blastStatus.slice(1).toLowerCase()}</Badge>
+              </span>
             </Link>
             <div className="flex shrink-0 gap-2">
               <Link href={`/admin/blasts/${b.id}/edit`} className="rounded-lg border border-plum px-3 py-1.5 text-xs font-bold text-plum hover:bg-plum hover:text-white">

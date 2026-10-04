@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { signSession, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { clientIp, clearRateLimit, hitRateLimit, isRateLimited, LIMITS, rateKey } from '@/lib/rateLimit';
+import { unfinishedSteps } from '@/lib/accountSetup';
+import { emailWelcomeLinkOnLogin } from '@/lib/welcomeLink';
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -44,11 +46,22 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   if (!member) return invalid();
   const ok = await bcrypt.compare(parsed.data.password, member.passwordHash);
-  if (!ok) return invalid();
+  if (!ok) {
+    // Someone a friend booked in (or invited) has no password yet, so none
+    // can be right: quietly email them a fresh link to set one. The reply is
+    // the same as for any wrong password (the page adds a general "Booked in
+    // by a friend?" line for everyone), and the email goes after it, so
+    // neither says whether the account exists.
+    if (member.awaitingPasswordSetup) after(() => emailWelcomeLinkOnLogin(member));
+    return invalid();
+  }
   await clearRateLimit(emailKey);
 
   const token = signSession(member);
-  const res = NextResponse.json({ id: member.id, name: member.name, isAdmin: member.isAdmin });
+  // Something still to do before they can book (email or mobile unconfirmed,
+  // terms not accepted): the page takes them to "Finish setting up your account".
+  const unfinished = !member.isAdmin && unfinishedSteps(member).length > 0;
+  const res = NextResponse.json({ id: member.id, name: member.name, isAdmin: member.isAdmin, unfinished });
   res.cookies.set('fm_session', token, SESSION_COOKIE_OPTIONS);
   return res;
 });

@@ -3,7 +3,7 @@
 import { Field, Input } from '@/components/ui';
 import PhotoUploadField from '@/components/PhotoUploadField';
 import VenuePickerField from '@/components/VenuePickerField';
-import { smsLength } from '@/lib/sms/smsLength';
+import SmsCounter from '@/components/SmsCounter';
 import ExcludeBookedField from '@/components/ExcludeBookedField';
 
 export interface BlastContent {
@@ -41,7 +41,6 @@ const TEXTAREA = 'w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 
  * filtered members", so the two always offer the same fields.
  */
 export default function BlastFields({ value, onChange }: { value: BlastContent; onChange: (patch: Partial<BlastContent>) => void }) {
-  const sms = smsLength(value.smsBody);
   return (
     <>
       <label className="mb-2 flex items-center gap-2 text-sm font-bold text-ink">
@@ -77,15 +76,9 @@ export default function BlastFields({ value, onChange }: { value: BlastContent; 
       {value.sendSms && (
         <div className="mb-4 rounded-lg bg-cream/40 p-4">
           <Field label="SMS message">
-            <textarea className={TEXTAREA} rows={3} value={value.smsBody} onChange={(e) => onChange({ smsBody: e.target.value })} />
+            <textarea className={TEXTAREA} rows={3} required value={value.smsBody} onChange={(e) => onChange({ smsBody: e.target.value })} />
           </Field>
-          {/* Counted on what members receive, opt-out line included — each
-              extra SMS is charged per member. */}
-          <p className={`-mt-2 text-xs ${sms.messages > 1 ? 'font-bold text-coral' : 'text-ink/50'}`}>
-            {sms.characters} characters incl. the &ldquo;Reply STOP to opt out&rdquo; line
-            {sms.messages > 0 && <> · {sms.messages} SMS per member{sms.messages === 1 ? ` (${sms.remaining} left)` : ''}</>}
-            {sms.unicode && ' · contains a special character (emoji or curly quote), so each SMS holds only 70'}
-          </p>
+          <SmsCounter body={value.smsBody} className="-mt-2" />
         </div>
       )}
 

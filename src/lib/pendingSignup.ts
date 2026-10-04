@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { safeNext } from './safeNext';
 
 /*
  * Signing up never says whether an address already belongs to a member
@@ -28,6 +29,17 @@ export interface PendingSignupData {
   dateOfBirth: string;
   mobile: string;
   marketingOptIn: boolean;
+  /** Where they were going when they signed up (a page on this site), if anywhere. */
+  next?: string;
+}
+
+/**
+ * A `next` sent with a sign-up, kept only if it's a page on this site (the
+ * same rule as the login page's — src/lib/safeNext.ts), else dropped.
+ */
+export function signupNext(next: unknown): string | undefined {
+  if (typeof next !== 'string' || next.length > 500) return undefined;
+  return safeNext(next, '', 'https://fastmatch.invalid') || undefined;
 }
 
 export function hashSignupToken(token: string): string {

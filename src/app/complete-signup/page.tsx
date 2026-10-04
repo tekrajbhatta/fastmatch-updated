@@ -16,6 +16,8 @@ function CompleteSignupInner() {
   const router = useRouter();
   const [state, setState] = useState<'working' | 'done' | 'error'>('working');
   const [smsSent, setSmsSent] = useState(true);
+  // Where they were going when they signed up (checked by the server).
+  const [next, setNext] = useState<string | null>(null);
   const [error, setError] = useState('This link has expired or has already been used. Please sign up again.');
   const [alreadyMember, setAlreadyMember] = useState(false);
   // The link works once; never send it twice (React can run an effect twice in development).
@@ -38,6 +40,7 @@ function CompleteSignupInner() {
         const data = await r.json().catch(() => null);
         if (r.ok) {
           setSmsSent(data?.smsSent !== false);
+          setNext(typeof data?.next === 'string' ? data.next : null);
           setState('done');
           router.refresh(); // signed in now: the header should say so
           return;
@@ -61,7 +64,7 @@ function CompleteSignupInner() {
                 ? 'Last step: enter the 6-digit code we’ve just texted to your mobile. Then you can book events.'
                 : 'Last step: confirm your mobile. We couldn’t text your code just now, so check your number and tap “Resend code” on the next page.'}
             </p>
-            <ButtonLink href={smsSent ? '/verify-mobile' : '/verify-mobile?smsFailed=1'} block>Enter SMS code</ButtonLink>
+            <ButtonLink href={verifyMobileLink(smsSent, next)} block>Enter SMS code</ButtonLink>
           </>
         )}
         {state === 'error' && (
@@ -80,6 +83,14 @@ function CompleteSignupInner() {
       </FormCard>
     </SplitLayout>
   );
+}
+
+function verifyMobileLink(smsSent: boolean, next: string | null): string {
+  const q = new URLSearchParams();
+  if (!smsSent) q.set('smsFailed', '1');
+  if (next) q.set('next', next);
+  const qs = q.toString(); // not q.size: older Safari doesn't have it
+  return `/verify-mobile${qs ? `?${qs}` : ''}`;
 }
 
 export default function CompleteSignupPage() {

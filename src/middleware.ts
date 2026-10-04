@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { PATH_HEADER } from '@/lib/pathHeader';
 
 /**
  * Redirects logged-out visitors away from member-only pages, to
@@ -21,7 +22,10 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 
 // Prefix match, so /account also covers /account/edit-profile etc.
-const PROTECTED_PREFIXES = ['/account', '/matches', '/verify-mobile', '/feedback', '/tell-a-friend'];
+// /admin too: a logged-out visitor goes to login with the address they
+// wanted (they used to land on the dashboard). Whether they're an admin is
+// the admin layout's question (src/app/admin/layout.tsx).
+const PROTECTED_PREFIXES = ['/account', '/matches', '/verify-mobile', '/feedback', '/tell-a-friend', '/admin'];
 
 // Per-event member-only pages: /events/<id>/checkin and /events/<id>/booked.
 // The events list and an event's public detail page stay open — browsing is
@@ -37,7 +41,11 @@ export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
   if (!isProtected(pathname)) return NextResponse.next();
-  if (req.cookies.get('fm_session')?.value) return NextResponse.next();
+  if (req.cookies.get('fm_session')?.value) {
+    const headers = new Headers(req.headers);
+    headers.set(PATH_HEADER, pathname + search);
+    return NextResponse.next({ request: { headers } });
+  }
 
   const login = new URL('/login', req.url);
   // Carry the original destination (including any query string) so login can

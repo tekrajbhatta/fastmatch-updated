@@ -18,13 +18,18 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   // Where the "finish signing up" email went, once sent.
   const [sentTo, setSentTo] = useState<string | null>(null);
+  // Where they were going when they decided to sign up (an event they were
+  // booking, say): carried through the email link and the mobile code, then
+  // back there. Checked by the server before it's kept.
+  const [next, setNext] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/cities').then((r) => r.json()).then((data) => {
-      setCities(data);
-      if (data.length) setForm((f) => ({ ...f, cityId: data[0].id }));
-    });
+    // No city chosen for them: the first in the list (Adelaide) used to be
+    // preselected, and members who didn't notice joined the wrong city.
+    fetch('/api/cities').then((r) => r.json()).then(setCities);
+    setNext(new URLSearchParams(window.location.search).get('next'));
   }, []);
+  const loginHref = next ? `/login?next=${encodeURIComponent(next)}` : '/login';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,7 +38,7 @@ export default function RegisterPage() {
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, agreedTerms, marketingOptIn: true }),
+      body: JSON.stringify({ ...form, agreedTerms, marketingOptIn: true, ...(next ? { next } : {}) }),
     });
     const data = await res.json();
     setLoading(false);
@@ -61,7 +66,7 @@ export default function RegisterPage() {
             Can&apos;t see it? Check your spam folder. If you already have an account, the email tells you how to log in.
           </p>
           <p className="text-center text-[15px] text-ink-600">
-            Already a member? <Link href="/login" className={linkClass}>Log in</Link>
+            Already a member? <Link href={loginHref} className={linkClass}>Log in</Link>
           </p>
         </FormCard>
       </SplitLayout>
@@ -90,6 +95,7 @@ export default function RegisterPage() {
           </Field>
           <Field label="City">
             <SelectInput required value={form.cityId} onChange={(e) => setForm({ ...form, cityId: e.target.value })}>
+              <option value="" disabled>Select your city</option>
               {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </SelectInput>
           </Field>
@@ -115,7 +121,7 @@ export default function RegisterPage() {
           </Button>
 
           <p className="text-center text-[15px] text-ink-600">
-            Already a member? <Link href="/login" className={linkClass}>Log in</Link>
+            Already a member? <Link href={loginHref} className={linkClass}>Log in</Link>
           </p>
         </form>
       </FormCard>

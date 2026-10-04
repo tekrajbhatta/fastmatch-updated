@@ -6,6 +6,8 @@ import { passwordResetEmail } from '@/lib/emails/passwordEmail';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { clientIp, hitRateLimit, LIMITS, rateKey } from '@/lib/rateLimit';
 import { signPasswordResetToken, RESET_LINK_MINUTES } from '@/lib/tokens';
+import { finishInvitationEmail } from '@/lib/emails/signupEmails';
+import { setPasswordUrl } from '@/lib/welcomeLink';
 
 
 const bodySchema = z.object({ email: z.string().email() });
@@ -25,11 +27,19 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // Always return success, whether or not the email exists — don't let this
   // endpoint be used to check which emails are registered.
   if (member) {
-    // Carries a fingerprint of the current password, so the link dies the
-    // moment it (or any other) is used to set a new one.
-    const resetToken = signPasswordResetToken(member);
-    const resetUrl = `${process.env.APP_URL}/reset-password?token=${resetToken}`;
-    const { subject, html } = passwordResetEmail({ memberName: member.name, resetUrl, validMinutes: RESET_LINK_MINUTES });
+    // Someone a friend added, who has never chosen a password, gets the
+    // "Welcome to FastMatch" form instead of a bare reset: a reset used to let
+    // them in without ever confirming their details (their date of birth was
+    // only a guess) or accepting the terms, so they still couldn't book.
+    const { subject, html } = member.awaitingPasswordSetup
+      ? finishInvitationEmail({ name: member.name, setPasswordUrl: setPasswordUrl(member.id), reason: 'reset' })
+      : passwordResetEmail({
+          memberName: member.name,
+          // Carries a fingerprint of the current password, so the link dies the
+          // moment it (or any other) is used to set a new one.
+          resetUrl: `${process.env.APP_URL}/reset-password?token=${signPasswordResetToken(member)}`,
+          validMinutes: RESET_LINK_MINUTES,
+        });
     try {
       await sendEmail({ to: member.email, subject, html });
     } catch (err) {

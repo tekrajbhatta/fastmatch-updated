@@ -5,10 +5,18 @@ import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { Field, Input, Select, Button, Card, Badge, Loader, BackLink } from '@/components/ui';
 import BlastTestSend from '@/components/BlastTestSend';
 import BlastSendProgress, { blastOutcome } from '@/components/BlastSendProgress';
+import SmsCounter from '@/components/SmsCounter';
+import { withOptOut } from '@/lib/sms/optOut';
+import {
+  boxesFromSavedFilter, filterWithBoxes, otherSavedFilterParts,
+  CONTACT_METHODS, CONTACT_METHOD_LABELS, type SendTabBoxes,
+} from '@/lib/campaigns/sendTabFilter';
 
 interface Campaign {
   id: string; title: string; hasBeenSent: boolean; subject: string; sendEmail: boolean; sendSms: boolean;
-  reusable: boolean;
+  reusable: boolean; smsBody: string | null;
+  // Who the next send goes to (see Campaign.filter).
+  filter: unknown;
 }
 interface Send { id: string; status: string; sentCount: number; failedCount?: number; totalRecipients: number; startedAt: string; }
 interface City { id: string; name: string; }
@@ -23,7 +31,10 @@ function ViewBlastInner() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [sends, setSends] = useState<Send[]>([]);
   const [cities, setCities] = useState<City[]>([]);
-  const [filter, setFilter] = useState({ ageMin: '', ageMax: '', gender: '', cityId: '', contactMethod: '' });
+  // The Send tab's boxes, opened on the blast's saved filter, and the saved
+  // filter itself (which may hold a Members-list search the tab has no box for).
+  const [boxes, setBoxes] = useState<SendTabBoxes | null>(null);
+  const [savedFilter, setSavedFilter] = useState<unknown>({});
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [previewMembers, setPreviewMembers] = useState<PreviewMember[]>([]);
   const [showMembers, setShowMembers] = useState(false);
@@ -39,9 +50,15 @@ function ViewBlastInner() {
   const [sendError, setSendError] = useState<string | null>(null);
   // Counting the filtered members (the Filter button).
   const [previewing, setPreviewing] = useState(false);
+  // "Stop re-using blast" asks first: it used to act on the first click.
+  const [confirmingRetire, setConfirmingRetire] = useState(false);
+  const [retireBusy, setRetireBusy] = useState(false);
 
   function loadCampaign() {
-    fetch(`/api/admin/campaigns/${id}`).then((r) => r.json()).then(setCampaign);
+    return fetch(`/api/admin/campaigns/${id}`).then((r) => r.json()).then((c: Campaign) => {
+      setCampaign(c);
+      return c;
+    });
   }
   function loadHistory() {
     fetch(`/api/admin/campaigns/${id}/sends`).then((r) => r.json()).then((data) => {
@@ -57,33 +74,65 @@ function ViewBlastInner() {
   }
 
   useEffect(() => {
-    loadCampaign(); loadHistory(); loadRenderedPreview();
+    // The Send tab opens on the audience saved with the blast — it used to
+    // open empty, and sending then replaced that audience with the blanks.
+    loadCampaign().then((c) => {
+      setSavedFilter(c.filter ?? {});
+      setBoxes(boxesFromSavedFilter(c.filter));
+    });
+    loadHistory(); loadRenderedPreview();
     fetch('/api/cities').then((r) => r.json()).then(setCities);
     fetch('/api/admin/sms-credits').then((r) => r.json()).then((d) => setSmsCredits(d.credits));
   }, [id]);
 
   // Shared by preview and send so the count shown is built from exactly the
-  // same filter that gets locked in.
+  // same filter that gets locked in: the saved filter with the boxes applied
+  // (anything the tab has no box for, like a Members-list search, is kept).
   function currentFilterPayload() {
-    return {
-      ageMin: filter.ageMin ? Number(filter.ageMin) : undefined,
-      ageMax: filter.ageMax ? Number(filter.ageMax) : undefined,
-      gender: filter.gender || undefined,
-      cityId: filter.cityId || undefined,
-      contactMethods: filter.contactMethod ? [filter.contactMethod] : undefined,
-    };
+    return boxes ? filterWithBoxes(savedFilter, boxes) : savedFilter;
   }
 
-  async function handlePreview() {
-    setPreviewing(true);
-    const res = await fetch(`/api/admin/campaigns/${id}/preview`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filter: currentFilterPayload() }),
-    }).finally(() => setPreviewing(false));
-    const data = await res.json();
-    setPreviewCount(data.count);
-    setPreviewMembers(data.members ?? []);
+  // Any change to who it goes to makes the last count out of date, so it's
+  // cleared rather than left on screen to be confirmed.
+  function clearCount() {
+    setPreviewCount(null);
+    setPreviewMembers([]);
     setShowMembers(false);
+  }
+  function changeBoxes(patch: Partial<SendTabBoxes>) {
+    setBoxes((b) => (b ? { ...b, ...patch } : b));
+    clearCount();
+  }
+  function removeSavedPart(key: string) {
+    setSavedFilter((f: unknown) => {
+      const next = { ...(f && typeof f === 'object' ? (f as Record<string, unknown>) : {}) };
+      delete next[key];
+      return next;
+    });
+    clearCount();
+  }
+
+  /** Counts the members the current boxes reach. Returns the count, or null if it couldn't. */
+  async function handlePreview(): Promise<number | null> {
+    setPreviewing(true);
+    setSendError(null);
+    try {
+      const res = await fetch(`/api/admin/campaigns/${id}/preview`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filter: currentFilterPayload() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.count !== 'number') throw new Error();
+      setPreviewCount(data.count);
+      setPreviewMembers(data.members ?? []);
+      setShowMembers(false);
+      return data.count;
+    } catch {
+      setSendError('Could not count the members. Check your connection and try again.');
+      return null;
+    } finally {
+      setPreviewing(false);
+    }
   }
 
   // "Send Blast Now" no longer sends immediately — it opens one final review
@@ -91,8 +140,10 @@ function ViewBlastInner() {
   // be explicitly confirmed. This is the "preview final time" step in the
   // requested flow: Save -> Preview -> edit -> filter members -> preview
   // final time -> send.
+  //
+  // Always counted afresh here, so the number confirmed is the number that go.
   async function handleSendBlastNowClick() {
-    if (previewCount === null) await handlePreview();
+    if ((await handlePreview()) === null) return;
     setConfirmingSend(true);
   }
 
@@ -106,10 +157,17 @@ function ViewBlastInner() {
     // meanwhile, so it can't be clicked twice.
     setStartingSend(true);
     try {
-      const savedFilter = currentFilterPayload();
-      await fetch(`/api/admin/campaigns/${id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filter: savedFilter }),
+      const filterToSave = currentFilterPayload();
+      const saved = await fetch(`/api/admin/campaigns/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filter: filterToSave }),
       });
+      // Don't send to an audience that wasn't saved: the send reads the saved one.
+      if (!saved.ok) {
+        const data = await saved.json().catch(() => ({}));
+        setSendError(typeof data.error === 'string' ? data.error : 'The blast could not be sent.');
+        return;
+      }
+      setSavedFilter(filterToSave);
       const res = await fetch(`/api/admin/campaigns/${id}/send`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       // A refused send (e.g. a blast set to stop re-using) used to vanish
@@ -154,9 +212,16 @@ function ViewBlastInner() {
     if (res.ok) router.push(`/admin/blasts/${data.id}/edit`);
   }
 
-  async function handleStopReusing() {
-    await fetch(`/api/admin/campaigns/${id}/stop-reusing`, { method: 'POST' });
-    loadCampaign();
+  // "Stop re-using blast" (after confirming) and its undo, "Use again".
+  async function setReusable(reusable: boolean) {
+    setRetireBusy(true);
+    try {
+      await fetch(`/api/admin/campaigns/${id}/${reusable ? 'reuse' : 'stop-reusing'}`, { method: 'POST' });
+      await loadCampaign();
+      setConfirmingRetire(false);
+    } finally {
+      setRetireBusy(false);
+    }
   }
 
   async function handlePause() {
@@ -176,19 +241,42 @@ function ViewBlastInner() {
     loadHistory();
   }
 
-  if (!campaign) return <Loader label="Loading blast…" />;
+  if (!campaign || !boxes) return <Loader label="Loading blast…" />;
+  // The send route refuses these (a retired blast can't be sent again).
+  const retiredAndSent = !campaign.reusable && campaign.hasBeenSent;
+  const savedParts = otherSavedFilterParts(savedFilter);
 
   return (
     <div className="mx-auto max-w-2xl">
       <BackLink href="/admin/blasts">Back to blasts</BackLink>
-      <h1 className="mb-2 text-2xl font-extrabold text-ink">{campaign.title}</h1>
+      <h1 className="mb-2 flex flex-wrap items-center gap-2 text-2xl font-extrabold text-ink">
+        {campaign.title}
+        {!campaign.reusable && <Badge tone="muted">Retired</Badge>}
+      </h1>
 
       <div className="mb-4 flex gap-3 text-sm">
         {/* Both, always: a sent blast can be edited and sent again (Gil). */}
         <button onClick={() => router.push(`/admin/blasts/${id}/edit`)} className="font-bold text-plum underline">Edit Blast</button>
         <button onClick={handleDuplicate} className="font-bold text-plum underline">Duplicate Blast</button>
-        <button onClick={handleStopReusing} className="font-bold text-plum underline">Stop re-using blast</button>
+        {campaign.reusable ? (
+          <button onClick={() => setConfirmingRetire(true)} className="font-bold text-plum underline">Stop re-using blast</button>
+        ) : (
+          <button onClick={() => setReusable(true)} disabled={retireBusy} className="font-bold text-plum underline disabled:opacity-50">Use again</button>
+        )}
       </div>
+
+      {confirmingRetire && campaign.reusable && (
+        <div role="alertdialog" className="mb-4 rounded-lg border border-coral/30 bg-coral/5 p-4 text-sm">
+          <p className="mb-3 text-ink">
+            Stop re-using this blast? Once it has been sent it can&apos;t be sent again, and it&apos;s left out of
+            &ldquo;Blast filtered members&rdquo;. Its history is kept, and &ldquo;Use again&rdquo; undoes this.
+          </p>
+          <div className="flex gap-2">
+            <Button variant="danger" onClick={() => setReusable(false)} disabled={retireBusy} loading={retireBusy}>Stop re-using</Button>
+            <Button variant="ghost" onClick={() => setConfirmingRetire(false)} disabled={retireBusy}>Keep using it</Button>
+          </div>
+        </div>
+      )}
 
       <div className="mb-4 flex gap-2">
         {(['details', 'send', 'history'] as const).map((t) => (
@@ -206,6 +294,19 @@ function ViewBlastInner() {
           <Row label="Send Email?" value={campaign.sendEmail ? 'Yes' : 'No'} />
           <Row label="Email subject" value={campaign.subject} />
           <Row label="Send SMS?" value={campaign.sendSms ? 'Yes' : 'No'} />
+
+          {/* The text exactly as members get it, so its wording and cost can
+              be checked before sending. */}
+          {campaign.sendSms && (
+            <>
+              <div className="mt-5 text-sm font-extrabold text-ink">Preview: the text message</div>
+              <p className="mb-2 text-xs text-ink/50">Exactly what members receive, opt-out line included.</p>
+              <div className="mb-1 whitespace-pre-wrap rounded-lg border border-ink/10 bg-cream/40 p-3 text-sm text-ink">
+                {withOptOut(campaign.smsBody ?? '') || <span className="text-ink/40">No message yet. Add one with Edit Blast.</span>}
+              </div>
+              <SmsCounter body={campaign.smsBody ?? ''} />
+            </>
+          )}
 
           <div className="mt-5 text-sm font-extrabold text-ink">Preview: how it actually renders</div>
           <p className="mb-2 text-xs text-ink/50">This is the real email, not a mockup. Edit the blast if anything here needs to change.</p>
@@ -231,27 +332,44 @@ function ViewBlastInner() {
           <div className="mb-2 text-sm font-extrabold text-ink">Select members</div>
           <p className="mb-4 text-sm text-ink/60">"Email and SMS" and "SMS" are different. Select both if you want to reach everyone who can receive SMS.</p>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Age from"><Input type="number" value={filter.ageMin} onChange={(e) => setFilter({ ...filter, ageMin: e.target.value })} /></Field>
-            <Field label="Age to"><Input type="number" value={filter.ageMax} onChange={(e) => setFilter({ ...filter, ageMax: e.target.value })} /></Field>
+            <Field label="Age from"><Input type="number" min={0} value={boxes.ageMin} onChange={(e) => changeBoxes({ ageMin: e.target.value })} /></Field>
+            <Field label="Age to"><Input type="number" min={0} value={boxes.ageMax} onChange={(e) => changeBoxes({ ageMax: e.target.value })} /></Field>
             <Field label="Gender">
-              <Select value={filter.gender} onChange={(e) => setFilter({ ...filter, gender: e.target.value })}>
+              <Select value={boxes.gender} onChange={(e) => changeBoxes({ gender: e.target.value as SendTabBoxes['gender'] })}>
                 <option value="">Any</option><option value="MALE">Male</option><option value="FEMALE">Female</option>
               </Select>
             </Field>
             <Field label="City">
-              <Select value={filter.cityId} onChange={(e) => setFilter({ ...filter, cityId: e.target.value })}>
+              <Select value={boxes.cityId} onChange={(e) => changeBoxes({ cityId: e.target.value })}>
                 <option value="">All</option>{cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </Select>
             </Field>
-            <Field label="Contact method">
-              <Select value={filter.contactMethod} onChange={(e) => setFilter({ ...filter, contactMethod: e.target.value })}>
-                <option value="">Any</option>
-                <option value="EMAIL_AND_SMS">Email and SMS</option>
-                <option value="EMAIL">Email</option>
-                <option value="SMS">SMS</option>
-              </Select>
-            </Field>
           </div>
+          {/* Ticks, not a dropdown, so "select both" above can be followed.
+              None ticked: any. */}
+          <Field label="Contact method">
+            <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-ink">
+              {CONTACT_METHODS.map((m) => (
+                <label key={m} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={boxes.contactMethods.includes(m)}
+                    onChange={(e) => changeBoxes({
+                      contactMethods: e.target.checked ? [...boxes.contactMethods, m] : boxes.contactMethods.filter((x) => x !== m),
+                    })}
+                  />
+                  {CONTACT_METHOD_LABELS[m]}
+                </label>
+              ))}
+            </div>
+            <p className="mt-1.5 text-xs text-ink/50">How each member asked to be contacted. Leave all unticked for any.</p>
+          </Field>
+          {savedParts.map((part) => (
+            <div key={part.key} className="mb-4 flex items-center justify-between gap-3 rounded-lg bg-cream/60 px-3 py-2 text-sm">
+              <span className="text-ink/70">Also saved with this blast (from the Members list): <b className="text-ink">{part.label}</b></span>
+              <button onClick={() => removeSavedPart(part.key)} className="shrink-0 text-xs font-bold text-plum underline">Remove</button>
+            </div>
+          ))}
           <Button variant="ghost" onClick={handlePreview} disabled={previewing} loading={previewing} className="mb-4 w-full">Filter</Button>
           {previewCount !== null && (
             <div className="mb-4 rounded-lg bg-plum/10 p-3">
@@ -281,6 +399,11 @@ function ViewBlastInner() {
           )}
 
           {sendError && <p role="alert" className="mb-4 text-sm font-medium text-coral">{sendError}</p>}
+          {retiredAndSent && !activeSend && (
+            <p className="mb-4 rounded-lg bg-ink/5 p-3 text-sm text-ink/70">
+              This blast is retired, so it can&apos;t be sent again. Press &ldquo;Use again&rdquo; at the top to send it.
+            </p>
+          )}
           {startingSend ? (
             <BlastSendProgress status="STARTING" total={previewCount ?? 0} />
           ) : (
@@ -300,7 +423,7 @@ function ViewBlastInner() {
                 // Greyed out once the send has finished, so it's clear the blast
                 // has just gone and it isn't sent twice by mistake. Reopening
                 // the blast starts afresh, ready to send again.
-                <Button onClick={handleSendBlastNowClick} disabled={previewing || !!justSent} loading={previewing} className="w-full">Send Blast Now</Button>
+                <Button onClick={handleSendBlastNowClick} disabled={previewing || !!justSent || retiredAndSent} loading={previewing} className="w-full">Send Blast Now</Button>
               )}
             </>
           )}
@@ -335,7 +458,14 @@ function ViewBlastInner() {
             <p className="mb-3 text-sm text-ink/60">
               This will send to <b>{(previewCount ?? 0).toLocaleString()} members</b> right now. This is the last chance to check before it goes out.
             </p>
-            {renderedHtml && <iframe srcDoc={renderedHtml} sandbox="" className="mb-4 h-72 w-full rounded-lg border border-ink/10" title="Final preview" />}
+            {campaign.sendEmail && renderedHtml && <iframe srcDoc={renderedHtml} sandbox="" className="mb-4 h-72 w-full rounded-lg border border-ink/10" title="Final preview" />}
+            {campaign.sendSms && (
+              <div className="mb-4">
+                <div className="mb-1 text-xs font-bold uppercase tracking-wide text-ink/50">Text message</div>
+                <div className="whitespace-pre-wrap rounded-lg border border-ink/10 bg-cream/40 p-3 text-sm text-ink">{withOptOut(campaign.smsBody ?? '')}</div>
+                <SmsCounter body={campaign.smsBody ?? ''} className="mt-1" />
+              </div>
+            )}
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setConfirmingSend(false)} className="flex-1">Cancel</Button>
               <Button onClick={handleConfirmSend} className="flex-1">Confirm &amp; Send Now</Button>

@@ -13,23 +13,27 @@
  *
  * Expected CSV columns (header row required):
  *   name, gender, email, dateOfBirth, mobile, city, marketingOptIn, contactMethod
- *   - gender: "MALE" or "FEMALE"
+ *   Values in any capitals, with spaces (src/lib/importRow.ts):
+ *   - gender: male / female (or M / F)
  *   - dateOfBirth: YYYY-MM-DD
  *   - city: must match one of the confirmed city list — unmatched rows are
- *     skipped and logged, not guessed at
- *   - marketingOptIn: "true" / "false" (optional, defaults true)
- *   - contactMethod: EMAIL_AND_SMS / EMAIL / SMS / DO_NOT_CONTACT (optional,
- *     defaults EMAIL_AND_SMS)
+ *     skipped and reported, not guessed at
+ *   - marketingOptIn: yes / true / 1, or no / false / 0 (optional, blank = yes)
+ *   - contactMethod: Email and SMS / Email / SMS / Do not contact (optional,
+ *     blank = Email and SMS)
+ *
+ * Every skipped row goes into <file>.skipped.csv beside the input, with the
+ * reason in the last column. Fix it there and import that file the same way.
  *
  * Deliberately NEVER reads or maps any card/payment columns — if the
  * source export includes them, this script ignores those columns entirely
  * rather than importing them. See the spec doc's PCI-DSS note.
  */
 
-import { Gender, ContactMethod } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { parse } from 'csv-parse';
-import { createReadStream } from 'fs';
+import { createReadStream, writeFileSync } from 'fs';
+import { importContactMethod, importOptIn, importGender, cityKey, importCell, skippedRowsCsv } from '../lib/importRow';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
@@ -54,7 +58,7 @@ async function main() {
   }
 
   const cities = await prisma.city.findMany();
-  const cityByName = new Map(cities.map((c) => [c.name.toLowerCase(), c.id]));
+  const cityByName = new Map(cities.map((c) => [cityKey(c.name), c.id]));
 
   let batch: ImportRow[] = [];
   let imported = 0;
@@ -67,7 +71,8 @@ async function main() {
   );
 
   for await (const record of parser) {
-    batch.push(record as ImportRow);
+    // A report's formula guards come off (see importCell).
+    batch.push(Object.fromEntries(Object.entries(record as Record<string, string>).map(([k, v]) => [k, importCell(v)])) as unknown as ImportRow);
     if (batch.length >= BATCH_SIZE) {
       const result = await processBatch(batch, cityByName);
       imported += result.imported;
@@ -88,11 +93,14 @@ async function main() {
 
   console.log(`\nDone. ${imported} imported, ${duplicates} duplicates (email already existed), ${skipped} skipped (bad data).`);
   if (skippedRows.length) {
-    console.log('\nSkipped rows (review and re-run separately once fixed):');
-    for (const s of skippedRows.slice(0, 50)) {
-      console.log(`  ${s.row.email ?? '(no email)'} — ${s.reason}`);
+    // All of them, not just the first 50 on screen.
+    const reportPath = `${filePath}.skipped.csv`;
+    writeFileSync(reportPath, skippedRowsCsv(skippedRows as unknown as { row: Record<string, string>; reason: string }[]));
+    console.log(`\nEvery skipped row, with the reason, is in ${reportPath}`);
+    console.log('Fix them there and import that file the same way. The first few:');
+    for (const s of skippedRows.slice(0, 10)) {
+      console.log(`  ${s.row.email || '(no email)'} — ${s.reason}`);
     }
-    if (skippedRows.length > 50) console.log(`  ...and ${skippedRows.length - 50} more`);
   }
 }
 
@@ -110,14 +118,28 @@ async function processBatch(rows: ImportRow[], cityByName: Map<string, string>) 
         continue;
       }
 
-      const gender = row.gender?.toUpperCase();
-      if (gender !== 'MALE' && gender !== 'FEMALE') {
+      const gender = importGender(row.gender);
+      if (!gender) {
         skipped++;
-        skippedRows.push({ row, reason: `Unrecognised gender "${row.gender}"` });
+        skippedRows.push({ row, reason: `Unrecognised gender "${row.gender ?? ''}" (use male or female)` });
         continue;
       }
 
-      const cityId = cityByName.get((row.city ?? '').toLowerCase());
+      const contactMethod = importContactMethod(row.contactMethod);
+      if (!contactMethod) {
+        skipped++;
+        skippedRows.push({ row, reason: `Unrecognised contact method "${row.contactMethod}" (use Email and SMS, Email, SMS or Do not contact)` });
+        continue;
+      }
+
+      const marketingOptIn = importOptIn(row.marketingOptIn);
+      if (marketingOptIn === null) {
+        skipped++;
+        skippedRows.push({ row, reason: `Unrecognised offers value "${row.marketingOptIn}" (use yes or no)` });
+        continue;
+      }
+
+      const cityId = cityByName.get(cityKey(row.city));
       if (!cityId) {
         skipped++;
         skippedRows.push({ row, reason: `City "${row.city}" doesn't match the confirmed city list` });
@@ -145,7 +167,7 @@ async function processBatch(rows: ImportRow[], cityByName: Map<string, string>) 
       await prisma.member.create({
         data: {
           name: row.name,
-          gender: gender as Gender,
+          gender,
           email: row.email,
           passwordHash: randomPasswordHash,
           cityId,
@@ -157,8 +179,8 @@ async function processBatch(rows: ImportRow[], cityByName: Map<string, string>) 
           emailVerified: true,
           mobileVerified: true,
           agreedTerms: false, // imported members have NOT agreed to this site's T&Cs — must accept on first login, same gate as booking below
-          marketingOptIn: row.marketingOptIn ? row.marketingOptIn.toLowerCase() === 'true' : true,
-          contactMethod: (row.contactMethod as ContactMethod) ?? 'EMAIL_AND_SMS',
+          marketingOptIn,
+          contactMethod,
         },
       });
       imported++;

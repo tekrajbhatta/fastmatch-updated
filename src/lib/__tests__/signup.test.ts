@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { newSignupToken, hashSignupToken } from '@/lib/pendingSignup';
+import { newSignupToken, hashSignupToken, signupNext } from '@/lib/pendingSignup';
 import { finishSignupEmail, alreadyMemberEmail, finishInvitationEmail } from '@/lib/emails/signupEmails';
 
 describe('sign-up link tokens', () => {
@@ -45,3 +45,27 @@ describe('sign-up emails', () => {
     }
   });
 });
+
+describe('coming back after signing up', () => {
+  it('keeps a page on this site to return to, and nothing else', () => {
+    expect(signupNext('/events/abc?code=SAVE10')).toBe('/events/abc?code=SAVE10');
+    expect(signupNext('https://evil.test/x')).toBeUndefined();
+    expect(signupNext('//evil.test')).toBeUndefined();
+    expect(signupNext('/\\evil.test')).toBeUndefined();
+    expect(signupNext(42)).toBeUndefined();
+    expect(signupNext('/' + 'a'.repeat(600))).toBeUndefined();
+  });
+});
+
+describe('the set-password email says why it came', () => {
+  it('after a password reset or a login attempt, as well as a sign-up', () => {
+    const url = 'https://fm.test/set-password?token=xyz';
+    expect(finishInvitationEmail({ name: 'Olivia', setPasswordUrl: url }).html).toContain('just tried to sign up');
+    expect(finishInvitationEmail({ name: 'Olivia', setPasswordUrl: url, reason: 'reset' }).html).toContain('asked to reset the password');
+    const login = finishInvitationEmail({ name: 'Olivia', setPasswordUrl: url, reason: 'login' });
+    expect(login.html).toContain('just tried to log in');
+    expect(login.html).toContain(`href="${url}"`);
+    expect(login.subject).toBe('Finish setting up your FastMatch account');
+  });
+});
+

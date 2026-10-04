@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { signSession, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
 import { sendMobileVerification } from '@/lib/memberVerification';
-import { hashSignupToken, type PendingSignupData } from '@/lib/pendingSignup';
+import { hashSignupToken, signupNext, type PendingSignupData } from '@/lib/pendingSignup';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const EXPIRED = 'This link has expired or has already been used. Please sign up again.';
@@ -66,7 +66,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // code can be resent from /verify-mobile.
   const smsSent = await sendMobileVerification(member);
 
-  const res = NextResponse.json({ ok: true, smsSent });
+  // Back to where they were going when they signed up, after the mobile code.
+  const res = NextResponse.json({ ok: true, smsSent, next: signupNext(d.next) ?? null });
   res.cookies.set('fm_session', signSession(member), SESSION_COOKIE_OPTIONS);
   return res;
 });

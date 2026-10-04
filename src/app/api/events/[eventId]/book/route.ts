@@ -17,6 +17,7 @@ import { releasePendingBooking } from '@/lib/pendingBooking';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { eventAvailability, NOT_BOOKABLE } from '@/lib/eventAvailability';
 import { CHECKOUT_MINUTES } from '@/lib/capacity';
+import { unfinishedSteps, bookingRefusal } from '@/lib/accountSetup';
 
 // POST /api/events/:eventId/book — a member books themselves, plus any
 // friends they're bringing (paying for all of them, less the group discount).
@@ -25,19 +26,12 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   const member = await getSessionMember(req);
   if (!member) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
-  if (!member.emailVerified || !member.mobileVerified) {
-    return NextResponse.json(
-      { error: 'Please verify both your email and mobile number before booking an event.' },
-      { status: 403 }
-    );
-  }
-  if (!member.agreedTerms) {
-    // Covers imported members who were never asked to agree to this site's
-    // Terms & Conditions — new registrants already agree at sign-up.
-    return NextResponse.json(
-      { error: 'Please accept the Terms & Conditions and Privacy Policy before booking an event.' },
-      { status: 403 }
-    );
+  // Email and mobile confirmed, and the Terms accepted (imported members were
+  // never asked to agree to this site's; new registrants agree at sign-up).
+  // `unfinished` lets the page link to each step.
+  const unfinished = unfinishedSteps(member);
+  if (unfinished.length > 0) {
+    return NextResponse.json({ error: bookingRefusal(unfinished), unfinished }, { status: 403 });
   }
 
   const event = await prisma.event.findUniqueOrThrow({

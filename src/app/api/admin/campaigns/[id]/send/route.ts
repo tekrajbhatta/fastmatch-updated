@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { startCampaignSend } from '@/lib/campaigns/runSend';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { blastContentProblem, BLAST_PROBLEM_ON_SEND } from '@/lib/campaigns/fields';
 
 // POST /api/admin/campaigns/:id/send — "Send Blast Now". Starts a new
 // CampaignSend (a reusable blast can have many of these over its lifetime).
@@ -20,6 +21,11 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
       return NextResponse.json({ error: 'This blast has been set to stop re-using and cannot be sent again.' }, { status: 409 });
     }
   }
+
+  // Never an email with no subject or a text with no message — whichever
+  // page started the send.
+  const problem = blastContentProblem(campaign);
+  if (problem) return NextResponse.json({ error: BLAST_PROBLEM_ON_SEND[problem] }, { status: 400 });
 
   const result = await startCampaignSend(params.id);
   return NextResponse.json(result);

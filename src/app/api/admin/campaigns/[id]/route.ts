@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
-import { campaignPatchSchema } from '@/lib/campaigns/fields';
+import { campaignPatchSchema, blastContentProblem, BLAST_PROBLEM_ON_SAVE } from '@/lib/campaigns/fields';
 
 // GET /api/admin/campaigns/:id — the "Details" tab
 export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
@@ -51,6 +51,15 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
         { status: 409 }
       );
     }
+    // Checked on the blast as it will be once saved: an email needs a
+    // subject and a text needs a message. A filter-only save (the Send tab)
+    // doesn't touch the content, so it isn't held up here; the send checks.
+    const current = await prisma.campaign.findUniqueOrThrow({
+      where: { id: params.id },
+      select: { sendEmail: true, sendSms: true, subject: true, smsBody: true },
+    });
+    const problem = blastContentProblem({ ...current, ...content });
+    if (problem) return NextResponse.json({ error: BLAST_PROBLEM_ON_SAVE[problem] }, { status: 400 });
   }
 
   const campaign = await prisma.campaign.update({

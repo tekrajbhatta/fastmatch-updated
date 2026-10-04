@@ -24,6 +24,8 @@ export const LIMITS = {
   codeResends: { limit: 3, windowMs: HOUR },
   /** Reset emails per address asked for, and per visitor address. */
   resetEmail: { limit: 3, windowMs: HOUR },
+  /** Set-password links emailed when a friend-made account tries to log in (it has no password yet). */
+  welcomeLinkOnLogin: { limit: 3, windowMs: HOUR },
   resetIp: { limit: 20, windowMs: HOUR },
   /** Contact Us messages per visitor address. */
   contactIp: { limit: 5, windowMs: HOUR },

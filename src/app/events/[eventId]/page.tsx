@@ -4,12 +4,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, Container, PageHero, PageLoader, BackLink } from '@/components/site/layout';
-import { Field, FieldError, FormError, FormSuccess, SelectInput, TextInput } from '@/components/site/form';
+import { Field, FieldError, FormError, FormSuccess, Notice, SelectInput, TextInput } from '@/components/site/form';
 import { Button, linkClass } from '@/components/site/button';
 import { venueLine } from '@/lib/venue';
 import { formatEventForViewer } from '@/lib/timezone';
 import { priceBooking, GROUP_DISCOUNT_PER_FRIEND, MAX_FRIENDS_PER_GENDER, type CouponType } from '@/lib/bookingPrice';
 import { validateFriends, type FriendFieldError, type FriendGender } from '@/lib/friendBooking';
+import { unfinishedSteps, type SetupStep } from '@/lib/accountSetup';
+import SetupSteps from '@/components/site/SetupSteps';
 
 interface EventDetail {
   id: string;
@@ -33,7 +35,10 @@ interface EventDetail {
   theme: { name: string };
   city: { name: string };
 }
-interface Me { name: string; email: string; mobile: string; dateOfBirth: string; gender: FriendGender }
+interface Me {
+  name: string; email: string; mobile: string; dateOfBirth: string; gender: FriendGender;
+  emailVerified: boolean; mobileVerified: boolean; agreedTerms: boolean;
+}
 interface FriendForm { name: string; mobile: string; email: string; dateOfBirth: string }
 interface Coupon { code: string; type: CouponType; amount: number | null; alreadyUsed: boolean }
 
@@ -47,8 +52,11 @@ export default function EventDetailPage() {
   const router = useRouter();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [me, setMe] = useState<Me | null>(null);
+  // undefined until /api/auth/me answers; null when logged out.
+  const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  // A booking refused for an unfinished account: what's missing, to link to.
+  const [errorSteps, setErrorSteps] = useState<SetupStep[]>([]);
   const [booking, setBooking] = useState(false);
 
   const [discountCode, setDiscountCode] = useState('');
@@ -72,6 +80,10 @@ export default function EventDetailPage() {
     });
     // Public endpoint — { member: null } when logged out.
     fetch('/api/auth/me').then((r) => r.json()).then((d) => setMe(d?.member ?? null)).catch(() => setMe(null));
+    // A code typed in before logging in or signing up comes back in the
+    // address (see handleBook), so it isn't lost on the way.
+    const code = new URLSearchParams(window.location.search).get('code');
+    if (code) setDiscountCode(code.trim().toUpperCase().slice(0, 50));
   }, [eventId]);
 
   // Coming Back from the payment page can restore this page exactly as it was
@@ -165,6 +177,7 @@ export default function EventDetailPage() {
 
   async function handleBook() {
     setError(null);
+    setErrorSteps([]);
     setSubmitted(true);
     if (clientErrors.length > 0) { setError('Please check your friends’ details below.'); return; }
     if (couponError) { setError(couponError); return; }
@@ -181,13 +194,15 @@ export default function EventDetailPage() {
     // A logged-out visitor can browse events but can't book one. Send them to
     // log in and return them to this event afterwards, rather than showing a
     // dead-end "Not authenticated" message with nothing to act on.
+    // The discount code typed so far comes back with them.
     if (res.status === 401) {
-      router.push(`/login?next=${encodeURIComponent(`/events/${eventId}`)}`);
+      router.push(`/login?next=${encodeURIComponent(eventHref(eventId, discountCode))}`);
       return;
     }
     if (!res.ok) {
       setBooking(false);
       if (Array.isArray(data.fieldErrors)) setServerErrors(data.fieldErrors);
+      if (Array.isArray(data.unfinished)) setErrorSteps(data.unfinished);
       setError(data.error ?? 'Something went wrong. Please try again.');
       return;
     }
@@ -202,6 +217,10 @@ export default function EventDetailPage() {
   // book — the details check and the friends form. With none of those the
   // booking card centres itself.
   const hasMain = !!event.photoUrl || !!event.description || (!!me && canBook);
+  // Anything still to do before this member can book, said up front rather
+  // than only when the booking is refused.
+  const setupSteps = me ? unfinishedSteps(me) : [];
+  const here = eventHref(eventId, discountCode);
 
   return (
     <>
@@ -225,6 +244,13 @@ export default function EventDetailPage() {
         <Container className="flex flex-wrap items-start justify-center gap-[clamp(24px,4.4vw,64px)]">
           {hasMain && (
             <div className="flex min-w-0 flex-[1_1_520px] flex-col gap-[clamp(20px,2.2vw,32px)]">
+              {me && canBook && setupSteps.length > 0 && (
+                <Notice className="flex flex-col gap-2">
+                  <p className="font-bold">Before you can book</p>
+                  <SetupSteps steps={setupSteps} next={here} />
+                </Notice>
+              )}
+
               {/* The event's own photo, uploaded on the event form. Nothing renders
                   if this event has none, so the page still reads correctly. */}
               {event.photoUrl && (
@@ -351,6 +377,8 @@ export default function EventDetailPage() {
                       {couponError && <FieldError>{couponError}</FieldError>}
                       {coupon && !coupon.alreadyUsed && <p className="text-sm font-bold text-plum-700">✓ Code applied</p>}
                       {coupon?.alreadyUsed && <FieldError>You&apos;ve already used this code</FieldError>}
+                      {/* Codes are checked against the member's own history, so not before logging in. */}
+                      {me === null && <p className="text-sm text-ink-600">Codes are checked when you log in.</p>}
                     </div>
                   </div>
                 )}
@@ -376,7 +404,12 @@ export default function EventDetailPage() {
                 </div>
               )}
 
-              {error && <FormError>{error}</FormError>}
+              {error && (
+                <FormError>
+                  {error}
+                  {errorSteps.length > 0 && <div className="mt-2"><SetupSteps steps={errorSteps} next={here} /></div>}
+                </FormError>
+              )}
 
               {closed ? (
                 <p role="status" className="rounded-[20px] bg-plum-50 px-5 py-4 text-center text-[17px] font-bold text-ink-900">
@@ -403,6 +436,12 @@ export default function EventDetailPage() {
       </section>
     </>
   );
+}
+
+/** This event's page, with a discount code typed so far (so it survives logging in or signing up). */
+function eventHref(eventId: string, code: string): string {
+  const c = code.trim();
+  return `/events/${eventId}${c ? `?code=${encodeURIComponent(c)}` : ''}`;
 }
 
 const CLOSED_MESSAGE = {

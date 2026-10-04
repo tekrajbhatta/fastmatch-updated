@@ -42,11 +42,22 @@ export function alreadyMemberEmail(opts: { name: string; loginUrl: string; reset
   return { subject: 'You already have a FastMatch account', html };
 }
 
-/** Someone a friend added (booked in, or invited), who never chose a password. */
-export function finishInvitationEmail(opts: { name: string; setPasswordUrl: string }) {
+/**
+ * Someone a friend added (booked in, or invited), who never chose a password.
+ * Sent when they try to sign up, ask to reset a password, or try to log in
+ * with one — none of which can work until they've set one — so the opening
+ * line says which. The link leads to the "Welcome to FastMatch" form:
+ * password, date of birth, terms, offers, then the mobile code.
+ */
+export function finishInvitationEmail(opts: { name: string; setPasswordUrl: string; reason?: 'signup' | 'reset' | 'login' }) {
+  const tried = {
+    signup: "just tried to sign up to FastMatch with this email address. A friend has already added you, so there's no need to sign up again: just choose your password to finish.",
+    reset: "asked to reset the password for this email address. You haven't chosen a password yet: a friend added you to FastMatch. Choose your password and check your details to finish setting up your account.",
+    login: "just tried to log in to FastMatch with this email address. You haven't chosen a password yet: a friend added you to FastMatch. Choose your password and check your details to finish setting up your account.",
+  }[opts.reason ?? 'signup'];
   const html = emailLayout(`
     <h1 style="${HEADING}">Your FastMatch account is waiting for you</h1>
-    <p style="${PARA}">Hi ${escapeHtml(opts.name)}, someone (hopefully you) just tried to sign up to FastMatch with this email address. A friend has already added you, so there's no need to sign up again: just choose your password to finish.</p>
+    <p style="${PARA}">Hi ${escapeHtml(opts.name)}, someone (hopefully you) ${tried}</p>
     <p style="${PARA_BUTTON}"><a href="${opts.setPasswordUrl}" style="${BUTTON}">Set your password</a></p>
     <p style="${PARA}">If this wasn't you, you can ignore this email.</p>
     <p style="${PARA}">The FastMatch Team</p>

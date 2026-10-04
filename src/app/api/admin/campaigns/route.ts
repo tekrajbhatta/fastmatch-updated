@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { oneLine } from '@/lib/escapeHtml';
+import { blastContentProblem, BLAST_PROBLEM_ON_SAVE } from '@/lib/campaigns/fields';
 
 const campaignSchema = z.object({
   title: z.string().min(1),
@@ -92,12 +93,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // only fill in from the template where the caller didn't specify a value.
   const merged = { ...seeded, ...Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)) };
 
-  if (!merged.sendEmail && !merged.sendSms) {
-    return NextResponse.json({ error: 'At least one of Send Email or Send SMS must be on.' }, { status: 400 });
-  }
-  if (merged.sendEmail && !merged.subject) {
-    return NextResponse.json({ error: 'Subject is required when sending email.' }, { status: 400 });
-  }
+  // A subject for email, a message for SMS — as on Edit Blast and at send.
+  const problem = blastContentProblem(merged as { sendEmail: boolean; sendSms: boolean; subject?: string; smsBody?: string });
+  if (problem) return NextResponse.json({ error: BLAST_PROBLEM_ON_SAVE[problem] }, { status: 400 });
 
   const campaign = await prisma.campaign.create({ data: merged as any });
   return NextResponse.json(campaign);

@@ -7,8 +7,8 @@ import { finishSignupEmail, alreadyMemberEmail, finishInvitationEmail } from '@/
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { calculateAge } from '@/lib/age';
 import { parseDateOfBirth } from '@/lib/friendBooking';
-import { setPasswordToken } from '@/lib/memberBooking';
-import { newSignupToken, PENDING_SIGNUP_DAYS, type PendingSignupData } from '@/lib/pendingSignup';
+import { setPasswordUrl } from '@/lib/welcomeLink';
+import { newSignupToken, signupNext, PENDING_SIGNUP_DAYS, type PendingSignupData } from '@/lib/pendingSignup';
 import { hitRateLimit, rateKey, clientIp, LIMITS } from '@/lib/rateLimit';
 
 const bodySchema = z.object({
@@ -23,6 +23,8 @@ const bodySchema = z.object({
     errorMap: () => ({ message: 'You must agree to the Terms & Conditions and Privacy Policy' }),
   }),
   marketingOptIn: z.boolean().default(true),
+  // Where to come back to afterwards (see signupNext).
+  next: z.string().optional(),
 });
 
 /**
@@ -78,13 +80,18 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const passwordHash = await bcrypt.hash(data.password, 12);
   const existing = await prisma.member.findUnique({ where: { email: data.email } });
   const appUrl = process.env.APP_URL;
+  const next = signupNext(data.next);
 
   let email: { subject: string; html: string } | null = null;
   if (existing) {
     // Their own name, not the one typed in.
     email = existing.awaitingPasswordSetup
-      ? finishInvitationEmail({ name: existing.name, setPasswordUrl: `${appUrl}/set-password?token=${setPasswordToken(existing.id)}` })
-      : alreadyMemberEmail({ name: existing.name, loginUrl: `${appUrl}/login`, resetUrl: `${appUrl}/forgot-password` });
+      ? finishInvitationEmail({ name: existing.name, setPasswordUrl: setPasswordUrl(existing.id, next) })
+      : alreadyMemberEmail({
+          name: existing.name,
+          loginUrl: `${appUrl}/login${next ? `?next=${encodeURIComponent(next)}` : ''}`,
+          resetUrl: `${appUrl}/forgot-password`,
+        });
   } else if (mayEmail) {
     const now = new Date();
     // Expired sign-ups go whenever a new one comes in.
@@ -98,6 +105,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       dateOfBirth: data.dateOfBirth.trim(),
       mobile: data.mobile,
       marketingOptIn: data.marketingOptIn,
+      ...(next ? { next } : {}),
     };
     await prisma.pendingSignup.create({
       data: {

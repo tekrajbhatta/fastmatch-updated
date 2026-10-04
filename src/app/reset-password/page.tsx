@@ -27,6 +27,10 @@ function ResetPasswordInner() {
     if (!res.ok) {
       setError(data.error ?? 'This link may have expired.');
       setStatus('idle');
+      // An account a friend set up finishes on the welcome form instead.
+      if (typeof data.finishSetupUrl === 'string' && data.finishSetupUrl.startsWith('/set-password?')) {
+        setTimeout(() => router.push(data.finishSetupUrl), 1500);
+      }
       return;
     }
     setStatus('done');

@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { readPurposeToken, passwordFingerprint } from '@/lib/tokens';
+import { setPasswordPath } from '@/lib/welcomeLink';
 
 const bodySchema = z.object({
   token: z.string(),
@@ -30,17 +31,19 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: 'This reset link has already been used. Please ask for a new one.' }, { status: 400 });
   }
 
+  // Someone a friend added, who has never chosen a password: their password
+  // is chosen on the "Welcome to FastMatch" form, along with their details,
+  // the terms and the mobile code. "Forgot password" now emails that form
+  // instead; this catches a reset link sent before it did.
+  if (member.awaitingPasswordSetup) {
+    return NextResponse.json(
+      { error: 'Your account still needs setting up. Taking you to the welcome form…', finishSetupUrl: setPasswordPath(member.id) },
+      { status: 409 },
+    );
+  }
+
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
-  await prisma.member.update({
-    where: { id: member.id },
-    data: {
-      passwordHash,
-      // A friend whose "set your password" link expired can come in this way
-      // instead: treat it exactly as setting their first password — the
-      // welcome link then stops working, and the email is proven theirs.
-      ...(member.awaitingPasswordSetup ? { awaitingPasswordSetup: false, emailVerified: true } : {}),
-    },
-  });
+  await prisma.member.update({ where: { id: member.id }, data: { passwordHash } });
 
   return NextResponse.json({ ok: true });
 });

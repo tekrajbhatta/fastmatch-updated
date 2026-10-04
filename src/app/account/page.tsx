@@ -7,8 +7,9 @@ import { Container, FormCard, PageLoader, SplitLayout } from '@/components/site/
 import { Button, ButtonLink } from '@/components/site/button';
 import { Notice } from '@/components/site/form';
 import ResendConfirmation from '@/components/ResendConfirmation';
+import { verifyMobileHref } from '@/lib/accountSetup';
 
-interface Me { id: string; name: string; email: string; agreedTerms: boolean; isAdmin: boolean; emailVerified: boolean; }
+interface Me { id: string; name: string; email: string; agreedTerms: boolean; isAdmin: boolean; emailVerified: boolean; mobileVerified: boolean; mobile: string; }
 
 export default function AccountPage() {
   const router = useRouter();
@@ -92,6 +93,20 @@ export default function AccountPage() {
           </Notice>
         )}
 
+        {!me.mobileVerified && (
+          <Notice className="flex flex-col gap-3">
+            <p className="font-bold text-ink-900">Your mobile number isn&apos;t confirmed yet, so you can&apos;t book events.</p>
+            <p className="text-[15px] text-ink-600">We text a 6-digit code to {me.mobile}.</p>
+            <ButtonLink href={verifyMobileHref('/account')} block>Confirm your mobile</ButtonLink>
+          </Notice>
+        )}
+
+        {/* Confirmation status at a glance; anything unconfirmed has its notice above. */}
+        <dl className="flex flex-col gap-1 text-[15px]">
+          <StatusRow label="Email address" ok={me.emailVerified} />
+          <StatusRow label="Mobile number" ok={me.mobileVerified} />
+        </dl>
+
         <ul className="divide-y divide-line">
           {/* Only actions that belong to THIS member's account. Contact us,
               Privacy policy and Terms & conditions all live in the site footer
@@ -107,6 +122,15 @@ export default function AccountPage() {
         <Button variant="secondary" block onClick={handleLogout} disabled={loggingOut} loading={loggingOut}>Log out</Button>
       </FormCard>
     </SplitLayout>
+  );
+}
+
+function StatusRow({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <div className="flex justify-between gap-4">
+      <dt className="text-ink-600">{label}</dt>
+      <dd className={`font-bold ${ok ? 'text-ink-900' : 'text-error-700'}`}>{ok ? '✓ Confirmed' : 'Not confirmed'}</dd>
+    </div>
   );
 }
 

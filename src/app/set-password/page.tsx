@@ -7,6 +7,7 @@ import { SplitLayout, FormCard, LoadingNote } from '@/components/site/layout';
 import { Field, TextInput, SelectInput, Checkbox, FormError, FormSuccess } from '@/components/site/form';
 import { Button, linkClass } from '@/components/site/button';
 import { latestAdultDateOfBirth } from '@/lib/age';
+import { safeNext } from '@/lib/safeNext';
 
 interface Prefill {
   name: string; email: string; mobile: string; gender: 'MALE' | 'FEMALE'; cityId: string;
@@ -66,9 +67,15 @@ function SetPasswordInner() {
     }
     setStatus('done');
     // Logged in by the API. Next stop is confirming their mobile, exactly as
-    // after registering — they need it to book an event themselves.
-    const next = data.mobileVerified ? '/events' : data.smsSent === false ? '/verify-mobile?smsFailed=1' : '/verify-mobile';
-    setTimeout(() => router.push(next), 1500);
+    // after registering — they need it to book an event themselves — then on
+    // to wherever they were going (?next=, a page on this site), if anywhere.
+    const after = safeNext(params.get('next'), '', window.location.origin);
+    const q = new URLSearchParams();
+    if (data.smsSent === false) q.set('smsFailed', '1');
+    if (after) q.set('next', after);
+    const qs = q.toString();
+    const dest = data.mobileVerified ? after || '/events' : `/verify-mobile${qs ? `?${qs}` : ''}`;
+    setTimeout(() => router.push(dest), 1500);
   }
 
   // No future dates, and nobody under 18.
