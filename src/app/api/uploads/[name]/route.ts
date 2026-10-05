@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import { resolveUploadPath } from '@/lib/uploads';
+import { uploadContentType } from '@/lib/imageFormat';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
 // GET /api/uploads/:name — serves a stored blast image.
@@ -23,7 +24,8 @@ export const GET = withErrorHandling(async (_req: NextRequest, ctx: { params: Pr
 
   return new NextResponse(new Uint8Array(data), {
     headers: {
-      'Content-Type': 'image/jpeg',
+      // A logo with transparency is stored as a PNG (src/lib/imageFormat.ts).
+      'Content-Type': uploadContentType(params.name),
       // Content is immutable — the filename is derived from random bytes, so
       // a changed image is always a new URL. Long cache keeps repeated opens
       // of the same email off the server.

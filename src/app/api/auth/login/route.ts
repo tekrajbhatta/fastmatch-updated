@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { z } from 'zod';
 import { signSession, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
@@ -12,6 +13,15 @@ const bodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
+
+// The password check is deliberately slow (about a quarter of a second), and
+// it used to be skipped for an address that isn't a member's — so the reply
+// came back faster, and timing it told whether someone is on FastMatch. Now an
+// unknown address is checked against this throwaway hash instead (same cost
+// as every real one), made on first use rather than at module scope.
+let throwawayHash: Promise<string> | null = null;
+const timingHash = () => (throwawayHash ??= bcrypt.hash(crypto.randomBytes(16).toString('hex'), 12));
+const isBcryptHash = (h: string) => /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(h);
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const parsed = bodySchema.safeParse(await req.json());
@@ -44,8 +54,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
   };
 
+  const realHash = member && isBcryptHash(member.passwordHash) ? member.passwordHash : null;
+  const ok = (await bcrypt.compare(parsed.data.password, realHash ?? (await timingHash()))) && realHash !== null;
   if (!member) return invalid();
-  const ok = await bcrypt.compare(parsed.data.password, member.passwordHash);
   if (!ok) {
     // Someone a friend booked in (or invited) has no password yet, so none
     // can be right: quietly email them a fresh link to set one. The reply is

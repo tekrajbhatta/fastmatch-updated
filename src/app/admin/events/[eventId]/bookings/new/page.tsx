@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button, Card, Field, Input, Select, Loader, BackLink } from '@/components/ui';
 import { calculateAge } from '@/lib/age';
-import { venueLine } from '@/lib/venue';
+import { venueLineWithCity } from '@/lib/venue';
 import { eventClock } from '@/lib/timezone';
 import { PAYMENT_METHODS } from '@/lib/paymentMethod';
 import { Spinner } from '@/components/Spinner';
@@ -135,7 +135,7 @@ export default function AddBookingPage() {
       <BackLink href={`/admin/events/${eventId}`}>Back to event</BackLink>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Add a new booking</h1>
       <p className="mb-1 text-sm text-ink/60">
-        {event.name} · {venueLine(event.venue)}, {event.city.name} ·{' '}
+        {event.name} · {venueLineWithCity(event.venue, event.city.name)} ·{' '}
         {clock.date({ weekday: 'short', day: 'numeric', month: 'short' })}, {clock.time}{clock.note && ` (${clock.note})`}
       </p>
       <p className="mb-6 text-sm text-ink/50">

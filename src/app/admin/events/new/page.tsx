@@ -9,6 +9,7 @@ import EventFlagFields from '@/components/EventFlagFields';
 import VenueInfoPanel, { venueFillPatch } from '@/components/VenueInfoPanel';
 import { fromDateTimeLocalValue } from '@/lib/datetime';
 import { timeZoneForCity } from '@/lib/timezone';
+import { checkNewEvent, eventNumbers, EVENT_NUMBER_FIELDS, CHECK_FIELDS, type EventFieldErrors } from '@/lib/eventInput';
 
 interface City { id: string; name: string; }
 interface Theme { id: string; name: string; }
@@ -28,6 +29,8 @@ export default function NewEventPage() {
   const [repeatOn, setRepeatOn] = useState(false);
   const [repeat, setRepeat] = useState({ frequency: 'WEEKLY' as 'DAILY' | 'WEEKLY' | 'MONTHLY', interval: '1', endDate: '' });
   const [error, setError] = useState<string | null>(null);
+  // What's wrong with each box, shown under it (src/lib/eventInput.ts).
+  const [fieldErrors, setFieldErrors] = useState<EventFieldErrors>({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -62,34 +65,35 @@ export default function NewEventPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setFieldErrors({});
     // Converted here, in the browser, on the event city's clock. Posting the
     // raw datetime-local string made the SERVER parse it in ITS timezone.
     const startsAt = fromDateTimeLocalValue(form.startsAt, timeZoneForCity(cityName));
-    if (!startsAt) { setError('Please enter a valid start date and time.'); return; }
+    const body = {
+      ...form,
+      ...eventNumbers(form, [...EVENT_NUMBER_FIELDS]),
+      startsAt: startsAt ?? '',
+      repeat: repeatOn ? { frequency: repeat.frequency, interval: Number(repeat.interval) || 1, endDate: repeat.endDate } : undefined,
+    };
+    // The same check the server makes, so each problem shows under its box.
+    const checked = checkNewEvent(body);
+    if (!checked.ok) { setFieldErrors(checked.fieldErrors); setError(CHECK_FIELDS); return; }
     setSaving(true);
     const res = await fetch('/api/admin/events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...form,
-        startsAt,
-        ageMin: Number(form.ageMin),
-        ageMax: Number(form.ageMax),
-        maxMen: Number(form.maxMen),
-        maxWomen: Number(form.maxWomen),
-        cost: Number(form.cost),
-        expenses: form.expenses ? Number(form.expenses) : undefined,
-        repeat: repeatOn ? { frequency: repeat.frequency, interval: Number(repeat.interval), endDate: repeat.endDate } : undefined,
-      }),
+      body: JSON.stringify(body),
     });
     const data = await res.json();
     setSaving(false);
     if (!res.ok) {
+      setFieldErrors(data.fieldErrors ?? {});
       setError(typeof data.error === 'string' ? data.error : 'Please check your details.');
       return;
     }
     router.push('/admin/events');
   }
+  const err = (k: string) => fieldErrors[k];
 
   return (
     <div className="mx-auto max-w-lg">
@@ -99,12 +103,12 @@ export default function NewEventPage() {
 
       <Card>
         <form onSubmit={handleSubmit}>
-          <Field label="Event type">
+          <Field label="Event type" error={err('themeId')}>
             <Select value={form.themeId} onChange={(e) => setForm({ ...form, themeId: e.target.value })}>
               {themes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </Select>
           </Field>
-          <Field label="Event name / description">
+          <Field label="Event name / description" error={err('name')}>
             <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ages 28–40, Sydney CBD" />
           </Field>
           <Field label="Event description">
@@ -117,16 +121,16 @@ export default function NewEventPage() {
           {/* Bottom-aligned: the start label names the city's clock, and a
               long city name wraps it onto a second line. */}
           <div className="grid grid-cols-2 items-end gap-3">
-            <Field label={`Start date & time (${cityName ?? 'event city'} time)`}>
+            <Field label={`Start date & time (${cityName ?? 'event city'} time)`} error={err('startsAt')}>
               <Input type="datetime-local" required value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} />
             </Field>
-            <Field label="City">
+            <Field label="City" error={err('cityId')}>
               <Select value={form.cityId} onChange={(e) => handleCityChange(e.target.value)}>
                 {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </Select>
             </Field>
           </div>
-          <Field label="Venue">
+          <Field label="Venue" error={err('venueId')}>
             <Select required value={form.venueId} onChange={(e) => {
               const venueId = e.target.value;
               // Pulls the venue's image and description into the event's own empty fields.
@@ -148,25 +152,25 @@ export default function NewEventPage() {
               onUse={(patch) => setForm((f) => ({ ...f, ...patch }))} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Age min">
+            <Field label="Age min" error={err('ageMin')}>
               <Input type="number" required value={form.ageMin} onChange={(e) => setForm({ ...form, ageMin: e.target.value })} placeholder="28" />
             </Field>
-            <Field label="Age max">
+            <Field label="Age max" error={err('ageMax')}>
               <Input type="number" required value={form.ageMax} onChange={(e) => setForm({ ...form, ageMax: e.target.value })} placeholder="40" />
             </Field>
           </div>
-          <Field label="Cost ($)">
+          <Field label="Cost ($)" error={err('cost')}>
             <Input type="number" step="0.01" required value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} placeholder="49.00" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Max men">
+            <Field label="Max men" error={err('maxMen')}>
               <Input type="number" value={form.maxMen} onChange={(e) => setForm({ ...form, maxMen: e.target.value })} />
             </Field>
-            <Field label="Max women">
+            <Field label="Max women" error={err('maxWomen')}>
               <Input type="number" value={form.maxWomen} onChange={(e) => setForm({ ...form, maxWomen: e.target.value })} />
             </Field>
           </div>
-          <Field label="Expenses ($)">
+          <Field label="Expenses ($)" error={err('expenses')}>
             <Input type="number" step="0.01" value={form.expenses} onChange={(e) => setForm({ ...form, expenses: e.target.value })} placeholder="Optional" />
           </Field>
 
@@ -190,7 +194,7 @@ export default function NewEventPage() {
                 </Select>
                 <Input type="number" min={1} value={repeat.interval} onChange={(e) => setRepeat({ ...repeat, interval: e.target.value })} placeholder="Every N" />
                 <div className="col-span-2">
-                  <Field label="Ends"><Input type="date" required={repeatOn} value={repeat.endDate} onChange={(e) => setRepeat({ ...repeat, endDate: e.target.value })} /></Field>
+                  <Field label="Ends" error={err('repeat.endDate') ?? err('repeat.interval')}><Input type="date" required={repeatOn} value={repeat.endDate} onChange={(e) => setRepeat({ ...repeat, endDate: e.target.value })} /></Field>
                 </div>
               </div>
             )}

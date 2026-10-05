@@ -1,5 +1,6 @@
 import { BRAND_COLORS } from '../brand';
 import { escapeHtml, safeHref, safeSrc } from '../escapeHtml';
+import { EMAIL_HEADING } from './layout';
 
 /**
  * Resolves what a campaign should actually send: the raw emailBody override
@@ -145,7 +146,7 @@ export function renderCampaignEmailHtml(fields: {
     <div style="max-width:520px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:${BRAND_COLORS.ink};line-height:1.6;background-color:#ffffff;">
       ${campaignBanner(fields.bannerImageUrl)}
       <div style="padding:24px 24px 8px;">
-        ${fields.heading ? `<h1 style="color:${BRAND_COLORS.plum};font-size:20px;text-align:center;margin:0 0 20px;line-height:1.4;">${fields.heading.split('\n').filter((l) => l.trim()).map(escapeHtml).join('<br/>')}</h1>` : ''}
+        ${fields.heading ? `<h1 style="${EMAIL_HEADING}text-align:center;">${fields.heading.split('\n').filter((l) => l.trim()).map(escapeHtml).join('<br/>')}</h1>` : ''}
         ${photoHtml}
         ${paragraphs}
         ${eventDetailsHtml}

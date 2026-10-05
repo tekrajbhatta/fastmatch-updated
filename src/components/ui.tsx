@@ -2,11 +2,13 @@ import { InputHTMLAttributes, LabelHTMLAttributes, SelectHTMLAttributes, ButtonH
 import Link from 'next/link';
 import { Spinner } from '@/components/Spinner';
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({ label, children, error }: { label: string; children: ReactNode; error?: string | null }) {
   return (
     <div className="mb-4">
       <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-ink/50">{label}</label>
       {children}
+      {/* What's wrong with this box, right under it. */}
+      {error && <p role="alert" className="mt-1 text-xs font-medium text-coral">{error}</p>}
     </div>
   );
 }

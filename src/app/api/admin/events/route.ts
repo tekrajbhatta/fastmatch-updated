@@ -1,38 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { buildOccurrenceDates } from '@/lib/eventSeries';
 import { timeZoneForCity } from '@/lib/timezone';
-
-const baseEventSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
-  photoUrl: z.string().optional(),
-  themeId: z.string(),
-  cityId: z.string(),
-  venueId: z.string().min(1),
-  startsAt: z.string(), // ISO datetime of the first occurrence
-  ageMin: z.number().int().positive(),
-  ageMax: z.number().int().positive(),
-  maxMen: z.number().int().positive().default(12),
-  maxWomen: z.number().int().positive().default(12),
-  cost: z.number().nonnegative(),
-  expenses: z.number().nonnegative().optional(),
-  visibility: z.enum(['PUBLIC', 'NOT_PUBLIC']).default('PUBLIC'),
-  confirmed: z.boolean().default(false),
-  fastmatchDiscounts: z.boolean().default(true),
-  groupDiscounts: z.boolean().default(true),
-  repeat: z
-    .object({
-      frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY']),
-      interval: z.number().int().positive().default(1),
-      // Generates occurrences up to and including this date, not a fixed count.
-      endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Please choose an end date for the repeat.'),
-    })
-    .optional(),
-});
+import { checkNewEvent, CHECK_FIELDS } from '@/lib/eventInput';
 
 // GET /api/admin/events — list, newest first
 export const GET = withErrorHandling(async (req: NextRequest) => {
@@ -64,14 +36,14 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
-  const parsed = baseEventSchema.safeParse(await req.json());
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  const data = parsed.data;
+  // The same rules as the form shows under each box (src/lib/eventInput.ts).
+  const checked = checkNewEvent(await req.json().catch(() => ({})));
+  if (!checked.ok) return NextResponse.json({ error: CHECK_FIELDS, fieldErrors: checked.fieldErrors }, { status: 400 });
+  const data = checked.data;
 
   const first = new Date(data.startsAt);
-  if (Number.isNaN(first.getTime())) return NextResponse.json({ error: 'Please enter a valid start date and time.' }, { status: 400 });
   const city = await prisma.city.findUnique({ where: { id: data.cityId } });
-  if (!city) return NextResponse.json({ error: 'Please select a valid city.' }, { status: 400 });
+  if (!city) return NextResponse.json({ error: CHECK_FIELDS, fieldErrors: { cityId: 'Please choose a city.' } }, { status: 400 });
 
   // Repeats are stepped on the event city's clock (src/lib/eventSeries.ts).
   const startDates = buildOccurrenceDates(first, timeZoneForCity(city.name), data.repeat);
@@ -87,8 +59,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       prisma.event.create({
         data: {
           name: data.name,
-          description: data.description || null,
-          photoUrl: data.photoUrl || null,
+          description: data.description,
+          photoUrl: data.photoUrl,
           themeId: data.themeId,
           cityId: data.cityId,
           venueId: data.venueId,

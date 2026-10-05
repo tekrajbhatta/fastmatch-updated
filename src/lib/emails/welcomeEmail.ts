@@ -1,13 +1,9 @@
-import { emailLayout } from './layout';
+import { emailLayout, EMAIL_HEADING } from './layout';
 import { BRAND_COLORS } from '../brand';
 import { escapeHtml } from '../escapeHtml';
 
 // Email clients ignore <style> blocks and external stylesheets, so every rule
-// has to be inline. The heading in particular needs its font stack and size
-// restated: Gmail and Outlook apply their own <h1> defaults, so an unstyled
-// <h1> renders oversized and in a different typeface to the body copy.
-// 20px matches the campaign template's heading.
-const HEADING = `margin:0 0 20px;font-family:Arial,sans-serif;font-size:20px;line-height:1.4;font-weight:bold;color:${BRAND_COLORS.plum};`;
+// has to be inline. The heading's style is EMAIL_HEADING, shared by every email.
 
 // Explicit paragraph margins — several clients zero out the default <p>
 // margin, which runs every line together into one block.
@@ -20,7 +16,7 @@ const BUTTON =
 
 export function welcomeVerificationEmail(opts: { memberName: string; verifyUrl: string }) {
   const html = emailLayout(`
-    <h1 style="${HEADING}">Welcome to FastMatch, ${escapeHtml(opts.memberName)}!</h1>
+    <h1 style="${EMAIL_HEADING}">Welcome to FastMatch, ${escapeHtml(opts.memberName)}!</h1>
     <p style="${PARA}">Thanks for joining. You're one step away from booking your first event.</p>
     <p style="${PARA_BUTTON}">Please confirm your email address to activate your membership:</p>
     <p style="${PARA_BUTTON}"><a href="${opts.verifyUrl}" style="${BUTTON}">Confirm my email</a></p>
@@ -38,7 +34,7 @@ export function welcomeVerificationEmail(opts: { memberName: string; verifyUrl: 
  */
 export function confirmEmailAgainEmail(opts: { memberName: string; verifyUrl: string }) {
   const html = emailLayout(`
-    <h1 style="${HEADING}">Confirm your email address</h1>
+    <h1 style="${EMAIL_HEADING}">Confirm your email address</h1>
     <p style="${PARA_BUTTON}">Hi ${escapeHtml(opts.memberName)}, here's a new link to confirm the email address on your FastMatch account:</p>
     <p style="${PARA_BUTTON}"><a href="${opts.verifyUrl}" style="${BUTTON}">Confirm my email</a></p>
     <p style="${PARA}">It works for 7 days. Once your email and mobile are both confirmed, you can book events.</p>

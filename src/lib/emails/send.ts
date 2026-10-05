@@ -16,6 +16,12 @@ interface SendEmailArgs {
   to: string;
   subject: string;
   html: string;
+  /**
+   * Where pressing Reply goes, when it isn't us. Only Contact Us sets it (to
+   * the visitor), so Gil's reply reaches them. Optional: every other caller
+   * is unchanged.
+   */
+  replyTo?: string;
 }
 
 // Cached transport. Built on first use and reused for the life of the process.
@@ -53,11 +59,13 @@ async function getTransport(): Promise<Transporter> {
   return transporter;
 }
 
-export async function sendEmail({ to, subject, html }: SendEmailArgs) {
+export async function sendEmail({ to, subject, html, replyTo }: SendEmailArgs) {
+  // An email header: never more than one line.
+  const reply = replyTo?.replace(/[\r\n]+/g, '').trim() || undefined;
   // Same stub behaviour as before, just keyed on the SMTP credentials rather
   // than an API key. Both must be present to attempt a real send.
   if (!process.env.MAILGUN_SMTP_USER || !process.env.MAILGUN_SMTP_PASS) {
-    console.log(`[stub] Would email ${to}: "${subject}"`);
+    console.log(`[stub] Would email ${to}: "${subject}"${reply ? ` (reply-to ${reply})` : ''}`);
     return;
   }
 
@@ -69,7 +77,7 @@ export async function sendEmail({ to, subject, html }: SendEmailArgs) {
 
   try {
     const transport = await getTransport();
-    await transport.sendMail({ from: fromAddress, to, subject, html });
+    await transport.sendMail({ from: fromAddress, to, subject, html, ...(reply ? { replyTo: reply } : {}) });
   } catch (err) {
     // Log it clearly so it's visible in journalctl, then rethrow so the
     // caller's own handling still runs — campaign sends rely on this to mark

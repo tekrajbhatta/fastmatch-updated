@@ -6,10 +6,12 @@ import { Card, Badge, Button, Field, Input, Select, Loader, BackLink } from '@/c
 import { venueLine } from '@/lib/venue';
 import { calculateAge } from '@/lib/age';
 import { timeZoneForCity } from '@/lib/timezone';
+import { attendedBooking } from '@/lib/attended';
+import { formatPrice } from '@/lib/price';
 
 interface Booking {
   id: string; badge: number; status: string; paidAmount: string; checkedIn: boolean;
-  event: { id: string; name: string; startsAt: string; venue: { name: string; address: string | null }; city?: { name: string } };
+  event: { id: string; name: string; startsAt: string; status: string; venue: { name: string; address: string | null }; city?: { name: string } };
 }
 interface MemberDetail {
   id: string; name: string; email: string; mobile: string; gender: string;
@@ -144,7 +146,12 @@ export default function MemberDetailPage() {
       )}
 
       <Card className="mb-6">
-        <h2 className="mb-3 font-extrabold text-ink">Events attended ({member.bookings.length})</h2>
+        {/* Every booking is listed; "attended" counts only paid ones at events that have happened. */}
+        <h2 className="font-extrabold text-ink">Bookings ({member.bookings.length})</h2>
+        <p className="mb-3 text-sm text-ink/60">
+          Events attended: <b className="text-ink">{member.bookings.filter((b) => attendedBooking(b)).length}</b>{' '}
+          <span className="text-ink/40">(paid, at events that have happened)</span>
+        </p>
         {member.bookings.length === 0 && <p className="text-sm text-ink/40">No bookings yet.</p>}
         <div className="space-y-2">
           {member.bookings.map((b) => (
@@ -156,7 +163,7 @@ export default function MemberDetailPage() {
                 </div>
               </div>
               <div className="flex gap-1.5">
-                <Badge tone={b.status === 'CONFIRMED' ? 'green' : 'muted'}>{b.status === 'CONFIRMED' ? `Paid $${b.paidAmount}` : b.status}</Badge>
+                <Badge tone={b.status === 'CONFIRMED' ? 'green' : 'muted'}>{b.status === 'CONFIRMED' ? `Paid ${formatPrice(b.paidAmount)}` : b.status}</Badge>
                 {b.checkedIn && <Badge tone="plum">Checked in</Badge>}
               </div>
             </div>

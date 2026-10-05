@@ -1,4 +1,4 @@
-import { emailLayout } from './layout';
+import { emailLayout, EMAIL_HEADING, EMAIL_SUBHEADING } from './layout';
 import { escapeHtml, oneLine } from '../escapeHtml';
 
 export function matchResultsEmail(opts: {
@@ -18,18 +18,18 @@ export function matchResultsEmail(opts: {
     `<li>${escapeHtml(m.name)}, ${escapeHtml(m.email)}, ${escapeHtml(m.mobile)}</li>`;
 
   const html = emailLayout(`
-    <h1 style="color:#3D1E6D;">Your matches from ${escapeHtml(opts.eventName)}</h1>
+    <h1 style="${EMAIL_HEADING}">Your matches from ${escapeHtml(opts.eventName)}</h1>
     <p>Hi ${escapeHtml(opts.memberName)},</p>
     <p>Here's how ${dateStr} turned out. Contact details are only shared for people you both matched with.</p>
 
     ${
       opts.dateMatches.length
-        ? `<h2 style="color:#7A9A2E;">Date matches</h2><ul>${opts.dateMatches.map(listItem).join('')}</ul>`
+        ? `<h2 style="${EMAIL_SUBHEADING}color:#7A9A2E;">Date matches</h2><ul>${opts.dateMatches.map(listItem).join('')}</ul>`
         : ''
     }
     ${
       opts.friendMatches.length
-        ? `<h2 style="color:#D98A1E;">Friend matches</h2><ul>${opts.friendMatches.map(listItem).join('')}</ul>`
+        ? `<h2 style="${EMAIL_SUBHEADING}color:#D98A1E;">Friend matches</h2><ul>${opts.friendMatches.map(listItem).join('')}</ul>`
         : ''
     }
     ${

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { getSessionMember } from '@/lib/auth';
+import { formatPrice } from '@/lib/price';
 
 /** How far back My Match History goes — the old site's "last 6 months". */
 const HISTORY_MONTHS = 6;
@@ -81,7 +82,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     if (d && d.validFrom <= now && d.validTo >= now) {
       const amount = Number(d.amount ?? 0);
       const description =
-        d.type === 'FIXED_REDUCTION' ? `$${amount.toFixed(2)} OFF` : d.type === 'PERCENT_OFF' ? `${amount}% OFF` : 'a FREE place at';
+        d.type === 'FIXED_REDUCTION' ? `${formatPrice(amount)} OFF` : d.type === 'PERCENT_OFF' ? `${amount}% OFF` : 'a FREE place at';
       welcomeOffer = { code: d.code, description };
     }
   }

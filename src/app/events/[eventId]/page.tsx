@@ -6,12 +6,13 @@ import Link from 'next/link';
 import { Card, Container, PageHero, PageLoader, BackLink } from '@/components/site/layout';
 import { Field, FieldError, FormError, FormSuccess, Notice, SelectInput, TextInput } from '@/components/site/form';
 import { Button, linkClass } from '@/components/site/button';
-import { venueLine } from '@/lib/venue';
+import { venueLineWithCity } from '@/lib/venue';
 import { formatEventForViewer } from '@/lib/timezone';
 import { priceBooking, GROUP_DISCOUNT_PER_FRIEND, MAX_FRIENDS_PER_GENDER, type CouponType } from '@/lib/bookingPrice';
 import { validateFriends, type FriendFieldError, type FriendGender } from '@/lib/friendBooking';
 import { unfinishedSteps, type SetupStep } from '@/lib/accountSetup';
 import SetupSteps from '@/components/site/SetupSteps';
+import { formatPrice } from '@/lib/price';
 
 interface EventDetail {
   id: string;
@@ -45,7 +46,6 @@ interface Coupon { code: string; type: CouponType; amount: number | null; alread
 const blankFriend = (): FriendForm => ({ name: '', mobile: '', email: '', dateOfBirth: '' });
 // Latest date a date picker should offer: nobody is born in the future.
 const todayIso = () => new Date().toISOString().slice(0, 10);
-const money = (n: number) => `${n < 0 ? '−' : ''}$${Math.abs(n).toFixed(2)}`;
 
 export default function EventDetailPage() {
   const { eventId } = useParams<{ eventId: string }>();
@@ -229,7 +229,7 @@ export default function EventDetailPage() {
         size="event"
         eyebrow={event.theme.name}
         title={event.name}
-        lead={`${venueLine(event.venue)}, ${event.city.name}`}
+        lead={venueLineWithCity(event.venue, event.city.name)}
         aside={
           // The venue's logo beside its name, on a white tile — logos are
           // drawn for white backgrounds and vanish on the purple.
@@ -357,7 +357,7 @@ export default function EventDetailPage() {
               <div className="flex flex-wrap items-end gap-x-5 gap-y-4 rounded-[20px] bg-plum-50 p-5">
                 <div className="flex-[1_1_110px]">
                   <p className="text-sm font-semibold text-ink-600">Ticket price</p>
-                  <p className="mt-1 font-display text-[44px] font-extrabold leading-none tracking-[-0.02em] text-plum-700">${event.cost}</p>
+                  <p className="mt-1 font-display text-[44px] font-extrabold leading-none tracking-[-0.02em] text-plum-700">{formatPrice(event.cost)}</p>
                 </div>
                 {/* "FastMatch Discounts" on the event decides whether codes apply. */}
                 {event.fastmatchDiscounts && canBook && (
@@ -391,14 +391,14 @@ export default function EventDetailPage() {
                     {quote.lines.map((l, i) => (
                       <div key={i} className="flex justify-between gap-4 py-1">
                         <span className={l.amount == null ? 'font-semibold text-coral-700' : 'text-ink-600'}>{l.label}</span>
-                        {l.amount != null && <span className={l.amount < 0 ? 'font-semibold text-plum-700' : 'text-ink-900'}>{money(l.amount)}</span>}
+                        {l.amount != null && <span className={l.amount < 0 ? 'font-semibold text-plum-700' : 'text-ink-900'}>{formatPrice(l.amount)}</span>}
                       </div>
                     ))}
                     <div className="mt-2 flex justify-between border-t-2 border-ink-900 pt-2 font-extrabold text-ink-900">
-                      <span>Total</span><span>{money(quote.total)}</span>
+                      <span>Total</span><span>{formatPrice(quote.total)}</span>
                     </div>
                     <div className="flex justify-between py-1 text-sm text-ink-600">
-                      <span>GST inc.</span><span>{money(quote.gstIncluded)}</span>
+                      <span>GST inc.</span><span>{formatPrice(quote.gstIncluded)}</span>
                     </div>
                   </div>
                 </div>
@@ -426,7 +426,7 @@ export default function EventDetailPage() {
                       : !quote
                         ? 'Book this event'
                         : quote.total > 0
-                          ? `Continue to payment (${money(quote.total)})`
+                          ? `Continue to payment (${formatPrice(quote.total)})`
                           : 'Confirm booking'}
                 </Button>
               )}

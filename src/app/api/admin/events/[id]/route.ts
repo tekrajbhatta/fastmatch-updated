@@ -7,6 +7,7 @@ import { eventChangeEmail, eventChangeSms } from '@/lib/emails/eventEmails';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { venueLine } from '@/lib/venue';
 import { eventTimeFor } from '@/lib/timezone';
+import { checkEventEdit, CHECK_FIELDS } from '@/lib/eventInput';
 
 // PATCH /api/admin/events/:id — edit any field. Attendees are notified by
 // email and SMS ONLY when the date/time, the venue, or the event's public
@@ -16,14 +17,18 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
-  const updates = await req.json();
   const before = await prisma.event.findUniqueOrThrow({
     where: { id: params.id },
     include: { venue: true, theme: true, city: true },
   });
+  // The same rules as "New event", each problem against its field
+  // (src/lib/eventInput.ts). Only the event's own details can be changed
+  // here; this used to pass whatever it was sent straight to the database.
+  const checked = checkEventEdit(await req.json().catch(() => ({})), before);
+  if (!checked.ok) return NextResponse.json({ error: CHECK_FIELDS, fieldErrors: checked.fieldErrors }, { status: 400 });
   const event = await prisma.event.update({
     where: { id: params.id },
-    data: updates,
+    data: checked.data,
     include: { venue: true, theme: true, city: true },
   });
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Field, Input, Select, Button, Card, Badge, Loader } from '@/components/ui';
 import { discountDay, formatDiscountDay } from '@/lib/discountDates';
 import { timeZoneForCity } from '@/lib/timezone';
+import { formatPrice } from '@/lib/price';
 
 interface ScopeEvent { id: string; number: number; name: string; startsAt: string; venue: { name: string }; city?: { name: string } }
 
@@ -149,7 +150,7 @@ export default function AdminDiscountsPage() {
               <div>
                 <div className="font-mono font-extrabold text-ink">{c.code}</div>
                 <div className="text-xs text-ink/50">
-                  {c.type === 'PERCENT_OFF' ? `${c.amount}% off` : c.type === 'FIXED_REDUCTION' ? `$${c.amount} off` : 'Free'} · Used {c.usedCount} times
+                  {c.type === 'PERCENT_OFF' ? `${c.amount}% off` : c.type === 'FIXED_REDUCTION' ? `${formatPrice(c.amount ?? 0)} off` : 'Free'} · Used {c.usedCount} times
                   <br />{formatDiscountDay(c.validFrom)} to {formatDiscountDay(c.validTo)}
                   {c.scopeEvent && (
                     <><br />Only for {'deleted' in c.scopeEvent ? 'an event that has been deleted' : eventLabel(c.scopeEvent)}</>

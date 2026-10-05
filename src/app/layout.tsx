@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Bricolage_Grotesque, Figtree } from 'next/font/google';
 import { BRAND_TAGLINE } from '@/lib/brand';
 import { getCurrentMember } from '@/lib/auth';
+import { SITE_TITLE_TEMPLATE } from '@/lib/pageTitles';
 import SiteChrome from '@/components/SiteChrome';
 import { siteHeaderLayout } from '@/components/siteHeaderLayout';
 import './globals.css';
@@ -13,7 +14,10 @@ const figtree = Figtree({ subsets: ['latin'], variable: '--font-sans', display: 
 const bricolage = Bricolage_Grotesque({ subsets: ['latin'], axes: ['opsz'], variable: '--font-display', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: 'FastMatch - Speed Dating Sydney',
+  // Each page names itself in the browser tab ("Log in | FastMatch"); the
+  // home page keeps the site's own title. The tab icon is the logo's "f"
+  // (src/app/icon.png, apple-icon.png and favicon.ico).
+  title: { default: 'FastMatch - Speed Dating Sydney', template: SITE_TITLE_TEMPLATE },
   description: BRAND_TAGLINE,
 };
 

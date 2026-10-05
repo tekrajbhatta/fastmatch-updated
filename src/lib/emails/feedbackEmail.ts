@@ -1,4 +1,4 @@
-import { emailLayout } from './layout';
+import { emailLayout, EMAIL_HEADING } from './layout';
 import { escapeHtml, oneLine } from '../escapeHtml';
 
 /** Where member feedback goes — the same inbox as the Contact Us form. */
@@ -15,7 +15,7 @@ export function memberFeedbackEmail(opts: {
   const m = opts.member;
   const about = opts.event ? `${opts.event.when}: ${opts.event.name} at ${opts.event.venue}` : 'General comment (no particular event)';
   const html = emailLayout(`
-    <h1 style="margin:0 0 16px;font-family:Arial,sans-serif;font-size:20px;color:#3D1E6D;">Member feedback</h1>
+    <h1 style="${EMAIL_HEADING}">Member feedback</h1>
     <p style="${P}"><strong>From:</strong> ${escapeHtml(m.name)} ·
       <a href="mailto:${escapeHtml(m.email)}">${escapeHtml(m.email)}</a> · ${escapeHtml(m.mobile)}</p>
     <p style="${P}"><strong>About:</strong> ${escapeHtml(about)}</p>

@@ -1,6 +1,7 @@
 import { sendEmail } from './emails/send';
 import { escapeHtml } from './escapeHtml';
 import { emailLayout } from './emails/layout';
+import { formatPrice } from './price';
 
 /** Where payment problems that need a person go: the same inbox as Contact Us. */
 const ADMIN_EMAIL = 'gil@fastmatch.com.au';
@@ -19,7 +20,7 @@ export async function alertRefundNeeded(opts: {
   amount?: number | null;
   reason: string;
 }): Promise<void> {
-  const amount = opts.amount != null ? `$${opts.amount.toFixed(2)}` : 'the amount paid';
+  const amount = opts.amount != null ? formatPrice(opts.amount) : 'the amount paid';
   console.error(`REFUND NEEDED: Stripe checkout ${opts.sessionId} for booking ${opts.bookingId} (${opts.memberName ?? 'unknown member'}, ${opts.eventName ?? 'unknown event'}): ${opts.reason}. Refund ${amount} in Stripe.`);
   try {
     await sendEmail({

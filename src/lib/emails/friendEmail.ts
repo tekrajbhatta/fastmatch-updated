@@ -1,11 +1,10 @@
-import { emailLayout } from './layout';
+import { emailLayout, EMAIL_HEADING } from './layout';
 import { BRAND_COLORS } from '../brand';
 import { formatEventWhen } from '../datetime';
 import { escapeHtml, oneLine } from '../escapeHtml';
 
 // Inline styles only — email clients ignore <style>. Same values as
 // welcomeEmail.ts so the two read as one family.
-const HEADING = `margin:0 0 20px;font-family:Arial,sans-serif;font-size:20px;line-height:1.4;font-weight:bold;color:${BRAND_COLORS.plum};`;
 const PARA = 'margin:0 0 16px;';
 const PARA_BUTTON = 'margin:0 0 24px;';
 const BUTTON =
@@ -36,7 +35,7 @@ export function friendWelcomeEmail(opts: {
   checkInUrl: string;
 }) {
   const html = emailLayout(`
-    <h1 style="${HEADING}">You're booked in, ${escapeHtml(opts.friendName)}!</h1>
+    <h1 style="${EMAIL_HEADING}">You're booked in, ${escapeHtml(opts.friendName)}!</h1>
     <p style="${PARA}">${escapeHtml(opts.bookedByName)} has booked you into <strong>${escapeHtml(opts.eventName)}</strong> at ${escapeHtml(opts.venue)}.</p>
     <p style="${PARA}"><strong>${formatEventWhen(opts.startsAt, opts.timeZone)}${opts.zoneNote ? ` (${escapeHtml(opts.zoneNote)})` : ''}</strong></p>
     <p style="${PARA}">You've been added to FastMatch with this email address. Set a password so you can
@@ -58,7 +57,7 @@ export function friendWelcomeEmail(opts: {
  */
 export function tellAFriendEmail(opts: { friendName: string; inviterName: string; setPasswordUrl: string }) {
   const html = emailLayout(`
-    <h1 style="${HEADING}">Hi ${escapeHtml(opts.friendName)}, you've been invited to FastMatch!</h1>
+    <h1 style="${EMAIL_HEADING}">Hi ${escapeHtml(opts.friendName)}, you've been invited to FastMatch!</h1>
     <p style="${PARA}"><strong>${escapeHtml(opts.inviterName)}</strong> has registered you with FastMatch, Australia's original
       speed dating organiser, connecting people face to face since 1999.</p>
     <p style="${PARA}">Your account is ready. Set your password and fill in your profile details to see our upcoming

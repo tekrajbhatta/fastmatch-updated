@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sendEmail } from '@/lib/emails/send';
-import { emailLayout } from '@/lib/emails/layout';
+import { emailLayout, EMAIL_HEADING } from '@/lib/emails/layout';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { clientIp, hitRateLimit, LIMITS, rateKey } from '@/lib/rateLimit';
 import { escapeHtml, oneLine } from '@/lib/escapeHtml';
@@ -26,13 +26,14 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // Escaped: anyone on the site can fill this in, and without it they could
   // put links or images into an email Gil trusts.
   const html = emailLayout(`
-    <h1 style="color:#3D1E6D;">New Contact Us message</h1>
+    <h1 style="${EMAIL_HEADING}">New Contact Us message</h1>
     <p><strong>From:</strong> ${escapeHtml(data.name)} (${escapeHtml(data.email)})</p>
     <p style="white-space:pre-wrap;">${escapeHtml(data.message)}</p>
   `);
 
   // The subject isn't HTML, so it isn't escaped, but it is kept to one line.
-  await sendEmail({ to: 'gil@fastmatch.com.au', subject: `Contact Us: ${oneLine(data.name)}`, html });
+  // Reply goes to the visitor: it used to go back to the site's own address.
+  await sendEmail({ to: 'gil@fastmatch.com.au', subject: `Contact Us: ${oneLine(data.name)}`, html, replyTo: data.email });
 
   return NextResponse.json({ ok: true });
 });

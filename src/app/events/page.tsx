@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { venueLine } from '@/lib/venue';
+import { venueLineWithCity } from '@/lib/venue';
 import MemberEventsBrowser from '@/components/MemberEventsBrowser';
 import EventCard from '@/components/site/EventCard';
 import { Container, PageHero, PageLoader } from '@/components/site/layout';
@@ -86,7 +86,7 @@ function EventGrid({ events }: { events: EventListItem[] }) {
             href={`/events/${event.id}`}
             tag={event.theme.name}
             title={event.name}
-            venue={`${venueLine(event.venue)}, ${event.city.name}`}
+            venue={venueLineWithCity(event.venue, event.city.name)}
             date={`${when.shortDate}, ${when.time}`}
             zone={when.note ? `(${when.note})` : undefined}
             ages={`Ages ${event.ageMin}–${event.ageMax}`}

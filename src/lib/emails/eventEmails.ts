@@ -1,4 +1,4 @@
-import { emailLayout } from './layout';
+import { emailLayout, EMAIL_HEADING } from './layout';
 import { formatEventShort, EVENT_TIME_ZONE } from '../datetime';
 import { escapeHtml, oneLine } from '../escapeHtml';
 
@@ -27,7 +27,7 @@ export function bookingConfirmationEmail(opts: {
     (opts.zoneNote ? ` (${escapeHtml(opts.zoneNote)})` : '');
 
   const html = emailLayout(`
-    <h1 style="color:#3D1E6D;">You're booked in!</h1>
+    <h1 style="${EMAIL_HEADING}">You're booked in!</h1>
     <p>Hi ${escapeHtml(opts.memberName)},</p>
     <p>You're confirmed for <strong>${escapeHtml(opts.eventName)}</strong> at ${escapeHtml(opts.venue)}.</p>
     <p><strong>${dateStr}</strong><br>${timeStr}</p>
@@ -50,7 +50,7 @@ export function eventReminderEmail(opts: { memberName: string; eventName: string
     (opts.zoneNote ? ` (${escapeHtml(opts.zoneNote)})` : '');
 
   const html = emailLayout(`
-    <h1 style="color:#3D1E6D;">${escapeHtml(opts.memberName)}, you're speed dating on ${dateStr}!</h1>
+    <h1 style="${EMAIL_HEADING}">${escapeHtml(opts.memberName)}, you're speed dating on ${dateStr}!</h1>
     <p>How exciting! Your event is almost here.</p>
     <p>What to wear? Entirely up to you. Smart casual is always a safe bet. Just be yourself.</p>
     <p>There'll be plenty of first-timers there too, so relax, smile, and enjoy the process.</p>
@@ -143,7 +143,7 @@ export function eventChangeEmail(c: EventChange & { memberName: string }) {
     return {
       subject: `Cancelled: ${oneLine(c.eventName)}`,
       html: emailLayout(`
-        <h1 style="margin:0 0 20px;font-family:Arial,sans-serif;font-size:20px;line-height:1.4;font-weight:bold;color:#3D1E6D;">Your FastMatch event has been cancelled</h1>
+        <h1 style="${EMAIL_HEADING}">Your FastMatch event has been cancelled</h1>
         <p style="${P}">Hi ${escapeHtml(c.memberName)},</p>
         <p style="${P}">We're sorry to let you know that <strong>${escapeHtml(c.oldVenue)} ${escapeHtml(c.themeName)} ${c.ageMin}-${c.ageMax} years</strong>
           on <strong>${fmt(c.oldStartsAt)}</strong>, which you were booked into, has been cancelled.</p>
@@ -159,7 +159,7 @@ export function eventChangeEmail(c: EventChange & { memberName: string }) {
   if (c.timeChanged) changes.push(`<p style="${P}"><strong>When:</strong> ${fmt(c.oldStartsAt)} &rarr; <strong>${fmt(c.newStartsAt)}</strong></p>`);
 
   const html = emailLayout(`
-    <h1 style="margin:0 0 20px;font-family:Arial,sans-serif;font-size:20px;line-height:1.4;font-weight:bold;color:#3D1E6D;">Change to your FastMatch event</h1>
+    <h1 style="${EMAIL_HEADING}">Change to your FastMatch event</h1>
     <p style="${P}">Hi ${escapeHtml(c.memberName)},</p>
     <p style="${P}">There's been a change to <strong>${escapeHtml(c.oldVenue)} ${escapeHtml(c.themeName)} ${c.ageMin}-${c.ageMax} years</strong>,
       which you're booked into:</p>

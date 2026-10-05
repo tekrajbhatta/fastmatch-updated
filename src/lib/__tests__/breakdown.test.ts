@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { buildReport, reportProblem, showsSignups, ageGroupOf, type BookingFact, type EventFact, type Place } from '@/lib/reports/breakdown';
+import { buildReport, buildOverview, shareMatched, reportProblem, showsSignups, ageGroupOf, type BookingFact, type EventFact, type Place, type SignupFact } from '@/lib/reports/breakdown';
 
 const P = (key: string, sort = key): Place => ({ key, label: key, sort });
-const at = (month: string, age: string, location: string, venue: string, event: string) => ({
+const at = (month: string, age: string, location: string, venue: string, event: string, theme = 'Speed Dating') => ({
   month: P(month), ageGroup: P(age, String(['18–25', '26–34', '35–44', '45–54', '55+'].indexOf(age))),
-  location: P(location), venue: P(venue), event: P(event),
+  location: P(location), venue: P(venue), event: P(event), theme: P(theme),
 });
 const booking = (memberId: string, eventId: string, paid: number, month: string, age: string, matched: boolean | null = null): BookingFact => ({
   memberId, eventId, paid, matched, at: at(month, age, 'Sydney', `venue-${eventId}`, eventId),
@@ -93,3 +93,60 @@ describe('which reports make sense', () => {
     expect([18, 25, 26, 34, 35, 44, 45, 54, 55, 70].map(ageGroupOf)).toEqual(['18–25', '18–25', '26–34', '26–34', '35–44', '35–44', '45–54', '45–54', '55+', '55+']);
   });
 });
+
+describe('the Overview agrees with the table', () => {
+  // Ann matched at both events, Bob at none; e2's results aren't in yet.
+  const bookings = [
+    booking('ann', 'e1', 49, '2026-08', '26–34', true),
+    booking('bob', 'e1', 49, '2026-08', '35–44', false),
+    booking('ann', 'e3', 45, '2026-08', '26–34', true),
+    booking('cat', 'e2', 0, '2026-09', '26–34', null),
+  ];
+  const events = [eventFact('e1', '2026-08', 100), eventFact('e2', '2026-09', 50), eventFact('e3', '2026-08', 30), eventFact('e4', '2026-09', 20)];
+  const signups: SignupFact[] = [
+    { at: { month: P('2026-08'), ageGroup: P('26–34'), location: P('Sydney') } },
+    { at: { month: P('2026-09'), ageGroup: P('26–34'), location: P('Sydney') } },
+    { at: { month: P('2026-09'), ageGroup: P('35–44'), location: P('Sydney') } },
+  ];
+
+  it('has the same totals as the profit/loss statement and the All report', () => {
+    const o = buildOverview({ bookings, events, signups, memberFilters: false });
+    const pl = buildReport({ category: 'month', group: 'none', type: 'profitLoss', bookings, events, signups: null }).total;
+    const all = buildReport({ category: 'location', group: 'none', type: 'all', bookings, events, signups: null }).total;
+    expect(o.totals).toEqual({ attendees: pl.bookings, revenue: pl.revenue, expenses: pl.expenses, profit: pl.profit, matchRate: all.matchPct });
+    // Every event's expenses once, even e4 with nobody booked.
+    expect(o.totals.expenses).toBe(200);
+  });
+
+  it('counts each person once for the match rate, so it can’t pass 100%', () => {
+    // Ann (matched twice) and Bob: 1 of 2 people, not "4 match-ends over 3 bookings".
+    expect(buildOverview({ bookings, events, signups, memberFilters: false }).totals.matchRate).toBe(50);
+  });
+
+  it('leaves expenses and profit out when restricted by age or gender', () => {
+    const o = buildOverview({ bookings, events, signups, memberFilters: true });
+    expect([o.totals.expenses, o.totals.profit, o.byCity[0].expenses]).toEqual([null, null, null]);
+  });
+
+  it('shows revenue by event month, and signups by the month they joined', () => {
+    const o = buildOverview({ bookings, events, signups, memberFilters: false });
+    expect(o.revenueOverTime).toEqual([{ month: '2026-08', revenue: 143 }, { month: '2026-09', revenue: 0 }]);
+    expect(o.memberGrowth).toEqual([{ month: '2026-08', count: 1 }, { month: '2026-09', count: 2 }]);
+    expect(buildOverview({ bookings, events, signups: null, memberFilters: false }).memberGrowth).toBeNull();
+  });
+
+  it('splits by event type', () => {
+    expect(buildOverview({ bookings, events, signups, memberFilters: false }).byTheme.map((r) => [r.name, r.attendees])).toEqual([['Speed Dating', 4]]);
+  });
+});
+
+describe('shareMatched (one event’s match rate)', () => {
+  it('is the share of attendees with at least one match', () => {
+    const pairs = [{ memberAId: 'a', memberBId: 'b' }, { memberAId: 'a', memberBId: 'c' }, { memberAId: 'a', memberBId: 'd' }];
+    // a, b, c, d matched; e didn't: 4 of 5. Pairs × 2 used to give 6 of 5 = 120%.
+    expect(shareMatched(['a', 'b', 'c', 'd', 'e'], pairs)).toBe(80);
+    expect(shareMatched(['a', 'b', 'c'], [{ memberAId: 'a', memberBId: 'b' }])).toBe(66.67);
+    expect(shareMatched([], [])).toBe(0);
+  });
+});
+

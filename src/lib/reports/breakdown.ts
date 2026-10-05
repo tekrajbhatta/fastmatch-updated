@@ -7,7 +7,9 @@
  * can be tested without a database.
  */
 
-export type Dimension = 'month' | 'ageGroup' | 'location' | 'venue' | 'event';
+// 'theme' (the event type) isn't offered on the table; the Overview's "By
+// event type" uses it.
+export type Dimension = 'month' | 'ageGroup' | 'location' | 'venue' | 'event' | 'theme';
 export type ReportType = 'all' | 'profitLoss';
 
 export const CATEGORY_OPTIONS: { value: Dimension; label: string }[] = [
@@ -208,3 +210,69 @@ export function buildReport(input: {
 
   return { columns, categories, total: total.metrics(withSignups, withMoney) };
 }
+
+/** One row of the Overview's "By event type" and "By city" tables. Expenses and profit are null when they don't apply. */
+export interface OverviewRow { name: string; attendees: number; revenue: number; expenses: number | null; profit: number | null }
+export interface Overview {
+  totals: { attendees: number; revenue: number; expenses: number | null; profit: number | null; matchRate: number | null };
+  byTheme: OverviewRow[];
+  byCity: OverviewRow[];
+  /** By event month, as the table's Month rows. */
+  revenueOverTime: { month: string; revenue: number }[];
+  /** Registrations by the month they joined; null when the filters rule signups out (a venue or event type). */
+  memberGrowth: { month: string; count: number }[] | null;
+}
+
+/**
+ * The Overview under the report table, built by the table's own builder from
+ * the same facts, so the two always agree. It used to have its own rules:
+ * member age as of today rather than on the night, attendees limited to
+ * members living in the chosen city, revenue by booking date, and a match
+ * rate that counted each pair twice (it could pass 100%).
+ *
+ * Expenses and profit follow the profit/loss statement: every event in the
+ * filter, once each — and not at all when the report is restricted by age or
+ * gender, since an event's expenses belong to the whole night.
+ */
+export function buildOverview(input: { bookings: BookingFact[]; events: EventFact[]; signups: SignupFact[] | null; memberFilters: boolean }): Overview {
+  const type: ReportType = input.memberFilters ? 'all' : 'profitLoss';
+  const report = (category: Dimension) =>
+    buildReport({ category, group: 'none', type, bookings: input.bookings, events: input.events, signups: null });
+  const rows = (r: Report): OverviewRow[] =>
+    r.categories.map((c) => ({ name: c.label, attendees: c.metrics.bookings, revenue: c.metrics.revenue, expenses: c.metrics.expenses, profit: c.metrics.profit }));
+
+  const byMonth = report('month');
+  const t = byMonth.total;
+
+  let memberGrowth: Overview['memberGrowth'] = null;
+  if (input.signups) {
+    const months = new Map<string, { place: Place; count: number }>();
+    for (const s of input.signups) {
+      const m = months.get(s.at.month.key) ?? { place: s.at.month, count: 0 };
+      m.count++;
+      months.set(s.at.month.key, m);
+    }
+    memberGrowth = [...months.values()].sort((a, b) => a.place.sort.localeCompare(b.place.sort)).map((m) => ({ month: m.place.label, count: m.count }));
+  }
+
+  return {
+    totals: { attendees: t.bookings, revenue: t.revenue, expenses: t.expenses, profit: t.profit, matchRate: t.matchPct },
+    byTheme: rows(report('theme')),
+    byCity: rows(report('location')),
+    revenueOverTime: byMonth.categories.map((c) => ({ month: c.label, revenue: c.metrics.revenue })),
+    memberGrowth,
+  };
+}
+
+/**
+ * The match rate for one event: the share of its attendees with at least one
+ * date or friend match, as a percentage (2 decimals). It used to be pairs × 2
+ * over attendees, which counted someone with three matches three times.
+ */
+export function shareMatched(attendeeIds: string[], matches: { memberAId: string; memberBId: string }[]): number {
+  const people = new Set(attendeeIds);
+  if (people.size === 0) return 0;
+  const matched = new Set(matches.flatMap((m) => [m.memberAId, m.memberBId]).filter((id) => people.has(id)));
+  return Math.round((matched.size / people.size) * 10000) / 100;
+}
+

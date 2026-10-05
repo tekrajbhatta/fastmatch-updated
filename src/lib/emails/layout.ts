@@ -1,5 +1,14 @@
 import { BRAND_NAME, BRAND_TAGLINE, BRAND_COLORS } from '../brand';
 
+/**
+ * The one heading style for every email. Each email used to style its own
+ * <h1> (or leave it unstyled), so heading sizes differed from email to email.
+ * Restated in full because Gmail and Outlook apply their own <h1> defaults.
+ */
+export const EMAIL_HEADING = `margin:0 0 20px;font-family:Arial,sans-serif;font-size:20px;line-height:1.4;font-weight:bold;color:${BRAND_COLORS.plum};`;
+/** A section heading inside an email ("Date matches"); add a color after it. */
+export const EMAIL_SUBHEADING = 'margin:24px 0 8px;font-family:Arial,sans-serif;font-size:17px;line-height:1.4;font-weight:bold;';
+
 export function emailLayout(bodyHtml: string, opts: { unsubscribeUrl?: string } = {}) {
   const year = new Date().getFullYear();
 

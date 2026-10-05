@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { buttonClass } from '@/components/site/button';
 import { isProfileMatch } from '@/lib/memberEvents';
 import { formatEventForViewer } from '@/lib/timezone';
+import { formatPrice } from '@/lib/price';
 
 export interface MemberTableEvent {
   id: string;
@@ -66,7 +67,7 @@ export default function MemberEventsTable({
             <p className="mt-2 text-[15px] leading-normal text-ink-600">
               {when.shortDate}, {when.time}{when.note ? ` (${when.note})` : ''} · {e.venue.name}{showCity ? `, ${e.city.name}` : ''}
             </p>
-            <p className="text-[15px] leading-normal text-ink-600">Ages {e.ageMin} to {e.ageMax} · ${Number(e.cost).toFixed(2)}</p>
+            <p className="text-[15px] leading-normal text-ink-600">Ages {e.ageMin} to {e.ageMax} · {formatPrice(e.cost)}</p>
             <div className="mt-4 flex flex-wrap items-center gap-2.5">
               <Link href={`/events/${e.id}`} className={VIEW}>View</Link>
               {e.bookedByMe ? (
@@ -113,7 +114,7 @@ export default function MemberEventsTable({
                 <td className={`${CELL} text-ink-900`}>{e.venue.name}</td>
                 {showCity && <td className={`${CELL} text-ink-600`}>{e.city.name}</td>}
                 <td className={`${CELL} whitespace-nowrap text-ink-900`}>{e.ageMin} to {e.ageMax}</td>
-                <td className={`${CELL} tabular-nums text-ink-900`}>${Number(e.cost).toFixed(2)}</td>
+                <td className={`${CELL} tabular-nums text-ink-900`}>{formatPrice(e.cost)}</td>
                 <td className={CELL}><Link href={`/events/${e.id}`} className={VIEW}>View</Link></td>
                 <td className={CELL}>
                   {e.bookedByMe ? (

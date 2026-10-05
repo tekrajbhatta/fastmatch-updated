@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react';
+import type { Metadata } from 'next';
 import { Container, PageHero } from '@/components/site/layout';
 import { linkClass } from '@/components/site/button';
+
+export const metadata: Metadata = { title: 'Terms & conditions' };
 
 export default function TermsPage() {
   return (

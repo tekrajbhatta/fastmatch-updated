@@ -14,6 +14,27 @@ export function venueLine(venue: { name: string; address?: string | null }): str
 }
 
 /**
+ * Whether a line already names the city at its end — "23 Walker St, North
+ * Sydney", "1 George St, Sydney NSW 2000" — so it isn't added a second time
+ * ("…, Sydney, Sydney"). Looks at the last comma-separated part, where the
+ * suburb or city goes, for the city as whole words.
+ */
+export function namesCity(line: string, city: string): boolean {
+  const c = city.trim().toLowerCase();
+  if (!c) return true;
+  const last = (line.split(',').pop() ?? '').trim().toLowerCase();
+  const asText = c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|\\s)${asText}(\\s|$)`).test(last);
+}
+
+/** The venue's line with its city after it, unless the address already ends with it. For event pages and lists. */
+export function venueLineWithCity(venue: { name: string; address?: string | null }, cityName?: string | null): string {
+  const line = venueLine(venue);
+  const city = cityName?.trim();
+  return city && !namesCity(line, city) ? `${line}, ${city}` : line;
+}
+
+/**
  * Multi-line venue block for the blast "event details" field, matching the
  * layout Gil asked for:
  *
@@ -41,7 +62,7 @@ export function venueBlock(
   const city = cityName?.trim();
   const withCity = (line: string | null | undefined) => {
     const l = line?.trim();
-    return l && city && !l.toLowerCase().endsWith(city.toLowerCase()) ? `${l}, ${city}` : l;
+    return l && city && !namesCity(l, city) ? `${l}, ${city}` : l;
   };
   const address = venue.address?.trim();
   return [address ? venue.name : withCity(venue.name), withCity(address), venue.phone, venue.websiteUrl]

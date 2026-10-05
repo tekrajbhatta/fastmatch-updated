@@ -1,4 +1,4 @@
-import { emailLayout } from './layout';
+import { emailLayout, EMAIL_HEADING } from './layout';
 import { BRAND_COLORS } from '../brand';
 import { escapeHtml } from '../escapeHtml';
 import { PENDING_SIGNUP_DAYS } from '../pendingSignup';
@@ -8,7 +8,6 @@ import { PENDING_SIGNUP_DAYS } from '../pendingSignup';
 // the form says the same thing either way, so each must make sense on its own
 // to whoever owns the inbox. Styling as in welcomeEmail.ts.
 
-const HEADING = `margin:0 0 20px;font-family:Arial,sans-serif;font-size:20px;line-height:1.4;font-weight:bold;color:${BRAND_COLORS.plum};`;
 const PARA = 'margin:0 0 16px;';
 const PARA_BUTTON = 'margin:0 0 24px;';
 const BUTTON =
@@ -19,7 +18,7 @@ const LINK = `color:${BRAND_COLORS.plum};`;
 /** A new address: the link that creates the account. */
 export function finishSignupEmail(opts: { name: string; finishUrl: string }) {
   const html = emailLayout(`
-    <h1 style="${HEADING}">Welcome to FastMatch, ${escapeHtml(opts.name)}!</h1>
+    <h1 style="${EMAIL_HEADING}">Welcome to FastMatch, ${escapeHtml(opts.name)}!</h1>
     <p style="${PARA_BUTTON}">Thanks for signing up. Please confirm your email address to finish creating your account:</p>
     <p style="${PARA_BUTTON}"><a href="${opts.finishUrl}" style="${BUTTON}">Confirm my email</a></p>
     <p style="${PARA}">Then we'll text a code to your mobile, and once that's entered you can book events straight away.</p>
@@ -32,7 +31,7 @@ export function finishSignupEmail(opts: { name: string; finishUrl: string }) {
 /** A member's address: they already have an account. Uses the name on the account, not the one typed. */
 export function alreadyMemberEmail(opts: { name: string; loginUrl: string; resetUrl: string }) {
   const html = emailLayout(`
-    <h1 style="${HEADING}">You already have a FastMatch account</h1>
+    <h1 style="${EMAIL_HEADING}">You already have a FastMatch account</h1>
     <p style="${PARA}">Hi ${escapeHtml(opts.name)}, someone (hopefully you) just tried to sign up to FastMatch with this email address. You're already a member, so there's no need to sign up again.</p>
     <p style="${PARA_BUTTON}"><a href="${opts.loginUrl}" style="${BUTTON}">Log in</a></p>
     <p style="${PARA}">Forgotten your password? <a href="${opts.resetUrl}" style="${LINK}">Choose a new one</a>.</p>
@@ -56,7 +55,7 @@ export function finishInvitationEmail(opts: { name: string; setPasswordUrl: stri
     login: "just tried to log in to FastMatch with this email address. You haven't chosen a password yet: a friend added you to FastMatch. Choose your password and check your details to finish setting up your account.",
   }[opts.reason ?? 'signup'];
   const html = emailLayout(`
-    <h1 style="${HEADING}">Your FastMatch account is waiting for you</h1>
+    <h1 style="${EMAIL_HEADING}">Your FastMatch account is waiting for you</h1>
     <p style="${PARA}">Hi ${escapeHtml(opts.name)}, someone (hopefully you) ${tried}</p>
     <p style="${PARA_BUTTON}"><a href="${opts.setPasswordUrl}" style="${BUTTON}">Set your password</a></p>
     <p style="${PARA}">If this wasn't you, you can ignore this email.</p>

@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth';
 import { buildMemberWhere, MemberFilter } from '@/lib/memberFilter';
 import { memberFilterFromParams } from '@/lib/memberFilterParams';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { attendedBookingWhere } from '@/lib/attended';
 
 const PAGE_SIZE = 50;
 
@@ -31,7 +32,8 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
         // age is computed client-side rather than stored.
         id: true, name: true, email: true, mobile: true, gender: true, dateOfBirth: true, createdAt: true,
         city: { select: { name: true } },
-        _count: { select: { bookings: true } },
+        // "Events attended": paid, at events that have happened (src/lib/attended.ts).
+        _count: { select: { bookings: { where: attendedBookingWhere() } } },
       },
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * PAGE_SIZE,

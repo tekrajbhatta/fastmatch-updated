@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { paymentMethodLabel } from '@/lib/paymentMethod';
+import { shareMatched } from '@/lib/reports/breakdown';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
 // GET /api/admin/reports/event/:eventId — the Per-event report: attendance
@@ -37,10 +38,12 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
   const friendMatches = matches.filter((m) => m.result === 'FRIEND').length;
 
   // How each person paid, in the old report's words. A friend brought by
-  // another member was paid for inside that member's online payment.
+  // another member was paid for inside that member's online payment. A $0
+  // booking online paid nothing by card, so it doesn't say it did.
   const how = (b: (typeof bookings)[number]) =>
     b.bookedBy ? `Paid by ${b.bookedBy.member.name} (brought as a friend)`
     : b.paymentMethod ? paymentMethodLabel(b.paymentMethod)
+    : Number(b.paidAmount) === 0 ? (b.discountCode ? 'Free (discount code)' : 'Free')
     : 'Paid online by card';
 
   const round = (n: number) => Math.round(n * 100) / 100;
@@ -49,9 +52,12 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
       id: event.id, number: event.number, name: event.name, startsAt: event.startsAt,
       venue: event.venue.name, city: event.city.name, theme: event.theme.name,
     },
+    // Everyone who paid (Gil), no-shows included.
     attended: bookings.length,
     men, women,
-    matchRate: bookings.length > 0 ? Math.round(((dateMatches + friendMatches) * 2 * 100) / bookings.length) : 0,
+    // The share of them with at least one match, once the results are in
+    // (null before). It was pairs × 2 over attendees, which could pass 100%.
+    matchRate: event.matchesCalculated ? shareMatched(bookings.map((b) => b.memberId), matches) : null,
     revenue: round(revenue), expenses: round(expenses), profit: round(revenue - expenses),
     dateMatches, friendMatches,
     statement: {

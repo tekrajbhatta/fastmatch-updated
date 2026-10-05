@@ -7,6 +7,7 @@ import { Card, Button, Loader, BackLink } from '@/components/ui';
 import { venueLine, venueBlock } from '@/lib/venue';
 import { timeZoneForCity } from '@/lib/timezone';
 import { Spinner } from '@/components/Spinner';
+import { formatPrice } from '@/lib/price';
 
 interface EventDetail {
   id: string; name: string; venue: { name: string; address: string | null; phone: string | null; websiteUrl: string | null }; startsAt: string; cost: string;
@@ -65,7 +66,7 @@ export default function AdminEventDetailPage() {
     const params = new URLSearchParams({
       subject: `${event.theme.name}, ${event.name}`,
       heading: event.theme.name,
-      eventDetails: `When: ${dateStr}, ${timeStr}\nWhere: ${venueBlock(event.venue, event.city.name)}\nCost: $${event.cost}`,
+      eventDetails: `When: ${dateStr}, ${timeStr}\nWhere: ${venueBlock(event.venue, event.city.name)}\nCost: ${formatPrice(event.cost)}`,
       bookingLink: `${window.location.origin}/events/${event.id}`,
       // Only for the blast form's "← Back to event" link.
       fromEvent: event.id,

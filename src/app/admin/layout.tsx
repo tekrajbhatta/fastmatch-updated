@@ -1,11 +1,17 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { getCurrentMember } from '@/lib/auth';
 import { PATH_HEADER } from '@/lib/pathHeader';
 import { isAdminPath } from '@/lib/accountSetup';
+import { adminTitle } from '@/lib/pageTitles';
 import { FormCard } from '@/components/site/layout';
 import { ButtonLink, linkClass } from '@/components/site/button';
+
+// Admin tabs read "Events | FastMatch admin", so they stand apart from the
+// public site's when both are open.
+export const metadata: Metadata = { title: adminTitle('Admin') };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const member = await getCurrentMember();
