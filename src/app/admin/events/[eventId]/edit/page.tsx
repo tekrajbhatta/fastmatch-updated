@@ -68,6 +68,7 @@ export default function EditEventPage() {
           maxMen: e.maxMen, maxWomen: e.maxWomen, cost: e.cost,
           expenses: e.expenses ?? '', visibility: e.visibility, confirmed: !!e.confirmed,
           fastmatchDiscounts: e.fastmatchDiscounts ?? true, groupDiscounts: e.groupDiscounts ?? true,
+          ratingAudience: e.ratingAudience ?? 'OPPOSITE_GENDER',
         });
       }
     });

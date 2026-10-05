@@ -7,6 +7,7 @@ import { Container, DecorRing, FormCard, SplitLayout, PageLoader } from '@/compo
 import { FormError } from '@/components/site/form';
 import { Button, ButtonLink, buttonClass, linkClass } from '@/components/site/button';
 import { eventClock } from '@/lib/timezone';
+import { rosterCountLabel, type RatingAudience, type Gender } from '@/lib/ratingAudience';
 
 interface Me { id: string; name: string; email: string; mobile: string; }
 interface RosterEntry { badge: number; memberId: string; name: string; }
@@ -14,7 +15,9 @@ type Choice = 'NO' | 'FRIEND' | 'DATE';
 
 /** Where the member stands tonight (GET /api/events/:id/night). */
 interface Night {
-  event: { name: string; theme: string; startsAt: string; city: string; cancelled: boolean };
+  event: { name: string; theme: string; startsAt: string; city: string; cancelled: boolean; ratingAudience: RatingAudience };
+  /** The member's own gender: on an "Opposite gender only" night the list shows the other. */
+  myGender: Gender;
   checkIn: 'not-yet' | 'open' | 'closed';
   opensAt: string;
   closesAt: string;
@@ -249,7 +252,13 @@ export default function CheckinPage() {
 
           <div className="mb-3 mt-6 flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-ink-600">
             <span aria-hidden="true" className="h-2.5 w-2.5 animate-pulse rounded-full bg-match-400" />
-            <span className="font-bold text-plum-700">{roster.length} checked in.</span>
+            {/* "5 women checked in." on an "Opposite gender only" night: the
+                list shows only the people this member can rate. */}
+            <span className="font-bold text-plum-700">
+              {night?.event.ratingAudience === 'OPPOSITE_GENDER'
+                ? rosterCountLabel('OPPOSITE_GENDER', night.myGender, roster.filter((r) => r.memberId !== me?.id).length)
+                : rosterCountLabel('EVERYONE', night?.myGender, roster.length)}
+            </span>
             <span>Tap a name once you've met them.</span>
             {/* The list also refreshes on its own every 25 seconds. */}
             <button type="button" onClick={loadRoster} disabled={refreshing} className={`${linkClass} ml-auto text-sm disabled:opacity-50`}>
@@ -279,7 +288,16 @@ export default function CheckinPage() {
           {activePerson && (
             <div className="fixed inset-0 z-50 flex items-end justify-center bg-plum-950/60 sm:items-center" onClick={() => setActivePerson(null)}>
               <div className="w-full max-w-sm rounded-t-[28px] bg-white p-6 pb-8 sm:rounded-[28px] sm:pb-6" onClick={(e) => e.stopPropagation()}>
-                <h2 className="mb-4 font-display text-2xl font-extrabold tracking-[-0.02em] text-ink-900">{activePerson.name}</h2>
+                <h2 className="font-display text-2xl font-extrabold tracking-[-0.02em] text-ink-900">{activePerson.name}</h2>
+                {/* What each choice means, in Gil's words. */}
+                <div className="mb-4 mt-2 text-[15px] leading-snug text-ink-600">
+                  <p>Now you get to decide if you&apos;d like to meet with this person again.</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>Click &lsquo;Date&rsquo; if you are really interested and see some potential.</li>
+                    <li>Click &lsquo;Friend&rsquo; if you just want to hang out as friends.</li>
+                    <li>Click &lsquo;No&rsquo; if you are not interested at all.</li>
+                  </ul>
+                </div>
                 {(['DATE', 'FRIEND', 'NO'] as Choice[]).map((choice) => (
                   <button
                     key={choice}
@@ -297,7 +315,11 @@ export default function CheckinPage() {
           <Button onClick={handleSubmitMatches} disabled={submitting} loading={submitting} block className="mt-6">
             {submitting ? 'Submitting…' : 'Submit matches'}
           </Button>
-          <p className="mt-3 text-center text-sm text-ink-600">Send your choices before midnight tonight. You can change them and send again until then.</p>
+          {/* Gil's wording. */}
+          <p className="mt-3 text-center text-sm text-ink-600">
+            Matches are automatically processed at midnight tonight. You&apos;ll get an email, and they&apos;ll also show on
+            your <span className="whitespace-nowrap">&lsquo;My Match History&rsquo;</span> page. You can change your choices and submit again until midnight.
+          </p>
         </div>
       </Container>
     );
@@ -310,7 +332,13 @@ export default function CheckinPage() {
           <DecorRing className="-right-16 -top-20 w-[clamp(160px,20vw,240px)] opacity-60" />
           <span aria-hidden="true" className="relative flex h-16 w-16 items-center justify-center rounded-[32px_32px_32px_8px] bg-match-400 font-display text-3xl font-extrabold text-plum-900">✓</span>
           <h1 className="relative font-display text-[clamp(34px,4vw,52px)] font-extrabold leading-[1.05] tracking-[-0.03em] text-white">Matches submitted</h1>
-          <p className="relative max-w-[460px] text-[17px] leading-normal text-plum-200 text-pretty">Results are worked out after midnight. They&apos;ll be emailed to you and shown on your My Match History page. You can still change your choices until midnight.</p>
+          {/* "My Match History page" on a line of its own, never split (Gil). */}
+          <p className="relative max-w-[460px] text-[17px] leading-normal text-plum-200 text-pretty">
+            Matches are automatically processed at midnight tonight. You&apos;ll get an email, and they&apos;ll also show on your
+            <br />
+            <span className="whitespace-nowrap">&lsquo;My Match History&rsquo; page.</span>
+          </p>
+          <p className="relative max-w-[460px] text-[15px] leading-normal text-plum-200">You can still change your choices until midnight.</p>
           <a href="/matches" className={`relative mt-2 ${buttonClass({ onDark: true })}`}>Go to My Match History</a>
         </div>
       </Container>

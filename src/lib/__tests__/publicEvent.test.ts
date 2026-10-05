@@ -12,7 +12,7 @@ const event = {
   themeId: 't1', cityId: 'c1', venueId: 'v1', startsAt: new Date('2026-11-02T08:00:00Z'),
   ageMin: 28, ageMax: 40, maxMen: 12, maxWomen: 12, cost: new Prisma.Decimal(49), expenses: new Prisma.Decimal(300),
   visibility: 'PUBLIC' as const, status: 'UPCOMING' as const, confirmed: true, draft: false,
-  fastmatchDiscounts: true, groupDiscounts: true, seriesId: null, matchesCalculated: false,
+  fastmatchDiscounts: true, groupDiscounts: true, ratingAudience: 'OPPOSITE_GENDER' as const, seriesId: null, matchesCalculated: false,
   matchesCalculatedAt: null, matchEmailsSent: false, createdAt: new Date(), updatedAt: new Date(),
   theme: { id: 't1', name: 'Speed dating', active: true },
   city: { id: 'c1', name: 'Sydney' },

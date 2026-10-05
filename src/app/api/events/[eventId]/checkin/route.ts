@@ -5,6 +5,7 @@ import { withErrorHandling } from '@/lib/withErrorHandling';
 import { checkInState, checkInWindow } from '@/lib/eventNight';
 import { formatEventWhen } from '@/lib/datetime';
 import { timeZoneForCity } from '@/lib/timezone';
+import { canRate } from '@/lib/ratingAudience';
 
 // POST /api/events/:eventId/checkin
 // Scanning/tapping the event's single shared QR hits this — since the
@@ -56,6 +57,10 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
 // Names of the people at an event are private: only someone checked in to
 // THIS event (or the admin) may list them, and only confirmed bookings count,
 // so a cancelled or refunded booking left ticked doesn't appear.
+//
+// A member sees only the people they can rate: on an "Opposite gender only"
+// night (the default), men see the women and women the men
+// (src/lib/ratingAudience.ts). The admin sees everyone.
 export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ eventId: string }> }) => {
   const params = await ctx.params;
   const member = await getSessionMember(req);
@@ -70,13 +75,19 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     }
   }
 
-  const roster = await prisma.booking.findMany({
-    where: { eventId: params.eventId, checkedIn: true, status: 'CONFIRMED' },
-    include: { member: { select: { id: true, name: true } } },
-    orderBy: { badge: 'asc' },
-  });
+  const [event, roster] = await Promise.all([
+    prisma.event.findUniqueOrThrow({ where: { id: params.eventId }, select: { ratingAudience: true } }),
+    prisma.booking.findMany({
+      where: { eventId: params.eventId, checkedIn: true, status: 'CONFIRMED' },
+      include: { member: { select: { id: true, name: true, gender: true } } },
+      orderBy: { badge: 'asc' },
+    }),
+  ]);
+  const shown = member.isAdmin
+    ? roster
+    : roster.filter((b) => b.member.id === member.id || canRate(event.ratingAudience, member.gender, b.member.gender));
 
   return NextResponse.json(
-    roster.map((b) => ({ badge: b.badge, memberId: b.member.id, name: b.member.name }))
+    shown.map((b) => ({ badge: b.badge, memberId: b.member.id, name: b.member.name }))
   );
 });

@@ -27,7 +27,12 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     : [];
 
   return NextResponse.json({
-    event: { name: event.name, theme: event.theme.name, startsAt: event.startsAt, city: event.city.name, cancelled: event.status === 'CANCELLED' },
+    event: {
+      name: event.name, theme: event.theme.name, startsAt: event.startsAt, city: event.city.name, cancelled: event.status === 'CANCELLED',
+      // Who the check-in list shows them: the opposite gender, or everyone.
+      ratingAudience: event.ratingAudience,
+    },
+    myGender: member.gender,
     checkIn: checkInState(event),
     opensAt: opens,
     closesAt: closes,

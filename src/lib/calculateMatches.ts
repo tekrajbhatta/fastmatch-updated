@@ -14,6 +14,7 @@
 
 import { Choice, MatchResult } from '@prisma/client';
 import { prisma } from './prisma';
+import { canMatch, type Gender } from './ratingAudience';
 
 export async function calculateMatchesForEvent(eventId: string) {
   const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId } });
@@ -23,6 +24,13 @@ export async function calculateMatchesForEvent(eventId: string) {
   }
 
   const ratings = await prisma.rating.findMany({ where: { eventId } });
+  // On an "Opposite gender only" night (the default), two men or two women
+  // never match, whatever was chosen (choices sent before the setting
+  // existed, say). src/lib/ratingAudience.ts.
+  const people = new Set(ratings.flatMap((r) => [r.raterId, r.ratedMemberId]));
+  const genderOf = new Map<string, Gender>(
+    (await prisma.member.findMany({ where: { id: { in: [...people] } }, select: { id: true, gender: true } })).map((m) => [m.id, m.gender]),
+  );
 
   // Build a lookup: ratings[raterId][ratedMemberId] = choice
   const lookup = new Map<string, Map<string, Choice>>();
@@ -46,6 +54,8 @@ export async function calculateMatchesForEvent(eventId: string) {
     const bChoice = lookup.get(memberBId)?.get(memberAId);
 
     if (!aChoice || !bChoice) continue; // one side never rated the other — no match
+    const [aGender, bGender] = [genderOf.get(memberAId), genderOf.get(memberBId)];
+    if (!aGender || !bGender || !canMatch(event.ratingAudience, aGender, bGender)) continue;
 
     const result = resolveMatch(aChoice, bChoice);
     if (result) {

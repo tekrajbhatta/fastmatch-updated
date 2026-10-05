@@ -9,6 +9,7 @@ import EventFlagFields from '@/components/EventFlagFields';
 import VenueInfoPanel, { venueFillPatch } from '@/components/VenueInfoPanel';
 import { fromDateTimeLocalValue } from '@/lib/datetime';
 import { timeZoneForCity } from '@/lib/timezone';
+import type { RatingAudience } from '@/lib/ratingAudience';
 import { checkNewEvent, eventNumbers, EVENT_NUMBER_FIELDS, CHECK_FIELDS, type EventFieldErrors } from '@/lib/eventInput';
 
 interface City { id: string; name: string; }
@@ -25,6 +26,7 @@ export default function NewEventPage() {
     ageMin: '', ageMax: '', maxMen: '12', maxWomen: '12', cost: '', expenses: '',
     visibility: 'PUBLIC' as 'PUBLIC' | 'NOT_PUBLIC',
     confirmed: false, fastmatchDiscounts: true, groupDiscounts: true,
+    ratingAudience: 'OPPOSITE_GENDER' as RatingAudience,
   });
   const [repeatOn, setRepeatOn] = useState(false);
   const [repeat, setRepeat] = useState({ frequency: 'WEEKLY' as 'DAILY' | 'WEEKLY' | 'MONTHLY', interval: '1', endDate: '' });

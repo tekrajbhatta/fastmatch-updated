@@ -32,6 +32,13 @@ enum Choice {
   DATE
 }
 
+// Who members see and rate on the check-in list (Gil, 4 Oct): men see the
+// women and women the men, or everyone, for same-sex or friendship nights.
+enum RatingAudience {
+  OPPOSITE_GENDER
+  EVERYONE
+}
+
 enum MatchResult {
   FRIEND
   DATE
@@ -213,6 +220,8 @@ model Event {
   // friends, paying for them and getting GROUP_DISCOUNT_PER_FRIEND off per
   // friend (see src/lib/bookingPrice.ts).
   groupDiscounts     Boolean    @default(true)
+  // Who members see and rate on the night (src/lib/ratingAudience.ts).
+  ratingAudience     RatingAudience @default(OPPOSITE_GENDER)
   series        EventSeries?    @relation(fields: [seriesId], references: [id])
   seriesId      String?
 

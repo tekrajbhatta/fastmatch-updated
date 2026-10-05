@@ -32,6 +32,8 @@ export const eventFieldsSchema = z.object({
   confirmed: z.boolean().default(false),
   fastmatchDiscounts: z.boolean().default(true),
   groupDiscounts: z.boolean().default(true),
+  // Who members see and rate on the night (src/lib/ratingAudience.ts).
+  ratingAudience: z.enum(['OPPOSITE_GENDER', 'EVERYONE']).default('OPPOSITE_GENDER'),
 });
 
 export const newEventSchema = eventFieldsSchema.extend({

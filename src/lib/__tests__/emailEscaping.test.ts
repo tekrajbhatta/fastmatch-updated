@@ -52,9 +52,11 @@ describe('booking and event emails', () => {
   });
 
   it('reminder', () => {
-    const opts = { memberName: evil('member'), eventName: evil('event'), venue: evil('venue'), startsAt, timeZone, zoneNote: evil('zone') };
+    const opts = { memberName: evil('member'), eventName: evil('event'), venue: evil('venue'), startsAt, timeZone, zoneNote: evil('zone'), checkInUrl: 'https://fastmatch.test/events/e1/checkin' };
     const { html, subject } = eventReminderEmail(opts);
     expectEscaped(html, 'member', 'event', 'venue', 'zone');
+    // The night's steps and the check-in button, as in the booking email.
+    expect(html).toContain('href="https://fastmatch.test/events/e1/checkin"');
     expect(subject.startsWith(`${evil('member')}, you're speed dating on`)).toBe(true);
     expect(eventReminderEmail({ ...opts, memberName: HEADER_TRICK }).subject).not.toMatch(/[\r\n]/);
   });

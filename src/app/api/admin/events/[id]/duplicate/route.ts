@@ -44,6 +44,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
       visibility: e.visibility,
       fastmatchDiscounts: e.fastmatchDiscounts,
       groupDiscounts: e.groupDiscounts,
+      ratingAudience: e.ratingAudience,
       // Hidden and unbookable until the admin saves it from the edit form.
       draft: true,
     },

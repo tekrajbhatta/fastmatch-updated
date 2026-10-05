@@ -12,6 +12,8 @@ import { priceBooking, GROUP_DISCOUNT_PER_FRIEND, MAX_FRIENDS_PER_GENDER, type C
 import { validateFriends, type FriendFieldError, type FriendGender } from '@/lib/friendBooking';
 import { unfinishedSteps, type SetupStep } from '@/lib/accountSetup';
 import SetupSteps from '@/components/site/SetupSteps';
+import CheckInAction from '@/components/site/CheckInAction';
+import { checkInState, checkInWindow } from '@/lib/eventNight';
 import { formatPrice } from '@/lib/price';
 
 interface EventDetail {
@@ -31,6 +33,8 @@ interface EventDetail {
   /** Whether it can be booked, and if not why (src/lib/eventAvailability.ts). */
   availability: 'open' | 'finished' | 'cancelled' | 'not-open';
   alreadyBooked: boolean;
+  /** Booked and already checked in tonight. */
+  checkedIn: boolean;
   fastmatchDiscounts: boolean;
   groupDiscounts: boolean;
   theme: { name: string };
@@ -135,6 +139,8 @@ export default function EventDetailPage() {
   // A finished, cancelled or hidden event shows why instead of the booking
   // panel: it used to look bookable, and could be paid for after the night.
   const closed = event.availability !== 'open';
+  // Where check-in stands for this event tonight (src/lib/eventNight.ts).
+  const nightState = checkInState(event);
   const canBook = !event.alreadyBooked && !soldOut && !closed;
   const showFriends = !!me && canBook && event.groupDiscounts;
 
@@ -411,7 +417,15 @@ export default function EventDetailPage() {
                 </FormError>
               )}
 
-              {closed ? (
+              {/* Booked: on the night, the way in to check-in, rather than
+                  "This event has finished" as soon as it starts. */}
+              {event.alreadyBooked && event.availability !== 'cancelled' && nightState !== 'closed' ? (
+                <div className="flex flex-col gap-3">
+                  <FormSuccess>You&apos;re booked in for this event.</FormSuccess>
+                  <CheckInAction eventId={event.id} cityName={event.city.name} state={nightState} opensAt={checkInWindow(event).opens}
+                    checkedIn={event.checkedIn} block />
+                </div>
+              ) : closed ? (
                 <p role="status" className="rounded-[20px] bg-plum-50 px-5 py-4 text-center text-[17px] font-bold text-ink-900">
                   {CLOSED_MESSAGE[event.availability as Exclude<EventDetail['availability'], 'open'>]}
                 </p>

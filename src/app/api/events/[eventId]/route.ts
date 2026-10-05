@@ -23,6 +23,7 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
   const { men: menBooked, women: womenBooked } = await placesTaken(event.id, { excludeMemberId: member?.id, excludeEmail: member?.email });
 
   let alreadyBooked = false;
+  let checkedIn = false;
   if (member) {
     const existing = await prisma.booking.findUnique({
       where: { eventId_memberId: { eventId: event.id, memberId: member.id } },
@@ -30,9 +31,11 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     // Only a paid booking counts. An unpaid one is replaced, and a cancelled
     // or refunded one reopened, when the member books again.
     alreadyBooked = existing?.status === 'CONFIRMED';
+    // For the page's "Check in" / "Choose your matches" button on the night.
+    checkedIn = alreadyBooked && !!existing?.checkedIn;
   }
 
   // Only what the page shows (see toPublicEvent), for every event a link can
   // reach, hidden, cancelled and past ones included.
-  return NextResponse.json({ ...toPublicEvent(event, { men: menBooked, women: womenBooked }, member?.gender), alreadyBooked });
+  return NextResponse.json({ ...toPublicEvent(event, { men: menBooked, women: womenBooked }, member?.gender), alreadyBooked, checkedIn });
 });

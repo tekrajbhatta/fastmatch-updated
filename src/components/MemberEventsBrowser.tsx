@@ -10,9 +10,17 @@ import { orderForMember } from '@/lib/memberEvents';
 import { calculateAge } from '@/lib/age';
 import { venueLine } from '@/lib/venue';
 import { formatEventForViewer } from '@/lib/timezone';
+import CheckInAction from '@/components/site/CheckInAction';
+import type { CheckInState } from '@/lib/eventNight';
 
 interface City { id: string; name: string }
 type ApiEvent = MemberTableEvent & { venue: { name: string; address: string | null } };
+/** One of the member's bookings still to come (GET /api/account/bookings). */
+interface BookedEvent {
+  id: string; name: string; startsAt: string; ageMin: number; ageMax: number;
+  theme: { name: string }; city: { name: string }; venue: { name: string; address: string | null };
+  checkedIn: boolean; checkIn: CheckInState; checkInOpensAt: string;
+}
 
 /**
  * The logged-in member's view of what's on, as on the old site: optionally
@@ -28,6 +36,9 @@ export default function MemberEventsBrowser({ showBookedList }: { showBookedList
   // '' = every location
   const [cityId, setCityId] = useState<string | null>(null);
   const [choosing, setChoosing] = useState(false);
+  // The member's bookings until midnight on each night, with their check-in
+  // button: the events list above drops an event as soon as it starts.
+  const [booked, setBooked] = useState<BookedEvent[]>([]);
 
   useEffect(() => {
     Promise.all([
@@ -41,17 +52,19 @@ export default function MemberEventsBrowser({ showBookedList }: { showBookedList
         setAge(calculateAge(new Date(me.member.dateOfBirth)));
         setHomeCityId(me.member.cityId);
         setCityId(me.member.cityId);
+        if (showBookedList) {
+          fetch('/api/account/bookings').then((r) => (r.ok ? r.json() : [])).then((b) => setBooked(Array.isArray(b) ? b : [])).catch(() => {});
+        }
       } else {
         setCityId('');
       }
     });
-  }, []);
+  }, [showBookedList]);
 
   if (!events || cityId === null) return <PageLoader>Loading events…</PageLoader>;
 
   const cityName = (id: string | null) => cities.find((c) => c.id === id)?.name;
   const rows = orderForMember(events, cityId || null);
-  const booked = events.filter((e) => e.bookedByMe).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
   const where = cityId ? cityName(cityId) ?? 'your city' : 'all locations';
 
   return (
@@ -68,7 +81,8 @@ export default function MemberEventsBrowser({ showBookedList }: { showBookedList
               // city already says whose time it is.
               const when = formatEventForViewer(e.startsAt, e.city.name);
               return (
-                <li key={e.id} className="rounded-field bg-white px-4 py-3.5 md:px-5">
+                <li key={e.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 rounded-field bg-white px-4 py-3.5 md:px-5">
+                  <div className="min-w-0 flex-[1_1_320px]">
                   <Link
                     href={`/events/${e.id}`}
                     className="rounded-sm text-base leading-snug text-ink-900 underline decoration-plum-700/30 underline-offset-4 hover:text-plum-700 hover:decoration-plum-700 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-plum-700"
@@ -80,6 +94,10 @@ export default function MemberEventsBrowser({ showBookedList }: { showBookedList
                     {when.time} in {e.city.name}
                   </Link>
                   <span className="mt-1 block text-sm leading-snug text-ink-600">{e.theme.name} · Ages {e.ageMin}–{e.ageMax} · {venueLine(e.venue)}</span>
+                  </div>
+                  <div className="flex-none">
+                    <CheckInAction eventId={e.id} cityName={e.city.name} state={e.checkIn} opensAt={e.checkInOpensAt} checkedIn={e.checkedIn} />
+                  </div>
                 </li>
               );
             })}

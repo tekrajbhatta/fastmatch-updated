@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getSessionMember } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { choicesOpen } from '@/lib/eventNight';
+import { canRate } from '@/lib/ratingAudience';
 
 const bodySchema = z.object({
   ratings: z.array(
@@ -54,12 +55,16 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
   }
 
-  // Everyone who can be chosen: checked in, confirmed, and not yourself.
+  // Everyone who can be chosen: checked in, confirmed, not yourself, and
+  // someone this event lets you rate (the opposite gender, unless it's an
+  // "Everyone" night — src/lib/ratingAudience.ts).
   const present = new Set(
     (await prisma.booking.findMany({
       where: { eventId: params.eventId, status: 'CONFIRMED', checkedIn: true, memberId: { not: member.id } },
-      select: { memberId: true },
-    })).map((b) => b.memberId),
+      select: { memberId: true, member: { select: { gender: true } } },
+    }))
+      .filter((b) => canRate(event.ratingAudience, member.gender, b.member.gender))
+      .map((b) => b.memberId),
   );
   const valid = parsed.data.ratings.filter((r) => present.has(r.ratedMemberId));
 

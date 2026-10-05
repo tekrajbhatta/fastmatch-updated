@@ -1,9 +1,32 @@
-import { emailLayout, EMAIL_HEADING } from './layout';
+import { emailLayout, EMAIL_HEADING, EMAIL_SUBHEADING } from './layout';
+import { BRAND_COLORS } from '../brand';
 import { formatEventShort, EVENT_TIME_ZONE } from '../datetime';
 import { escapeHtml, oneLine } from '../escapeHtml';
 
 // Names (member, event, venue, city) are typed by members and admins, so each
 // is escaped where it goes into the HTML, and kept to one line in a subject.
+
+const CHECK_IN_BUTTON = `background:${BRAND_COLORS.redCta};color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:bold;`;
+
+/**
+ * What to do on the night, step by step, with the check-in button — in the
+ * booking, friend-booking and reminder emails. It used to be one line ("On
+ * the night, show this link (or the QR code at the venue) to check yourself
+ * in"), which Gil found unclear. Check-in opens an hour before the start and
+ * closes at midnight (src/lib/eventNight.ts).
+ */
+export function checkInStepsHtml(checkInUrl: string): string {
+  return `
+    <h2 style="${EMAIL_SUBHEADING}color:${BRAND_COLORS.plum};">How to check in on the night</h2>
+    <ol style="margin:0 0 16px;padding-left:22px;">
+      <li style="margin:0 0 8px;">When you arrive at the venue, tap <strong>Check in</strong> below on your phone, or scan the QR code at the venue. Check-in opens an hour before the start.</li>
+      <li style="margin:0 0 8px;">Log in if you're asked to, check your details and tap <strong>Confirm &amp; check in</strong>. You'll see your number for the night.</li>
+      <li style="margin:0 0 8px;">After you meet each person, tap their name and choose <strong>Date</strong>, <strong>Friend</strong> or <strong>No</strong>. Then tap <strong>Submit matches</strong> before midnight.</li>
+    </ol>
+    <p style="margin:0 0 16px;"><a href="${checkInUrl}" style="${CHECK_IN_BUTTON}">Check in</a></p>
+    <p>Your matches are emailed to you after midnight, and shown on your My Match History page.</p>
+  `;
+}
 
 export function bookingConfirmationEmail(opts: {
   memberName: string;
@@ -31,8 +54,7 @@ export function bookingConfirmationEmail(opts: {
     <p>Hi ${escapeHtml(opts.memberName)},</p>
     <p>You're confirmed for <strong>${escapeHtml(opts.eventName)}</strong> at ${escapeHtml(opts.venue)}.</p>
     <p><strong>${dateStr}</strong><br>${timeStr}</p>
-    <p>On the night, show this link (or the QR code at the venue) to check yourself in:</p>
-    <p><a href="${opts.checkInUrl}" style="background:#E1382E;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Check in on the night</a></p>
+    ${checkInStepsHtml(opts.checkInUrl)}
     <p>If for whatever reason you can't make it, please let us know as soon as you can at
       <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>
     <p>See you there!</p>
@@ -43,7 +65,7 @@ export function bookingConfirmationEmail(opts: {
 }
 
 // Tone matches the real old-system reminder ("Teo, you are Speed dating on...")
-export function eventReminderEmail(opts: { memberName: string; eventName: string; startsAt: Date; venue: string; timeZone: string; zoneNote?: string | null }) {
+export function eventReminderEmail(opts: { memberName: string; eventName: string; startsAt: Date; venue: string; timeZone: string; zoneNote?: string | null; checkInUrl: string }) {
   const dateStr = opts.startsAt.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: opts.timeZone });
   const timeStr =
     opts.startsAt.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: opts.timeZone }) +
@@ -56,6 +78,7 @@ export function eventReminderEmail(opts: { memberName: string; eventName: string
     <p>There'll be plenty of first-timers there too, so relax, smile, and enjoy the process.</p>
     <p>Remember to arrive at least 10 minutes early so you're checked in and ready to go.</p>
     <p><strong>${escapeHtml(opts.eventName)}</strong><br>${escapeHtml(opts.venue)}<br>${dateStr}, ${timeStr}</p>
+    ${checkInStepsHtml(opts.checkInUrl)}
     <p>Can't make it? Let us know at <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>
     <p>See you there!</p>
     <p>The FastMatch Team</p>

@@ -2,6 +2,7 @@ import { emailLayout, EMAIL_HEADING } from './layout';
 import { BRAND_COLORS } from '../brand';
 import { formatEventWhen } from '../datetime';
 import { escapeHtml, oneLine } from '../escapeHtml';
+import { checkInStepsHtml } from './eventEmails';
 
 // Inline styles only — email clients ignore <style>. Same values as
 // welcomeEmail.ts so the two read as one family.
@@ -41,8 +42,7 @@ export function friendWelcomeEmail(opts: {
     <p style="${PARA}">You've been added to FastMatch with this email address. Set a password so you can
       check in on the night and choose your matches afterwards:</p>
     <p style="${PARA_BUTTON}"><a href="${opts.setPasswordUrl}" style="${BUTTON}">Set your password</a></p>
-    <p style="${PARA}">On the night, log in and use this link (or scan the QR code at the venue) to check in:<br>
-      <a href="${opts.checkInUrl}">${opts.checkInUrl}</a></p>
+    ${checkInStepsHtml(opts.checkInUrl)}
     <p style="${PARA}">Can't make it, or not expecting this? Let us know at
       <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>
     <p style="${PARA}">See you there!<br>The FastMatch Team</p>
