@@ -58,12 +58,13 @@ export default function EventsPage() {
         )}
 
         {/* Logged-out visitors get the plain list they always had. Members get
-            the old site's layout: the events they're booked into, then a table
-            of what's on in their city, booked events first. */}
+            the old site's layout: the events they're booked into, then what's
+            on in their city in two tables, booked events first: events suitable
+            for their age, then the others (Gil, item 16). */}
         {!loading && !loggedIn && events.length > 0 && <EventGrid events={events} />}
         {!loading && loggedIn && (
           <Container>
-            <MemberEventsBrowser showBookedList />
+            <MemberEventsBrowser showBookedList splitByAge />
           </Container>
         )}
       </section>

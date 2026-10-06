@@ -36,11 +36,13 @@ const CELL = 'px-4 py-3.5 first:pl-6 last:pr-6';
  * The old site's member events table: Event Type · Date · Venue · Ages · Cost
  * · View · Book · Profile Match. Rows arrive already ordered (see
  * orderForMember); events the member is booked into are shaded and say
- * "Booked in" instead of offering Book.
+ * "Booked in" instead of offering Book. Without `showProfileMatch` there's
+ * no Profile Match tick: on Upcoming Events the tables are already split by
+ * age, so every row of one table would be ticked and none of the other.
  */
 export default function MemberEventsTable({
-  events, age, showCity,
-}: { events: MemberTableEvent[]; age: number | null; showCity: boolean }) {
+  events, age, showCity, showProfileMatch = true,
+}: { events: MemberTableEvent[]; age: number | null; showCity: boolean; showProfileMatch?: boolean }) {
   if (events.length === 0) return null;
   return (
     <>
@@ -58,7 +60,7 @@ export default function MemberEventsTable({
           >
             <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
               <span className="font-display text-[22px] font-extrabold leading-[1.15] tracking-[-0.02em] text-ink-900">{e.theme.name}</span>
-              {isProfileMatch(e, age) && (
+              {showProfileMatch && isProfileMatch(e, age) && (
                 <span className="whitespace-nowrap rounded-[999px_999px_999px_4px] bg-plum-100 px-3 py-[5px] text-[13px] font-bold leading-[1.3] text-plum-700">
                   ✓ Profile match
                 </span>
@@ -94,7 +96,7 @@ export default function MemberEventsTable({
             <th scope="col" className={CELL}>Cost</th>
             <th scope="col" className={CELL}>View</th>
             <th scope="col" className={CELL}>Book</th>
-            <th scope="col" className={`${CELL} text-center`}>Profile Match</th>
+            {showProfileMatch && <th scope="col" className={`${CELL} text-center`}>Profile Match</th>}
           </tr>
         </thead>
         <tbody>
@@ -125,18 +127,20 @@ export default function MemberEventsTable({
                     <Link href={`/events/${e.id}#book`} className={BOOK}>Book</Link>
                   )}
                 </td>
-                <td className={`${CELL} text-center`}>
-                  {match && (
-                    <span
-                      role="img"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-plum-100 text-base font-extrabold text-plum-700"
-                      title="Your age is in this event's age range"
-                      aria-label="Matches your profile"
-                    >
-                      ✓
-                    </span>
-                  )}
-                </td>
+                {showProfileMatch && (
+                  <td className={`${CELL} text-center`}>
+                    {match && (
+                      <span
+                        role="img"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-plum-100 text-base font-extrabold text-plum-700"
+                        title="Your age is in this event's age range"
+                        aria-label="Matches your profile"
+                      >
+                        ✓
+                      </span>
+                    )}
+                  </td>
+                )}
               </tr>
             );
           })}

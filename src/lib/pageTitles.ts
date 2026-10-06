@@ -1,4 +1,5 @@
 import { namesCity } from './venue';
+import { eventLabel } from './eventLabel';
 
 /**
  * Browser-tab titles: "Log in | FastMatch", "Events | FastMatch admin".
@@ -13,13 +14,11 @@ export const adminTitle = (title: string) => ({ default: title, template: ADMIN_
 
 /**
  * An event's browser-tab title: its type, name and city — "Speed Dating,
- * 28-40 years, Sydney". The type is left out when the name already says it
- * (admins may type "Professional Speed Dating, 28 to 40 years"), and the
- * city when the name already ends with it. Every page used to share one title.
+ * 28-40 years, Sydney". Type and name as the emails name it (eventLabel:
+ * the type is left out when the name already says it), and the city is left
+ * out when the name already ends with it. Every page used to share one title.
  */
 export function eventTitle(e: { name: string; theme: { name: string }; city: { name: string } }): string {
-  const name = e.name.trim();
-  const type = e.theme.name.trim();
-  const parts = type && !name.toLowerCase().includes(type.toLowerCase()) ? [type, name] : [name];
-  return namesCity(name, e.city.name) ? parts.join(', ') : [...parts, e.city.name].join(', ');
+  const label = eventLabel(e);
+  return namesCity(e.name.trim(), e.city.name) ? label : `${label}, ${e.city.name}`;
 }

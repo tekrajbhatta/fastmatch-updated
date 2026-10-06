@@ -34,7 +34,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
       status: 'CONFIRMED',
       event: { startsAt: { gte: since, lt: now }, status: { not: 'CANCELLED' } },
     },
-    include: { event: { include: { venue: true, city: true } } },
+    include: { event: { include: { venue: true, city: true, theme: true } } },
     orderBy: { event: { startsAt: 'desc' } },
   });
   const eventIds = bookings.map((b) => b.eventId);
@@ -67,7 +67,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
         .filter((p): p is NonNullable<typeof p> => p !== null);
     return {
       event: {
-        id: b.event.id, name: b.event.name, startsAt: b.event.startsAt,
+        id: b.event.id, name: b.event.name, startsAt: b.event.startsAt, theme: { name: b.event.theme.name },
         venue: { name: b.event.venue.name, address: b.event.venue.address }, city: { name: b.event.city.name },
       },
       matchesCalculated: b.event.matchesCalculated,

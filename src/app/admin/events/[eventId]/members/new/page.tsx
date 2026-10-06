@@ -64,7 +64,7 @@ export default function AddMemberPage() {
     // ARE saved; this is only who to follow up with by hand.
     const n = data.notified ?? {};
     const missed: string[] = [];
-    if (n.bookingEmail === false) missed.push('the booking confirmation email');
+    if (n.bookingEmail === false) missed.push('the booking confirmation email (with how to log in)');
     if (n.verificationEmail === false) missed.push('the email confirmation link');
     if (n.verificationSms === false) missed.push('the mobile confirmation code');
     if (missed.length === 0) {
@@ -129,7 +129,9 @@ export default function AddMemberPage() {
               <span className="block text-xs font-normal text-ink/50">Untick if you&apos;re booking them in ahead of the night.</span>
             </span>
           </label>
-          <p className="text-xs text-ink/50">They&apos;re booked in as paid and emailed a booking confirmation.</p>
+          <p className="text-xs text-ink/50">
+            They&apos;re booked in as paid and emailed a booking confirmation, which also says how to log in with this password or choose their own.
+          </p>
         </Card>
 
         {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}

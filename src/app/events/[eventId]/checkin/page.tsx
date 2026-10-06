@@ -8,6 +8,7 @@ import { FormError } from '@/components/site/form';
 import { Button, ButtonLink, buttonClass, linkClass } from '@/components/site/button';
 import { eventClock } from '@/lib/timezone';
 import { rosterCountLabel, type RatingAudience, type Gender } from '@/lib/ratingAudience';
+import { eventLabel } from '@/lib/eventLabel';
 
 interface Me { id: string; name: string; email: string; mobile: string; }
 interface RosterEntry { badge: number; memberId: string; name: string; }
@@ -188,7 +189,7 @@ export default function CheckinPage() {
   if (step === 'confirm' && me && night && night.checkIn !== 'open') {
     const opens = eventClock(night.opensAt, night.event.city);
     return (
-      <SplitLayout title={`Hi, ${me.name.split(' ')[0]}`} lead={`${night.event.theme}, ${night.event.name}`}>
+      <SplitLayout title={`Hi, ${me.name.split(' ')[0]}`} lead={eventLabel({ name: night.event.name, theme: { name: night.event.theme } })}>
         <FormCard>
           <p className="text-[17px] font-bold text-ink-900">
             {night.event.cancelled
@@ -347,7 +348,7 @@ export default function CheckinPage() {
 
   if (step === 'closed') {
     return (
-      <SplitLayout title="Choices have closed" lead={night ? `${night.event.theme}, ${night.event.name}` : undefined}>
+      <SplitLayout title="Choices have closed" lead={night ? eventLabel({ name: night.event.name, theme: { name: night.event.theme } }) : undefined}>
         <FormCard>
           <p className="text-[17px] font-bold text-ink-900">{closedMessage}</p>
           <p className="text-[15px] leading-normal text-ink-600">Your results are on My Match History, and in your email.</p>

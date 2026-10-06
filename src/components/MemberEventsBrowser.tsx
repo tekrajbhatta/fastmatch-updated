@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import MemberEventsTable, { type MemberTableEvent } from '@/components/MemberEventsTable';
 import { SectionTitle, PageLoader } from '@/components/site/layout';
 import { Field, SelectInput } from '@/components/site/form';
 import { linkClass } from '@/components/site/button';
-import { orderForMember } from '@/lib/memberEvents';
+import { orderForMember, splitBySuitability } from '@/lib/memberEvents';
 import { calculateAge } from '@/lib/age';
 import { venueLine } from '@/lib/venue';
 import { formatEventForViewer } from '@/lib/timezone';
@@ -27,8 +27,12 @@ interface BookedEvent {
  * the events they're booked into as a list, then the events table for their
  * own city — with "For events in other locations click here" to look
  * elsewhere. Used by Upcoming Events and My Match History.
+ *
+ * `splitByAge` (Upcoming Events): two tables instead of one (Gil, item 16):
+ * "Events suitable for you", whose age range includes theirs, then "Other
+ * events". Gil signed up as an 18-year-old and was shown events for 50s.
  */
-export default function MemberEventsBrowser({ showBookedList }: { showBookedList: boolean }) {
+export default function MemberEventsBrowser({ showBookedList, splitByAge = false }: { showBookedList: boolean; splitByAge?: boolean }) {
   const [events, setEvents] = useState<ApiEvent[] | null>(null);
   const [cities, setCities] = useState<City[]>([]);
   const [age, setAge] = useState<number | null>(null);
@@ -105,13 +109,17 @@ export default function MemberEventsBrowser({ showBookedList }: { showBookedList
         </section>
       )}
 
-      <SectionTitle className="mb-[clamp(16px,1.7vw,24px)]">Looking at events in {where}</SectionTitle>
-      {rows.length > 0 ? (
-        <MemberEventsTable events={rows} age={age} showCity={!cityId} />
+      {splitByAge && age !== null && rows.length > 0 ? (
+        <AgeSplitTables rows={rows} age={age} where={where} showCity={!cityId} />
       ) : (
-        <p className="rounded-card border border-line bg-white p-[clamp(20px,1.8vw,26px)] text-base leading-relaxed text-ink-600">
-          No upcoming events in {where} right now. Check back soon.
-        </p>
+        <>
+          <SectionTitle className="mb-[clamp(16px,1.7vw,24px)]">Looking at events in {where}</SectionTitle>
+          {rows.length > 0 ? (
+            <MemberEventsTable events={rows} age={age} showCity={!cityId} />
+          ) : (
+            <EmptyNote>No upcoming events in {where} right now. Check back soon.</EmptyNote>
+          )}
+        </>
       )}
 
       <div className="mt-5 text-[15px] leading-normal text-ink-600">
@@ -130,5 +138,39 @@ export default function MemberEventsBrowser({ showBookedList }: { showBookedList
         )}
       </div>
     </div>
+  );
+}
+
+function EmptyNote({ children }: { children: ReactNode }) {
+  return (
+    <p className="rounded-card border border-line bg-white p-[clamp(20px,1.8vw,26px)] text-base leading-relaxed text-ink-600">{children}</p>
+  );
+}
+
+/** "Events suitable for you", then "Other events", each with its own table. */
+function AgeSplitTables({ rows, age, where, showCity }: { rows: ApiEvent[]; age: number; where: string; showCity: boolean }) {
+  const { suitable, other } = splitBySuitability(rows, age);
+  const lead = 'mb-[clamp(16px,1.7vw,24px)] mt-2 text-[15px] leading-normal text-ink-600';
+  return (
+    <>
+      <section>
+        <SectionTitle>Events suitable for you</SectionTitle>
+        <p className={lead}>Events in {where} for your age.</p>
+        {suitable.length > 0 ? (
+          <MemberEventsTable events={suitable} age={age} showCity={showCity} showProfileMatch={false} />
+        ) : (
+          <EmptyNote>No events in {where} for your age right now. Check back soon, or see the other events below.</EmptyNote>
+        )}
+      </section>
+      <section className="mt-[clamp(36px,4.4vw,56px)]">
+        <SectionTitle>Other events</SectionTitle>
+        <p className={lead}>Events in {where} for other age groups.</p>
+        {other.length > 0 ? (
+          <MemberEventsTable events={other} age={age} showCity={showCity} showProfileMatch={false} />
+        ) : (
+          <EmptyNote>No other events in {where} right now.</EmptyNote>
+        )}
+      </section>
+    </>
   );
 }

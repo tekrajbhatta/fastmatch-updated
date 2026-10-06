@@ -2,6 +2,7 @@ import { emailLayout, EMAIL_HEADING } from './layout';
 import { BRAND_COLORS } from '../brand';
 import { escapeHtml } from '../escapeHtml';
 import { PENDING_SIGNUP_DAYS } from '../pendingSignup';
+import { signPasswordResetToken } from '../tokens';
 
 // The three emails the sign-up form can send (see src/lib/pendingSignup.ts).
 // Which one goes depends on whether the address is already a member's, and
@@ -67,17 +68,40 @@ export function finishInvitationEmail(opts: { name: string; setPasswordUrl: stri
 /** How long the "choose your own password" link in the registered email works. */
 export const REGISTERED_PASSWORD_LINK_DAYS = 7;
 
+/** Where a member the admin registered logs in, and the link to choose their own password. */
+export interface RegisteredLinks { loginUrl: string; choosePasswordUrl: string }
+
+/** This member's: the log-in page, and a reset link that lasts a week. */
+export function registeredLinks(member: { id: string; passwordHash: string }): RegisteredLinks {
+  const appUrl = (process.env.APP_URL ?? '').replace(/\/+$/, '');
+  return {
+    loginUrl: `${appUrl}/login`,
+    choosePasswordUrl: `${appUrl}/reset-password?token=${signPasswordResetToken(member, REGISTERED_PASSWORD_LINK_DAYS * 24 * 60)}`,
+  };
+}
+
+/**
+ * "Log in with the password FastMatch gave you, or choose your own" — the
+ * registered email's account part. `greeting` opens it with "Hi <name>, ".
+ */
+export function registeredAccountHtml(links: RegisteredLinks, greeting = ''): string {
+  return `
+    <p style="${PARA}">${greeting}FastMatch has registered you with this email address. You can log in with it and the password FastMatch gave you.</p>
+    <p style="${PARA_BUTTON}"><a href="${links.loginUrl}" style="${BUTTON}">Log in</a></p>
+    <p style="${PARA}">If you'd like to choose your own password instead, you can reset it here: <a href="${links.choosePasswordUrl}" style="${LINK}">choose my own password</a>. This link works for ${REGISTERED_PASSWORD_LINK_DAYS} days. After that, use "Forgot password?" on the log-in page.</p>
+  `;
+}
+
 /**
  * The admin added this person from the Members page, with a password they
  * were given (never sent by email). They can log in with it, or choose their
- * own here (the user, 6 Oct).
+ * own here (the user, 6 Oct). Someone added at an event gets this in their
+ * booking confirmation instead, as one email (bookingConfirmationEmail).
  */
-export function registeredByAdminEmail(opts: { name: string; loginUrl: string; choosePasswordUrl: string }) {
+export function registeredByAdminEmail(opts: { name: string } & RegisteredLinks) {
   const html = emailLayout(`
     <h1 style="${EMAIL_HEADING}">You've been registered with FastMatch</h1>
-    <p style="${PARA}">Hi ${escapeHtml(opts.name)}, FastMatch has registered you with this email address. You can log in with it and the password FastMatch gave you.</p>
-    <p style="${PARA_BUTTON}"><a href="${opts.loginUrl}" style="${BUTTON}">Log in</a></p>
-    <p style="${PARA}">If you'd like to choose your own password instead, you can reset it here: <a href="${opts.choosePasswordUrl}" style="${LINK}">choose my own password</a>. This link works for ${REGISTERED_PASSWORD_LINK_DAYS} days. After that, use "Forgot password?" on the log-in page.</p>
+    ${registeredAccountHtml(opts, `Hi ${escapeHtml(opts.name)}, `)}
     <p style="${PARA}">The FastMatch Team</p>
   `);
   return { subject: "You've been registered with FastMatch", html };

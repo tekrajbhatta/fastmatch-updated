@@ -15,6 +15,7 @@ import { sendBookingConfirmation } from './sendBookingConfirmation';
 import { sendEmail } from './emails/send';
 import { friendWelcomeEmail } from './emails/friendEmail';
 import { eventTimeFor } from './timezone';
+import { eventLabel } from './eventLabel';
 import { placesTaken } from './capacity';
 import { eventAvailability, NOT_BOOKABLE } from './eventAvailability';
 
@@ -369,7 +370,7 @@ export async function confirmBookingGroup(
 async function notifyFriend(bookingId: string, bookedByName: string): Promise<void> {
   const b = await prisma.booking.findUniqueOrThrow({
     where: { id: bookingId },
-    include: { member: { include: { city: true } }, event: { include: { venue: true, city: true } } },
+    include: { member: { include: { city: true } }, event: { include: { venue: true, city: true, theme: true } } },
   });
   if (!b.member.awaitingPasswordSetup) return sendBookingConfirmation(bookingId);
 
@@ -377,7 +378,7 @@ async function notifyFriend(bookingId: string, bookedByName: string): Promise<vo
   const { subject, html } = friendWelcomeEmail({
     friendName: b.member.name,
     bookedByName,
-    eventName: b.event.name,
+    eventName: eventLabel(b.event),
     venue: venueLine(b.event.venue),
     startsAt: b.event.startsAt,
     ...eventTimeFor(b.event.startsAt, b.event.city.name, b.member.city.name),

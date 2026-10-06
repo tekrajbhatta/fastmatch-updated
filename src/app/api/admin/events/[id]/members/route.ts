@@ -37,7 +37,9 @@ class BookingRefused extends Error {}
 // would have no way to ever confirm.
 //
 // The terms are accepted for them (Gil), and the password is the admin's,
-// theirs to keep or change (src/lib/adminMember.ts).
+// theirs to keep or change (src/lib/adminMember.ts). Their booking
+// confirmation says so — log in with the password they were given, or choose
+// their own from a link — in one email (the user, 6 Oct).
 export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
@@ -79,7 +81,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   // rolled back.
   const verificationEmail = flags.emailVerified ? null : await sendEmailVerification(member);
   const verificationSms = flags.mobileVerified ? null : await sendMobileVerification(member);
-  const bookingEmail = await notifyBooked(booking.bookingId);
+  const bookingEmail = await notifyBooked(booking.bookingId, { registered: true });
 
   return NextResponse.json({
     member: { id: member.id, name: member.name },

@@ -5,10 +5,11 @@ import MemberEventsBrowser from '@/components/MemberEventsBrowser';
 import { Card, Container, PageHero, PageLoader } from '@/components/site/layout';
 import { ButtonLink } from '@/components/site/button';
 import { formatEventForViewer } from '@/lib/timezone';
+import { eventLabel } from '@/lib/eventLabel';
 
 interface Person { id: string; name: string; email: string; mobile: string; badge: number | null }
 interface HistoryItem {
-  event: { id: string; name: string; startsAt: string; venue: { name: string; address: string | null }; city: { name: string } };
+  event: { id: string; name: string; startsAt: string; theme: { name: string }; venue: { name: string; address: string | null }; city: { name: string } };
   matchesCalculated: boolean;
   dateMatches: Person[];
   friendMatches: Person[];
@@ -71,10 +72,11 @@ export default function MatchHistoryPage() {
               <div className="mb-[clamp(48px,5.5vw,80px)] mt-6 flex flex-col gap-4">
                 {data.history.map((h) => (
                   <Card key={h.event.id}>
+                    {/* The event's type and name, as the results email names it (Gil, item 17), then where. */}
                     <h2 className="font-display text-[clamp(22px,2vw,28px)] font-extrabold leading-[1.15] tracking-[-0.02em] text-ink-900">
-                      {h.event.venue.name} · {formatEventForViewer(h.event.startsAt, h.event.city.name).dateWithYear}
+                      {eventLabel(h.event)} · {formatEventForViewer(h.event.startsAt, h.event.city.name).dateWithYear}
                     </h2>
-                    <p className="mt-1.5 text-sm text-ink-600">{h.event.name} · {h.event.city.name}</p>
+                    <p className="mt-1.5 text-sm text-ink-600">{h.event.venue.name} · {h.event.city.name}</p>
                     <div className="mt-5 grid gap-6 border-t border-dashed border-[#DCD0C2] pt-5 md:grid-cols-2 md:gap-8">
                       <MatchList title="Date Matches" tone="bg-plum-100 text-plum-700" calculated={h.matchesCalculated} people={h.dateMatches} />
                       <MatchList title="Friend Matches" tone="bg-coral-600/10 text-coral-700" calculated={h.matchesCalculated} people={h.friendMatches} />

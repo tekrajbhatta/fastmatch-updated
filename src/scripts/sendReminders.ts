@@ -17,6 +17,7 @@ import { sendEmail } from '../lib/emails/send';
 import { eventReminderEmail } from '../lib/emails/eventEmails';
 import { venueLine } from '../lib/venue';
 import { eventTimeFor } from '../lib/timezone';
+import { eventLabel } from '../lib/eventLabel';
 
 const REMINDER_WINDOW_START_HOURS = 24;
 const REMINDER_WINDOW_END_HOURS = 48;
@@ -43,7 +44,7 @@ async function run() {
         draft: false,
       },
     },
-    include: { member: { include: { city: true } }, event: { include: { venue: true, city: true } } },
+    include: { member: { include: { city: true } }, event: { include: { venue: true, city: true, theme: true } } },
   });
 
   let sent = 0;
@@ -51,7 +52,7 @@ async function run() {
     try {
       const { subject, html } = eventReminderEmail({
         memberName: booking.member.name,
-        eventName: booking.event.name,
+        eventName: eventLabel(booking.event),
         startsAt: booking.event.startsAt,
         venue: venueLine(booking.event.venue),
         ...eventTimeFor(booking.event.startsAt, booking.event.city.name, booking.member.city.name),

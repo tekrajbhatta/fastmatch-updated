@@ -155,10 +155,12 @@ export async function confirmPendingByAdmin(bookingId: string, payment: AdminBoo
  * "You're booked in" email. Never throws: the booking is already saved, so a
  * mail hiccup must not turn a successful booking into an error for the admin.
  * Returns whether it went, so the screen can say who to contact by hand.
+ * `registered`: a member just added at the event — the same email says how
+ * to log in (sendBookingConfirmation).
  */
-export async function notifyBooked(bookingId: string): Promise<boolean> {
+export async function notifyBooked(bookingId: string, opts: { registered?: boolean } = {}): Promise<boolean> {
   try {
-    await sendBookingConfirmation(bookingId);
+    await sendBookingConfirmation(bookingId, opts);
     return true;
   } catch (err) {
     console.error(`Booking ${bookingId}: confirmation email failed`, err);

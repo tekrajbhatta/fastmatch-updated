@@ -5,6 +5,7 @@ import { getStripe, getStripeWebhookSecret, isOurCheckoutSession } from '@/lib/s
 import { dropUnpaidBooking } from '@/lib/pendingBooking';
 import { confirmBookingGroup } from '@/lib/memberBooking';
 import { alertRefundNeeded } from '@/lib/paymentAlerts';
+import { eventLabel } from '@/lib/eventLabel';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
 // Per the Terms & Conditions: "Your credit card will not be debited until
@@ -71,7 +72,7 @@ async function confirmPaid(bookingId: string, session: Stripe.Checkout.Session) 
   const result = await confirmBookingGroup(bookingId, { sessionId: session.id });
   if (result.confirmed) return;
 
-  const b = await prisma.booking.findUnique({ where: { id: bookingId }, include: { member: true, event: true } });
+  const b = await prisma.booking.findUnique({ where: { id: bookingId }, include: { member: true, event: { include: { theme: true } } } });
   const amount = session.amount_total != null ? session.amount_total / 100 : null;
   // A retry of a payment that already confirmed this booking is fine.
   if (b?.status === 'CONFIRMED' && !b.paymentMethod && b.stripePaymentIntentId === session.id) return;
@@ -82,5 +83,5 @@ async function confirmPaid(bookingId: string, session: Stripe.Checkout.Session) 
       : b.status === 'PENDING'
         ? 'the payment was for an earlier payment page of this booking'
         : `the booking is ${b.status.toLowerCase()}`;
-  await alertRefundNeeded({ sessionId: session.id, bookingId, memberName: b?.member.name, eventName: b?.event.name, amount, reason });
+  await alertRefundNeeded({ sessionId: session.id, bookingId, memberName: b?.member.name, eventName: b ? eventLabel(b.event) : null, amount, reason });
 }

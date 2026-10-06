@@ -7,6 +7,7 @@ import { eventChangeEmail, eventChangeSms } from '@/lib/emails/eventEmails';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { venueLine } from '@/lib/venue';
 import { eventTimeFor } from '@/lib/timezone';
+import { eventLabel } from '@/lib/eventLabel';
 import { checkEventEdit, CHECK_FIELDS } from '@/lib/eventInput';
 
 // PATCH /api/admin/events/:id — edit any field. Attendees are notified by
@@ -53,7 +54,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
 
   if (timeChanged || venueChanged || cancelled) {
     const change = {
-      eventName: event.name,
+      eventName: eventLabel(event),
       themeName: event.theme.name,
       ageMin: event.ageMin,
       ageMax: event.ageMax,

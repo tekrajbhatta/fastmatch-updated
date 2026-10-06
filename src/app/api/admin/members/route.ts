@@ -9,8 +9,7 @@ import bcrypt from 'bcryptjs';
 import { newMemberSchema, checkNewMember, newMemberData } from '@/lib/adminMember';
 import { sendEmailVerification, sendMobileVerification } from '@/lib/memberVerification';
 import { sendEmail } from '@/lib/emails/send';
-import { registeredByAdminEmail, REGISTERED_PASSWORD_LINK_DAYS } from '@/lib/emails/signupEmails';
-import { signPasswordResetToken } from '@/lib/tokens';
+import { registeredByAdminEmail, registeredLinks } from '@/lib/emails/signupEmails';
 
 const PAGE_SIZE = 50;
 
@@ -84,14 +83,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const member = await prisma.member.create({ data: newMemberData(data, await bcrypt.hash(data.password, 12), checked.dob) });
 
-  const appUrl = (process.env.APP_URL ?? '').replace(/\/+$/, '');
   let registeredEmail = true;
   try {
-    const { subject, html } = registeredByAdminEmail({
-      name: member.name,
-      loginUrl: `${appUrl}/login`,
-      choosePasswordUrl: `${appUrl}/reset-password?token=${signPasswordResetToken(member, REGISTERED_PASSWORD_LINK_DAYS * 24 * 60)}`,
-    });
+    const { subject, html } = registeredByAdminEmail({ name: member.name, ...registeredLinks(member) });
     await sendEmail({ to: member.email, subject, html });
   } catch (err) {
     console.error(`Member ${member.id}: registered email failed`, err);

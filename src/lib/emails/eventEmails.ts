@@ -2,9 +2,12 @@ import { emailLayout, EMAIL_HEADING, EMAIL_SUBHEADING } from './layout';
 import { BRAND_COLORS } from '../brand';
 import { formatEventShort, EVENT_TIME_ZONE } from '../datetime';
 import { escapeHtml, oneLine } from '../escapeHtml';
+import { registeredAccountHtml, type RegisteredLinks } from './signupEmails';
 
 // Names (member, event, venue, city) are typed by members and admins, so each
 // is escaped where it goes into the HTML, and kept to one line in a subject.
+// An event is named by its type and name, "Speed dating, 28-40 years"
+// (eventLabel, src/lib/eventLabel.ts): that's what the eventName options take.
 
 const CHECK_IN_BUTTON = `background:${BRAND_COLORS.redCta};color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:bold;`;
 
@@ -28,8 +31,15 @@ export function checkInStepsHtml(checkInUrl: string): string {
   `;
 }
 
+/**
+ * "You're booked in!" With `registered` — someone the admin has just added
+ * at an event — it also says FastMatch has registered them: log in with the
+ * password they were given, or choose their own. One email, not two (the
+ * user, 6 Oct).
+ */
 export function bookingConfirmationEmail(opts: {
   memberName: string;
+  /** Type and name: eventLabel(). */
   eventName: string;
   venue: string;
   startsAt: Date;
@@ -38,6 +48,7 @@ export function bookingConfirmationEmail(opts: {
   timeZone: string;
   /** "Perth time" when the recipient's own clock reads differently — see zoneNote. */
   zoneNote?: string | null;
+  registered?: RegisteredLinks;
 }) {
   const dateStr = opts.startsAt.toLocaleDateString('en-AU', {
     weekday: 'long',
@@ -50,10 +61,11 @@ export function bookingConfirmationEmail(opts: {
     (opts.zoneNote ? ` (${escapeHtml(opts.zoneNote)})` : '');
 
   const html = emailLayout(`
-    <h1 style="${EMAIL_HEADING}">You're booked in!</h1>
+    <h1 style="${EMAIL_HEADING}">${opts.registered ? "You're registered and booked in!" : "You're booked in!"}</h1>
     <p>Hi ${escapeHtml(opts.memberName)},</p>
     <p>You're confirmed for <strong>${escapeHtml(opts.eventName)}</strong> at ${escapeHtml(opts.venue)}.</p>
     <p><strong>${dateStr}</strong><br>${timeStr}</p>
+    ${opts.registered ? `<h2 style="${EMAIL_SUBHEADING}color:${BRAND_COLORS.plum};">Your FastMatch account</h2>${registeredAccountHtml(opts.registered)}` : ''}
     ${checkInStepsHtml(opts.checkInUrl)}
     <p>If for whatever reason you can't make it, please let us know as soon as you can at
       <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>
@@ -61,7 +73,8 @@ export function bookingConfirmationEmail(opts: {
     <p>The FastMatch Team</p>
   `);
 
-  return { subject: `You're booked: ${oneLine(opts.eventName)}`, html };
+  const subject = opts.registered ? `You're registered with FastMatch and booked: ${oneLine(opts.eventName)}` : `You're booked: ${oneLine(opts.eventName)}`;
+  return { subject, html };
 }
 
 // Tone matches the real old-system reminder ("Teo, you are Speed dating on...")
@@ -92,6 +105,7 @@ export function eventReminderEmail(opts: { memberName: string; eventName: string
  * Only these three things notify attendees — see the route for why.
  */
 export interface EventChange {
+  /** Type and name (eventLabel), for the email's subject. */
   eventName: string;
   themeName: string;
   ageMin: number;

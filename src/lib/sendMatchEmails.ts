@@ -17,6 +17,7 @@ import { prisma } from './prisma';
 import { sendEmail } from './emails/send';
 import { matchResultsEmail } from './emails/matchResultsEmail';
 import { timeZoneForCity } from './timezone';
+import { eventLabel } from './eventLabel';
 
 /** Who couldn't be emailed their results. */
 export interface MatchEmailOutcome {
@@ -25,7 +26,7 @@ export interface MatchEmailOutcome {
 }
 
 export async function sendMatchEmails(eventId: string): Promise<MatchEmailOutcome> {
-  const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId }, include: { city: true } });
+  const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId }, include: { city: true, theme: true } });
   const [matches, attendees] = await Promise.all([
     prisma.match.findMany({ where: { eventId } }),
     // Everyone checked in on a paid booking — with a match or not.
@@ -57,6 +58,8 @@ export async function sendMatchEmails(eventId: string): Promise<MatchEmailOutcom
   }
 
   const eventsUrl = `${(process.env.APP_URL ?? '').replace(/\/+$/, '')}/events`;
+  // "Your matches from Speed dating, 28-40 years" (Gil, item 14).
+  const eventName = eventLabel(event);
   // Each member on their own: one failed email used to stop everyone after
   // it, and nothing recorded who had been sent theirs.
   const emailed = new Set<string>();
@@ -71,7 +74,7 @@ export async function sendMatchEmails(eventId: string): Promise<MatchEmailOutcom
 
       const { subject, html } = matchResultsEmail({
         memberName: member.name,
-        eventName: event.name,
+        eventName,
         eventDate: event.startsAt,
         // The event's own date, wherever the member lives.
         timeZone: timeZoneForCity(event.city.name),

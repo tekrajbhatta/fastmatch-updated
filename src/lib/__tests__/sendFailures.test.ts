@@ -31,7 +31,7 @@ vi.mock('../prisma', () => ({
       update: vi.fn(async (args: any) => { db.sendUpdates.push(args); return {}; }),
     },
     event: {
-      findUniqueOrThrow: vi.fn(async () => ({ id: 'e1', name: '28-40 years', startsAt: new Date('2026-10-09T08:00:00Z'), city: { name: 'Sydney' } })),
+      findUniqueOrThrow: vi.fn(async () => ({ id: 'e1', name: '28-40 years', startsAt: new Date('2026-10-09T08:00:00Z'), city: { name: 'Sydney' }, theme: { name: 'Speed dating' } })),
       update: vi.fn(async (args: any) => { db.eventUpdates.push(args); return {}; }),
     },
     match: {
@@ -141,10 +141,11 @@ describe('result emails (item 15)', () => {
     const first = await sendMatchEmails('e1');
     const sent = sendEmail.mock.calls.map((c) => [c[0].to, c[0].subject]).sort();
     expect(first.sent).toBe(3);
+    // Named by the event's type and name (Gil, item 14).
     expect(sent).toEqual([
-      ['a1@example.test', 'Your matches from 28-40 years'],
-      ['b2@example.test', 'Your matches from 28-40 years'],
-      ['c3@example.test', 'Your results from 28-40 years'],
+      ['a1@example.test', 'Your matches from Speed dating, 28-40 years'],
+      ['b2@example.test', 'Your matches from Speed dating, 28-40 years'],
+      ['c3@example.test', 'Your results from Speed dating, 28-40 years'],
     ]);
     expect(sendEmail.mock.calls.find((c) => c[0].to === 'c3@example.test')?.[0].html).toContain('Sorry you did not have any mutual matches');
     expect(db.bookings.every((b) => b.resultsEmailedAt instanceof Date)).toBe(true);

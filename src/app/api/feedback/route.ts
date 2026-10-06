@@ -7,13 +7,14 @@ import { memberFeedbackEmail, FEEDBACK_TO } from '@/lib/emails/feedbackEmail';
 import { formatEventWhen } from '@/lib/datetime';
 import { timeZoneForCity } from '@/lib/timezone';
 import { venueLine } from '@/lib/venue';
+import { eventLabel } from '@/lib/eventLabel';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
 /** The member's events for "My feedback is about the event" — ones they've booked, newest first. */
 async function feedbackEvents(memberId: string) {
   const bookings = await prisma.booking.findMany({
     where: { memberId, status: 'CONFIRMED' },
-    include: { event: { include: { venue: true, city: true } } },
+    include: { event: { include: { venue: true, city: true, theme: true } } },
     orderBy: { event: { startsAt: 'desc' } },
     take: 30,
   });
@@ -55,7 +56,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const { subject, html } = memberFeedbackEmail({
     member,
-    event: event ? { name: event.name, venue: venueLine(event.venue), // The event's own local time — what Gil thinks of it as.
+    event: event ? { name: eventLabel(event), venue: venueLine(event.venue), // The event's own local time — what Gil thinks of it as.
     when: formatEventWhen(event.startsAt, timeZoneForCity(event.city.name)) } : null,
     message: parsed.data.message,
   });
