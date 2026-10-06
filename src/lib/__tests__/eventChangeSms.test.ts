@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { eventChangeSms, type EventChange } from '@/lib/emails/eventEmails';
-import { withOptOut, SMS_OPT_OUT } from '@/lib/sms/send';
+import { withOptOut, smsOptOutLine } from '@/lib/sms/send';
 
 const base: EventChange = {
   eventName: '28-40 years',
@@ -95,8 +95,17 @@ describe('eventChangeSms — Gil\'s approved wording', () => {
  * moved would be actively harmful.
  */
 describe('withOptOut — marketing SMS only', () => {
-  it('appends the opt-out line', () => {
-    expect(withOptOut('Speed dating this Friday!')).toBe(`Speed dating this Friday!\n${SMS_OPT_OUT}`);
+  it('appends the opt-out line: a short link, as texts come from a name that can\'t be replied to (Gil, Q16)', () => {
+    process.env.APP_URL = 'https://5minutedating.com.au/';
+    expect(smsOptOutLine()).toBe('Opt out: 5minutedating.com.au/optout');
+    expect(withOptOut('Speed dating this Friday!')).toBe('Speed dating this Friday!\nOpt out: 5minutedating.com.au/optout');
+    // The admin's own words are never changed, only added to.
+    expect(withOptOut('  Speed dating this Friday!\nBook now ')).toBe('Speed dating this Friday!\nBook now\nOpt out: 5minutedating.com.au/optout');
+  });
+
+  it('doesn\'t add a second link to a text that already has it', () => {
+    const body = 'Speed dating Friday! Opt out: 5minutedating.com.au/optout';
+    expect(withOptOut(body)).toBe(body);
   });
 
   it("doesn't double up when the admin already wrote one", () => {

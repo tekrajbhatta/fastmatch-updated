@@ -43,7 +43,7 @@ export default function TellAFriendPage() {
       lead={
         <>
           If you&apos;d like some of your friends to know about Fast Match, then simply fill out their details below and
-          we&apos;ll invite them to our site and then include them in our regular updates of events we are holding.
+          we&apos;ll email them an invitation to join our site.
         </>
       }
     >

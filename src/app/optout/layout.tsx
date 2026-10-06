@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { pageTitle } from '@/lib/pageTitles';
 
 // The browser tab's title for this page (the page itself is a client component).
-export const metadata: Metadata = { title: pageTitle('Event news and offers') };
+export const metadata: Metadata = { title: pageTitle('Unsubscribe') };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return children;

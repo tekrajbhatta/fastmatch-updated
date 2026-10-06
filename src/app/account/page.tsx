@@ -9,7 +9,7 @@ import { Notice } from '@/components/site/form';
 import ResendConfirmation from '@/components/ResendConfirmation';
 import { verifyMobileHref } from '@/lib/accountSetup';
 
-interface Me { id: string; name: string; email: string; agreedTerms: boolean; isAdmin: boolean; emailVerified: boolean; mobileVerified: boolean; mobile: string; }
+interface Me { id: string; name: string; email: string; agreedTerms: boolean; isAdmin: boolean; emailVerified: boolean; mobileVerified: boolean; mobile: string; marketingOptIn: boolean; }
 
 export default function AccountPage() {
   const router = useRouter();
@@ -105,6 +105,13 @@ export default function AccountPage() {
         <dl className="flex flex-col gap-1 text-[15px]">
           <StatusRow label="Email address" ok={me.emailVerified} />
           <StatusRow label="Mobile number" ok={me.mobileVerified} />
+          {/* Blasts: theirs to turn on or off (Gil, Q15). Not for an admin account. */}
+          {!me.isAdmin && (
+            <div className="flex justify-between gap-4">
+              <dt className="text-ink-600">Event news and offers</dt>
+              <dd className="font-bold text-ink-900">{me.marketingOptIn ? 'Subscribed' : 'Not subscribed'}</dd>
+            </div>
+          )}
         </dl>
 
         <ul className="divide-y divide-line">
@@ -114,9 +121,11 @@ export default function AccountPage() {
               second route to the same three pages. */}
           <AccountLink href="/account/edit-profile" label="Edit profile" />
           <AccountLink href="/account/change-password" label="Change password" />
-          {/* Marketing emails are for members; an admin account has nothing
-              to unsubscribe from. */}
-          {!me.isAdmin && <AccountLink href="/account/unsubscribe" label="Unsubscribe from emails" />}
+          {/* Marketing is for members; an admin account has nothing to
+              unsubscribe from. Unsubscribing stops texts as well as emails. */}
+          {!me.isAdmin && (
+            <AccountLink href="/account/unsubscribe" label={me.marketingOptIn ? 'Unsubscribe from event news and offers' : 'Subscribe to event news and offers'} />
+          )}
         </ul>
 
         <Button variant="secondary" block onClick={handleLogout} disabled={loggingOut} loading={loggingOut}>Log out</Button>

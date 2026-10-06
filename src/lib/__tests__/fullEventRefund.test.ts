@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   refundCalls: [] as any[],
   emails: [] as { to: string; subject: string; html: string }[],
   alerts: [] as any[],
+  notices: [] as any[],
 }));
 vi.mock('../prisma', () => ({
   prisma: {
@@ -28,7 +29,10 @@ vi.mock('../prisma', () => ({
 }));
 vi.mock('../refunds', () => ({ refundCheckoutSession: vi.fn(async (...args: any[]) => { h.refundCalls.push(args); return h.refund; }) }));
 vi.mock('../emails/send', () => ({ sendEmail: vi.fn(async (m: any) => { h.emails.push(m); }) }));
-vi.mock('../paymentAlerts', () => ({ alertRefundNeeded: vi.fn(async (a: any) => { h.alerts.push(a); }) }));
+vi.mock('../paymentAlerts', () => ({
+  alertRefundNeeded: vi.fn(async (a: any) => { h.alerts.push(a); }),
+  notifyAutoRefund: vi.fn(async (a: any) => { h.notices.push(a); }),
+}));
 
 beforeEach(() => {
   h.booking = {
@@ -37,7 +41,7 @@ beforeEach(() => {
     event: { name: '28-40 years', startsAt: new Date('2026-11-14T08:30:00Z'), theme: { name: 'Speed dating' }, city: { name: 'Sydney' } },
   };
   h.refund = { outcome: 'refunded', amount: 49 };
-  h.refundCalls = []; h.emails = []; h.alerts = [];
+  h.refundCalls = []; h.emails = []; h.alerts = []; h.notices = [];
 });
 
 describe('the "event filled up" email', () => {
@@ -63,11 +67,14 @@ describe('refundPaymentForFullEvent', () => {
     expect(h.emails).toHaveLength(1);
     expect(h.emails[0]).toMatchObject({ to: 'ann@example.test', subject: 'Sorry, Speed dating, 28-40 years is full' });
     expect(h.emails[0].html).toContain('Hi Ann &lt;A&gt;,');
+    // Gil hears about it too, for his records (the user, 6 Oct).
+    expect(h.notices).toEqual([{ sessionId: 'cs_1', memberName: 'Ann <A>', memberEmail: 'ann@example.test', eventName: 'Speed dating, 28-40 years', amount: 49 }]);
     // Stripe sends the notice again: refunded already, nobody emailed again.
     h.refund = { outcome: 'already-refunded', amount: 49 };
     await refundPaymentForFullEvent('b1', 'cs_1', 49);
     expect(h.emails).toHaveLength(1);
     expect(h.alerts).toHaveLength(0);
+    expect(h.notices).toHaveLength(1);
   });
 
   it('a refund Stripe won\'t make: cancelled, Gil emailed, and they\'re told it will be refunded', async () => {
@@ -78,6 +85,8 @@ describe('refundPaymentForFullEvent', () => {
     expect(h.alerts).toHaveLength(1);
     expect(h.alerts[0]).toMatchObject({ sessionId: 'cs_1', bookingId: 'b1', amount: 98 });
     expect(h.emails[0].html).toContain('will be refunded to your card in full');
+    // He's emailed to refund it himself instead, not told it's done.
+    expect(h.notices).toHaveLength(0);
   });
 
   it('nothing paid on that page: nothing to do', async () => {

@@ -14,6 +14,9 @@ export default function RegisterPage() {
     name: '', gender: 'MALE', email: '', password: '', cityId: '', dateOfBirth: '', mobile: '',
   });
   const [agreedTerms, setAgreedTerms] = useState(false);
+  // Unticked: marketing needs their say-so (Gil, Q13). Left unticked, they
+  // still join, and get emails about their own bookings only.
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   // Where the "finish signing up" email went, once sent.
@@ -38,7 +41,7 @@ export default function RegisterPage() {
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, agreedTerms, marketingOptIn: true, ...(next ? { next } : {}) }),
+      body: JSON.stringify({ ...form, agreedTerms, marketingOptIn, ...(next ? { next } : {}) }),
     });
     const data = await res.json();
     setLoading(false);
@@ -109,6 +112,9 @@ export default function RegisterPage() {
             </Field>
           </div>
 
+          <Checkbox checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)}>
+            Email and text me about upcoming FastMatch events and offers. You can unsubscribe any time.
+          </Checkbox>
           <Checkbox checked={agreedTerms} onChange={(e) => setAgreedTerms(e.target.checked)}>
             I'm 18+ and I agree to the <Link href="/terms" className={linkClass}>Terms &amp; Conditions</Link> and{' '}
             <Link href="/privacy" className={linkClass}>Privacy Policy</Link>

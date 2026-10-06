@@ -1,47 +1,59 @@
 'use client';
 
-import { useState } from 'react';
-import { FormCard, SplitLayout } from '@/components/site/layout';
+import { useEffect, useState } from 'react';
+import { FormCard, SplitLayout, LoadingNote } from '@/components/site/layout';
 import { Button } from '@/components/site/button';
 import { FormError, FormSuccess } from '@/components/site/form';
+import UnsubscribeChoice from '@/components/site/UnsubscribeChoice';
 
-export default function UnsubscribePage() {
-  const [done, setDone] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+/**
+ * "Event news and offers" on My account: unsubscribe (Gil's question first,
+ * as from an email or text), or, for a member who isn't subscribed, opt back
+ * in, which the unsubscribe page has always promised (Gil, Q15: members can
+ * agree to opt-ins themselves).
+ */
+export default function EventNewsPage() {
+  const [subscribed, setSubscribed] = useState<boolean | null>(null);
+  const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [joined, setJoined] = useState(false);
 
-  async function handleUnsubscribe() {
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => (d?.member ? setSubscribed(!!d.member.marketingOptIn) : setFailed(true)))
+      .catch(() => setFailed(true));
+  }, []);
+
+  async function subscribe() {
     setError(null);
     setBusy(true);
-    const res = await fetch('/api/account/unsubscribe', { method: 'POST' });
+    const res = await fetch('/api/account/subscribe', { method: 'POST' }).catch(() => null);
     setBusy(false);
-    // The response used to be discarded and success shown unconditionally —
-    // so a failed request still told the member they were unsubscribed while
-    // marketingOptIn was untouched, and they kept receiving the emails they
-    // had just opted out of. Never claim an opt-out that didn't happen.
-    if (!res.ok) {
-      setError('We could not unsubscribe you just now. Please try again, or email gil@fastmatch.com.au.');
-      return;
-    }
-    setDone(true);
+    if (!res?.ok) { setError('That didn’t work. Please try again.'); return; }
+    setJoined(true);
   }
 
   return (
-    <SplitLayout title="Unsubscribe from emails" back={{ href: '/account', label: 'Back to my account' }}>
+    <SplitLayout title="Event news and offers" back={{ href: '/account', label: 'Back to my account' }}>
       <FormCard>
-        {done ? (
-          <FormSuccess>
-            You're unsubscribed from marketing emails. You'll still get booking and event confirmations for events you've registered for.
-          </FormSuccess>
+        {failed ? (
+          <FormError>Your session has expired. Please log in again.</FormError>
+        ) : subscribed === null ? (
+          <LoadingNote>One moment…</LoadingNote>
+        ) : subscribed ? (
+          <UnsubscribeChoice mode={{ kind: 'account' }} />
+        ) : joined ? (
+          <FormSuccess>You&apos;re subscribed. You&apos;ll hear about our upcoming events and offers by email and text.</FormSuccess>
         ) : (
           <>
             <p className="text-base leading-relaxed text-ink-600">
-              You'll stop receiving newsletters and invitations. Booking and event confirmations aren't affected.
+              You&apos;re not getting our event news and offers at the moment. Would you like to hear about our upcoming events
+              by email and text? You can unsubscribe any time.
             </p>
             {error && <FormError>{error}</FormError>}
-            <Button onClick={handleUnsubscribe} disabled={busy} loading={busy} block>
-              {busy ? 'Unsubscribing…' : 'Unsubscribe'}
-            </Button>
+            <Button onClick={subscribe} disabled={busy} loading={busy} block>{busy ? 'Subscribing…' : 'Subscribe'}</Button>
           </>
         )}
       </FormCard>

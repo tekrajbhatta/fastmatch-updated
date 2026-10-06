@@ -24,7 +24,8 @@ const bodySchema = z.object({
   agreedTerms: z.literal(true, {
     errorMap: () => ({ message: 'You must agree to the Terms & Conditions and Privacy Policy' }),
   }),
-  marketingOptIn: z.boolean().default(true),
+  // Only with their say-so: the form's box starts unticked (Gil, Q13).
+  marketingOptIn: z.boolean().default(false),
   // Where to come back to afterwards (see signupNext).
   next: z.string().optional(),
 });

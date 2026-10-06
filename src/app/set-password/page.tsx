@@ -30,7 +30,8 @@ function SetPasswordInner() {
   const [cities, setCities] = useState<City[]>([]);
   const [form, setForm] = useState({
     password: '', confirm: '', name: '', mobile: '', dateOfBirth: '', cityId: '',
-    gender: 'MALE' as 'MALE' | 'FEMALE', marketingOptIn: true, agreedTerms: false,
+    // Unticked, as on the sign-up form: marketing needs their say-so (Gil, Q13).
+    gender: 'MALE' as 'MALE' | 'FEMALE', marketingOptIn: false, agreedTerms: false,
   });
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'saving' | 'done'>('idle');

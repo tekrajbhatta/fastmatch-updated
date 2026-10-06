@@ -37,6 +37,8 @@ export const LIMITS = {
   emailChange: { limit: 3, windowMs: HOUR },
   /** Tell A Friend invitations per member (it needs sign-in, so per member rather than per address). */
   tellAFriend: { limit: 5, windowMs: HOUR },
+  /** Opt-outs by mobile number (the link in blast texts) per visitor address. */
+  optOutIp: { limit: 10, windowMs: HOUR },
 } as const;
 
 /**

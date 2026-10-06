@@ -3,7 +3,7 @@ import { prisma } from './prisma';
 import { sendEmail } from './emails/send';
 import { eventFullRefundEmail } from './emails/eventEmails';
 import { refundCheckoutSession } from './refunds';
-import { alertRefundNeeded } from './paymentAlerts';
+import { alertRefundNeeded, notifyAutoRefund } from './paymentAlerts';
 import { eventLabel } from './eventLabel';
 import { timeZoneForCity } from './timezone';
 
@@ -17,7 +17,9 @@ import { timeZoneForCity } from './timezone';
  * Called by the Stripe webhook. On Stripe's retries nothing is refunded or
  * sent twice: refundCheckoutSession won't refund a payment twice, and only
  * the first delivery moves the booking on from waiting for this payment.
- * A refund Stripe won't make is left to Gil, who is emailed the details.
+ * A refund Stripe won't make is left to Gil, who is emailed the details;
+ * one that goes through is emailed to him too, for his records (the user,
+ * 6 Oct).
  */
 export async function refundPaymentForFullEvent(bookingId: string, sessionId: string, amountPaid: number | null): Promise<void> {
   const b = await prisma.booking.findUnique({
@@ -44,6 +46,7 @@ export async function refundPaymentForFullEvent(bookingId: string, sessionId: st
     },
   });
   if (!moved.count) return;
+  if (ok) await notifyAutoRefund({ sessionId, memberName: b.member.name, memberEmail: b.member.email, eventName: eventLabel(b.event), amount: r.amount });
   try {
     const { subject, html } = eventFullRefundEmail({
       memberName: b.member.name, eventName: eventLabel(b.event), startsAt: b.event.startsAt,

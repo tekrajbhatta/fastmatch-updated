@@ -259,4 +259,4 @@ function matchRecipient(candidate: string, recipients: string[]): string | null 
 
 // Moved to ./optOut so the admin screens can count the same characters in
 // the browser; re-exported here so existing imports keep working.
-export { SMS_OPT_OUT, withOptOut } from './optOut';
+export { smsOptOutLine, withOptOut } from './optOut';

@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { smsLength } from '@/lib/sms/smsLength';
-import { SMS_OPT_OUT } from '@/lib/sms/send';
+import { smsOptOutLine } from '@/lib/sms/send';
 
-const optOut = SMS_OPT_OUT.length + 1; // plus the newline before it
+// The site's address, as on the live site (the line is built from APP_URL).
+process.env.APP_URL = 'https://5minutedating.com.au';
+const optOut = smsOptOutLine().length + 1; // plus the newline before it
 
 describe('smsLength', () => {
   it('counts the opt-out line members actually receive', () => {
