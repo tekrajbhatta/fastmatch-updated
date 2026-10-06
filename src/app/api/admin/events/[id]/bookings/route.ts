@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/auth';
 import { createAdminBooking, notifyBooked } from '@/lib/adminBooking';
 import { PAYMENT_METHOD_VALUES } from '@/lib/paymentMethod';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { closeLapsedCheckouts } from '@/lib/pendingBooking';
 
 // NOTE ON THE SLUG NAME: this lives under [id], not [eventId] as in the client
 // delivery. Next.js rejects two different slug names at the same path level,
@@ -77,6 +78,9 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
     // An unpaid online booking it confirmed has already sent its emails.
     added.push({ memberId: id, name: member.name, badge: result.badge, notified: result.notified ?? (await notifyBooked(result.bookingId)) });
   }
+  // Places just taken: payment pages whose hold ran out, and that no longer
+  // fit, are closed (Gil, Q1).
+  if (added.length) await closeLapsedCheckouts(event.id);
 
   return NextResponse.json({ added, skipped });
 });

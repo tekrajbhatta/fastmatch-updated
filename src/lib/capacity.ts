@@ -9,11 +9,22 @@ import { prisma } from './prisma';
 export const CHECKOUT_MINUTES = 30;
 
 /**
- * An unpaid booking holds its places while its payment page can still be
- * paid. Slightly longer than the page itself (which opens a moment after the
- * booking is made), so a place is never freed while it can still be bought.
+ * How long an unpaid booking holds its places while its payment page is open
+ * (Gil, Q1: "a time limit to book… after that the place is released"). It
+ * used to hold them for the page's whole 30 minutes, so an abandoned page
+ * kept a place from everyone else for half an hour.
+ *
+ * Ten minutes, not Gil's two: typing card details and the bank's security
+ * check (often an approval in the bank's app) commonly take a few minutes,
+ * and a hold that runs out mid-payment can cost that person their place.
+ * Ten covers almost everyone paying for real, and frees an abandoned place
+ * three times sooner than before (the user left the length to me, 6 Oct).
+ *
+ * After it, the page can still be paid for while there's room. If the places
+ * have gone, its page is closed (closeLapsedCheckouts), and a payment that
+ * still lands is refunded rather than booked (confirmBookingGroup).
  */
-export const HOLD_MINUTES = CHECKOUT_MINUTES + 2;
+export const HOLD_MINUTES = 10;
 
 export interface PlacesTaken { men: number; women: number }
 

@@ -10,13 +10,13 @@ import { calculateAge } from './age';
 import { venueLine } from './venue';
 import { priceBooking, MAX_FRIENDS_PER_GENDER, type PriceQuote } from './bookingPrice';
 import { validateFriends, parseDateOfBirth, type FriendInput, type FriendFieldError } from './friendBooking';
-import { releasePendingBooking, closeCheckout, dropUnpaidBooking, type ReopenedFrom } from './pendingBooking';
+import { releasePendingBooking, closeCheckout, dropUnpaidBooking, closeLapsedCheckouts, type ReopenedFrom } from './pendingBooking';
 import { sendBookingConfirmation } from './sendBookingConfirmation';
 import { sendEmail } from './emails/send';
 import { friendWelcomeEmail } from './emails/friendEmail';
 import { eventTimeFor } from './timezone';
 import { eventLabel } from './eventLabel';
-import { placesTaken } from './capacity';
+import { placesTaken, countHeld, capacityProblem } from './capacity';
 import { eventAvailability, NOT_BOOKABLE } from './eventAvailability';
 
 /**
@@ -26,9 +26,9 @@ import { eventAvailability, NOT_BOOKABLE } from './eventAvailability';
  * Lifecycle (Gil: "until the payment is done keep the booking pending so
  * that other members can book it"):
  *   1. book    — the member's booking is created PENDING. Friends are only
- *                recorded on it (pendingFriends). While its 30-minute payment
- *                page is open it holds places for everyone on it (see
- *                src/lib/capacity.ts).
+ *                recorded on it (pendingFriends). For its first 10 minutes on
+ *                the 30-minute payment page it holds places for everyone on
+ *                it (see src/lib/capacity.ts).
  *   2. payment — confirmBookingGroup() confirms the member, creates each
  *                friend's account (if new) and booking, and emails everyone.
  *   Abandoned  — the payment page expires and Stripe tells us, and the unpaid
@@ -256,11 +256,12 @@ export async function discardMemberBooking(bookingId: string): Promise<void> {
  * confirmed, inside one transaction with the friends, so a retry neither
  * double-counts the code, duplicates friends, nor re-sends emails.
  *
- * Payment has been taken by now, so nobody is turned away here: if the last
- * place went to someone else during checkout, the event runs one over, and
- * the server log says so.
- * PENDING GIL (question 1): what should happen to a payment that lands on a
- * full event — this keeps it and runs one over.
+ * Never past the event's limits (Gil, Q1: "no bookings taken if event is
+ * full"): a payment made after the booking's 10-minute hold ran out, once
+ * someone else has taken the places, isn't confirmed — `full` — and the
+ * webhook refunds it. It used to be kept, and the event ran one over. The
+ * check is made with the event locked, one confirmation at a time, so two
+ * payments for the last place can't both get it.
  *
  * `sessionId` (from the Stripe webhook): only the payment page the booking is
  * currently waiting on confirms it. A payment from an older page of the same
@@ -272,7 +273,7 @@ export async function discardMemberBooking(bookingId: string): Promise<void> {
 export async function confirmBookingGroup(
   bookingId: string,
   opts: { sessionId?: string } = {},
-): Promise<{ confirmed: boolean; notifyFailures: string[] }> {
+): Promise<{ confirmed: boolean; notifyFailures: string[]; full?: boolean }> {
   const lead = await prisma.booking.findUnique({
     where: { id: bookingId },
     include: { member: true, event: { include: { venue: true } } },
@@ -302,6 +303,25 @@ export async function confirmBookingGroup(
 
   const created = await prisma.$transaction(
     async (tx) => {
+      // One confirmation at a time for this event, until this one commits,
+      // so the check below can't pass for two payments for one place.
+      await tx.$queryRaw`SELECT id FROM \`Event\` WHERE id = ${lead.eventId} FOR UPDATE`;
+      // Room for everyone on it: paid places, and places other unpaid bookings
+      // still hold, counted as when they booked (prepareMemberBooking): not its
+      // own, and not the member again as a friend on someone else's. A friend
+      // who has booked themselves since isn't booked again below, so needs no
+      // second place.
+      const taken = await placesTaken(lead.eventId, { db: tx, excludeBookingId: lead.id, excludeEmail: lead.member.email });
+      const bookedAlready = pending.length
+        ? await tx.booking.findMany({
+            where: { eventId: lead.eventId, status: 'CONFIRMED', member: { email: { in: pending.map((f) => f.email) } } },
+            select: { member: { select: { email: true } } },
+          })
+        : [];
+      const booked = new Set(bookedAlready.map((x) => x.member.email.toLowerCase()));
+      const coming = pending.filter((f) => !booked.has(f.email.toLowerCase()));
+      if (capacityProblem(taken, lead.event, countHeld([{ member: lead.member, pendingFriends: coming as unknown as Prisma.JsonValue }]))) return 'full' as const;
+
       // Never for an event that has been cancelled: a payment completing
       // as Gil cancelled it is refunded instead (the Stripe webhook).
       const flipped = await tx.booking.updateMany({
@@ -348,6 +368,7 @@ export async function confirmBookingGroup(
     { timeout: 20_000 },
   );
   if (created === null) return { confirmed: false, notifyFailures: [] };
+  if (created === 'full') return { confirmed: false, notifyFailures: [], full: true };
 
   const confirmedMen = await prisma.booking.count({ where: { eventId: lead.eventId, status: 'CONFIRMED', member: { gender: 'MALE' } } });
   const confirmedWomen = await prisma.booking.count({ where: { eventId: lead.eventId, status: 'CONFIRMED', member: { gender: 'FEMALE' } } });
@@ -361,6 +382,9 @@ export async function confirmBookingGroup(
   };
   if (firstTime) await attempt(lead.id, () => sendBookingConfirmation(lead.id));
   for (const id of created) await attempt(id, () => notifyFriend(id, lead.member.name));
+  // Places just taken: payment pages whose hold ran out, and that no longer
+  // fit, are closed.
+  await closeLapsedCheckouts(lead.eventId);
   return { confirmed: true, notifyFailures };
 }
 

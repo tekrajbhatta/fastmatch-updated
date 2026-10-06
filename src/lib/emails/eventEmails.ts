@@ -216,3 +216,38 @@ export function eventChangeEmail(c: EventChange & { memberName: string; refunded
 
   return { subject: `Change to your event: ${oneLine(c.eventName)}`, html };
 }
+
+/**
+ * A payment that came through after the booking's 10-minute hold ran out, by
+ * which time someone else had taken the last place (Gil, Q1: "no bookings
+ * taken if event is full"): they aren't booked, and the payment is refunded.
+ * `refunded`: what went back to their card; null when Stripe's refund didn't
+ * go through and Gil is refunding it himself (`amount`, what they paid).
+ */
+export function eventFullRefundEmail(opts: {
+  memberName: string;
+  /** Type and name: eventLabel(). */
+  eventName: string;
+  startsAt: Date;
+  timeZone: string;
+  refunded: number | null;
+  amount: number | null;
+  eventsUrl: string;
+}) {
+  const dateStr = opts.startsAt.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: opts.timeZone });
+  const P = 'margin:0 0 16px;';
+  const money = opts.refunded != null
+    ? `Your payment of <strong>${formatPrice(opts.refunded)}</strong> has been refunded to your card. Depending on your bank, it can take 5 to 10 business days to show.`
+    : `Your payment${opts.amount != null ? ` of <strong>${formatPrice(opts.amount)}</strong>` : ''} will be refunded to your card in full.`;
+  const html = emailLayout(`
+    <h1 style="${EMAIL_HEADING}">Sorry, this event filled up</h1>
+    <p style="${P}">Hi ${escapeHtml(opts.memberName)},</p>
+    <p style="${P}"><strong>${escapeHtml(opts.eventName)}</strong> on ${dateStr} filled up while you were paying: someone else took the last place, so we couldn't book you in.</p>
+    <p style="${P}">${money}</p>
+    <p style="${P}">We're sorry about that. There are more events coming up:</p>
+    <p style="margin:0 0 20px;"><a href="${opts.eventsUrl}" style="${CHECK_IN_BUTTON}">Upcoming events</a></p>
+    <p style="${P}">If you have any questions, please contact <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>
+    <p style="${P}">The FastMatch Team</p>
+  `);
+  return { subject: `Sorry, ${oneLine(opts.eventName)} is full`, html };
+}

@@ -47,3 +47,20 @@ export async function refundCheckoutSession(sessionId: string, meta: { bookingId
     return { outcome: 'failed', reason: e?.message ?? String(err) };
   }
 }
+
+/**
+ * Has what was paid on this payment page been refunded? Only looks: for
+ * telling a repeat of a payment notice from one that still needs dealing
+ * with. null when Stripe can't be asked.
+ */
+export async function checkoutRefunded(sessionId: string): Promise<boolean | null> {
+  try {
+    const session = await getStripe().checkout.sessions.retrieve(sessionId, { expand: ['payment_intent.latest_charge'] });
+    const intent = session.payment_intent && typeof session.payment_intent === 'object' ? session.payment_intent : null;
+    const charge = intent?.latest_charge && typeof intent.latest_charge === 'object' ? intent.latest_charge : null;
+    return !!charge?.refunded;
+  } catch (err) {
+    console.error(`Couldn't check Stripe checkout ${sessionId} for a refund`, err);
+    return null;
+  }
+}

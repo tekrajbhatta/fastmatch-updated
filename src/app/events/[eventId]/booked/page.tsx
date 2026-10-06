@@ -14,29 +14,37 @@ import { Button, ButtonLink } from '@/components/site/button';
  *     arrives (checking for about 30 seconds), then a clear "not confirmed
  *     yet" — the payment may still come through, so they aren't told to pay
  *     again;
+ *   - refunded instead of booked (the event filled up after their 10-minute
+ *     hold ran out, or was cancelled, as they paid): says so, and that their
+ *     money is going back;
  *   - no booking (or a cancelled one): back to the event page.
  */
 const CHECK_EVERY_MS = 2000;
 const GIVE_UP_AFTER_MS = 30_000;
 
-type State = 'loading' | 'confirmed' | 'waiting' | 'not-confirmed';
+type State = 'loading' | 'confirmed' | 'waiting' | 'not-confirmed' | 'refunded';
+interface Refunded { reason: 'full' | 'cancelled'; refunded: boolean }
 
 export default function BookedPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const router = useRouter();
   const [state, setState] = useState<State>('loading');
   const [round, setRound] = useState(0); // "Check again" starts a new round
+  const [refunded, setRefunded] = useState<Refunded | null>(null);
 
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const started = Date.now();
     async function check() {
-      const r = await fetch(`/api/events/${eventId}/my-booking`).catch(() => null);
+      // The payment page they've come back from, to tell if it was refunded.
+      const session = new URLSearchParams(window.location.search).get('session_id');
+      const r = await fetch(`/api/events/${eventId}/my-booking${session ? `?session=${encodeURIComponent(session)}` : ''}`).catch(() => null);
       const data = r?.ok ? await r.json().catch(() => null) : null;
       if (stopped) return;
       const status: string = data?.status ?? 'UNKNOWN';
       if (status === 'CONFIRMED') return setState('confirmed');
+      if (data?.refundedPayment) { setRefunded(data.refundedPayment); return setState('refunded'); }
       if (status === 'NONE' || status === 'CANCELLED' || status === 'REFUNDED') return router.replace(`/events/${eventId}`);
       if (Date.now() - started >= GIVE_UP_AFTER_MS) return setState('not-confirmed');
       setState('waiting');
@@ -71,6 +79,23 @@ export default function BookedPage() {
             <span aria-hidden="true" className="h-12 w-12 animate-spin rounded-full border-4 border-plum-200/30 border-t-match-400" />
             <h1 className="font-display text-[clamp(28px,3.4vw,44px)] font-extrabold leading-[1.1] tracking-[-0.03em] text-white">Confirming your payment…</h1>
             <p className="max-w-[460px] text-[17px] leading-normal text-plum-200 text-pretty">This usually takes a few seconds. Please keep this page open.</p>
+          </div>
+        )}
+        {state === 'refunded' && refunded && (
+          <div role="status" className="relative flex flex-col items-center gap-4">
+            <h1 className="font-display text-[clamp(28px,3.4vw,44px)] font-extrabold leading-[1.1] tracking-[-0.03em] text-white">
+              {refunded.reason === 'full' ? 'Sorry, this event filled up' : 'This event has been cancelled'}
+            </h1>
+            <p className="max-w-[460px] text-[17px] leading-normal text-plum-200 text-pretty">
+              {refunded.reason === 'full'
+                ? 'Someone else took the last place while you were paying, so you haven’t been booked in.'
+                : 'It was cancelled as you were paying, so you haven’t been booked in.'}{' '}
+              {refunded.refunded
+                ? 'Your payment has been refunded to your card: depending on your bank, it can take 5 to 10 business days to show.'
+                : 'Your payment will be refunded to your card in full.'}{' '}
+              We&apos;ve emailed you the details.
+            </p>
+            <ButtonLink href="/events" onDark className="mt-2">See upcoming events</ButtonLink>
           </div>
         )}
         {state === 'not-confirmed' && (

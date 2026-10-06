@@ -64,7 +64,7 @@ export default function EventBookingsPage() {
   }
 
   // Paid places only, matching the events list. (An unpaid online booking
-  // also holds its places while its 30-minute payment page is open.)
+  // also holds its places for the first 10 minutes of its payment page.)
   const paid = bookings.filter((b) => b.status === 'CONFIRMED');
   const men = paid.filter((b) => b.member.gender === 'MALE').length;
   const women = paid.filter((b) => b.member.gender === 'FEMALE').length;
@@ -76,7 +76,7 @@ export default function EventBookingsPage() {
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Event bookings</h1>
       <p className="mb-4 text-sm text-ink/60">
         {loaded ? `${men} men · ${women} women booked` : 'Loading bookings…'}
-        {unpaid > 0 && <span className="text-ink/40"> · {unpaid} unpaid (each holds its places only while its 30-minute payment page is open)</span>}
+        {unpaid > 0 && <span className="text-ink/40"> · {unpaid} unpaid (each holds its places for 10 minutes while its payment page is open)</span>}
       </p>
 
       {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}

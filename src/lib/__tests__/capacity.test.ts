@@ -21,11 +21,15 @@ describe('countHeld', () => {
 });
 
 describe('holding window', () => {
-  it('outlasts the payment page, so a place is never freed while it can still be paid', () => {
-    expect(HOLD_MINUTES).toBeGreaterThan(CHECKOUT_MINUTES);
+  // Gil, Q1: a time limit, after which the place is released. Ten minutes on
+  // a payment page that stays open for Stripe's minimum of 30; a payment made
+  // after the hold, once the event is full, is refunded (confirmBookingGroup).
+  it('holds places for the first 10 minutes of the 30-minute payment page', () => {
+    expect(HOLD_MINUTES).toBe(10);
     expect(CHECKOUT_MINUTES).toBeGreaterThanOrEqual(30); // Stripe's minimum
+    expect(HOLD_MINUTES).toBeLessThan(CHECKOUT_MINUTES);
     const now = new Date('2026-10-09T08:00:00Z');
-    expect(now.getTime() - holdCutoff(now).getTime()).toBe(HOLD_MINUTES * 60 * 1000);
+    expect(now.getTime() - holdCutoff(now).getTime()).toBe(10 * 60 * 1000);
   });
 });
 

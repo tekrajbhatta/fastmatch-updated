@@ -117,6 +117,8 @@ export async function confirmPendingByAdmin(bookingId: string, payment: AdminBoo
   if (problem) return { ok: false, reason: problem };
 
   const result = await confirmBookingGroup(b.id);
+  // Someone took the last place in the moment since the check above.
+  if (result.full) return { ok: false, reason: 'the event is now full' };
   const now = await prisma.booking.findUnique({ where: { id: b.id } });
   if (now?.status !== 'CONFIRMED') return { ok: false, reason: 'the booking no longer exists' };
 

@@ -6,6 +6,8 @@ import { dropUnpaidBooking } from '@/lib/pendingBooking';
 import { confirmBookingGroup } from '@/lib/memberBooking';
 import { alertRefundNeeded } from '@/lib/paymentAlerts';
 import { refundPaymentForCancelledEvent } from '@/lib/cancelEvent';
+import { refundPaymentForFullEvent } from '@/lib/fullEventRefund';
+import { checkoutRefunded } from '@/lib/refunds';
 import { eventLabel } from '@/lib/eventLabel';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
@@ -68,7 +70,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
  * If the booking didn't need this payment — the admin had already marked it
  * paid by hand, or it was cancelled — the money is flagged for a refund. A
  * payment for an event that has been cancelled is refunded automatically
- * (Gil: everyone is refunded when an event is cancelled).
+ * (Gil: everyone is refunded when an event is cancelled), and so is one that
+ * came through after its 10-minute hold ran out, once the event was full
+ * (Gil, Q1: no bookings taken if the event is full).
  */
 async function confirmPaid(bookingId: string, session: Stripe.Checkout.Session) {
   // Only the payment page the booking is waiting on confirms it.
@@ -82,6 +86,15 @@ async function confirmPaid(bookingId: string, session: Stripe.Checkout.Session) 
   if (b?.event.status === 'CANCELLED' && b.stripePaymentIntentId === session.id) {
     await refundPaymentForCancelledEvent(b.id, session.id);
     return;
+  }
+  if (b && b.stripePaymentIntentId === session.id) {
+    if (result.full) {
+      await refundPaymentForFullEvent(b.id, session.id, amount);
+      return;
+    }
+    // Stripe telling us again about a payment refunded already (for a full
+    // event, say): nothing left to do.
+    if (b.status === 'REFUNDED' && (await checkoutRefunded(session.id))) return;
   }
   const reason = !b
     ? 'the booking no longer exists'

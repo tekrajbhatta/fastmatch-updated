@@ -13,7 +13,7 @@ import {
   discardMemberBooking,
   confirmBookingGroup,
 } from '@/lib/memberBooking';
-import { releasePendingBooking } from '@/lib/pendingBooking';
+import { releasePendingBooking, closeLapsedCheckouts } from '@/lib/pendingBooking';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { eventAvailability, NOT_BOOKABLE } from '@/lib/eventAvailability';
 import { CHECKOUT_MINUTES } from '@/lib/capacity';
@@ -91,7 +91,12 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
 
   // Nothing to pay (e.g. a free code, booking alone): confirm straight away.
   if (prepared.quote.total === 0) {
-    await confirmBookingGroup(bookingId);
+    const done = await confirmBookingGroup(bookingId);
+    if (done.full) {
+      // The last place went to someone else in the moment since the check above.
+      await discardMemberBooking(bookingId);
+      return NextResponse.json({ error: 'This event is full for your gender.' }, { status: 409 });
+    }
     return NextResponse.json({ bookingId, checkoutUrl: null });
   }
 
@@ -131,10 +136,10 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
       ],
       // site: this account may also take payments for other sites (see stripe.ts).
       metadata: { bookingId, site: STRIPE_SITE_TAG },
-      // Open for 30 minutes (Stripe's minimum), during which the booking
-      // holds its places; when it expires Stripe tells the webhook, which
-      // removes the unpaid booking. A few seconds over, so Stripe never
-      // refuses it as too short.
+      // Open for 30 minutes (Stripe's minimum); the booking holds its places
+      // for the first 10 (src/lib/capacity.ts). When it expires Stripe tells
+      // the webhook, which removes the unpaid booking. A few seconds over, so
+      // Stripe never refuses it as too short.
       expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_MINUTES * 60 + 30,
       success_url: `${process.env.APP_URL}/events/${event.id}/booked?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.APP_URL}/events/${event.id}`,
@@ -146,6 +151,9 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   }
 
   await prisma.booking.update({ where: { id: bookingId }, data: { stripePaymentIntentId: session.id } });
+  // These places are held now: older payment pages whose hold ran out, and
+  // that no longer fit, are closed (Gil, Q1).
+  await closeLapsedCheckouts(event.id);
 
   return NextResponse.json({ bookingId, checkoutUrl: session.url });
 });

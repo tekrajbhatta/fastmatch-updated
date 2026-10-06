@@ -12,6 +12,7 @@ import {
 } from '@/lib/memberVerification';
 import { newMemberFields, checkNewMember, newMemberData } from '@/lib/adminMember';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { closeLapsedCheckouts } from '@/lib/pendingBooking';
 
 const schema = z.object({
   // The member: the same fields and rules as the Members page's "Add member".
@@ -82,6 +83,9 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   const verificationEmail = flags.emailVerified ? null : await sendEmailVerification(member);
   const verificationSms = flags.mobileVerified ? null : await sendMobileVerification(member);
   const bookingEmail = await notifyBooked(booking.bookingId, { registered: true });
+  // A place just taken: payment pages whose hold ran out, and that no longer
+  // fit, are closed (Gil, Q1).
+  await closeLapsedCheckouts(event.id);
 
   return NextResponse.json({
     member: { id: member.id, name: member.name },

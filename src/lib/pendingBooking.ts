@@ -2,11 +2,12 @@ import { Prisma } from '@prisma/client';
 import type { Booking } from '@prisma/client';
 import { prisma } from './prisma';
 import { getStripe } from './stripe';
+import { placesTaken, countHeld, capacityProblem, holdCutoff } from './capacity';
 
 /**
  * Gil's rule: a booking isn't a booking until it's paid. An unpaid (PENDING)
- * one only holds places while its payment page is open (src/lib/capacity.ts)
- * and must never stop anyone booking.
+ * one only holds places for the first 10 minutes of its payment page
+ * (src/lib/capacity.ts) and must never stop anyone booking.
  *
  * But one member per event is a database constraint, so an old unpaid
  * booking still occupies that member's row. Whenever a new booking needs the
@@ -104,4 +105,32 @@ export async function closeCheckout(booking: Pick<Booking, 'stripePaymentIntentI
     }
   }
   return 'closed';
+}
+
+/**
+ * Someone has just taken places (booked, been added by the admin, or paid
+ * after their hold ran out). Unpaid bookings whose 10-minute hold has run
+ * out, and whose people no longer fit, have their payment pages closed: they
+ * mustn't be paid for places that have gone (Gil, Q1). One that still fits
+ * stays open, and the first to pay gets the place. One being paid this very
+ * moment is refunded if it no longer fits (confirmBookingGroup, the webhook).
+ * Never throws: the booking that called it has already gone through.
+ */
+export async function closeLapsedCheckouts(eventId: string): Promise<void> {
+  try {
+    const lapsed = await prisma.booking.findMany({
+      where: { eventId, status: 'PENDING', createdAt: { lt: holdCutoff() }, stripePaymentIntentId: { not: null } },
+      include: { member: { select: { gender: true } } },
+    });
+    if (lapsed.length === 0) return;
+    const event = await prisma.event.findUnique({ where: { id: eventId }, select: { maxMen: true, maxWomen: true } });
+    if (!event) return;
+    const taken = await placesTaken(eventId);
+    for (const b of lapsed) {
+      if (!capacityProblem(taken, event, countHeld([b]))) continue;
+      if ((await closeCheckout(b)) === 'closed') await dropUnpaidBooking(b.id, b.stripePaymentIntentId ?? undefined);
+    }
+  } catch (err) {
+    console.error(`Event ${eventId}: couldn't close the payment pages whose hold ran out`, err);
+  }
 }
