@@ -8,6 +8,7 @@ import { venueLine, venueBlock } from '@/lib/venue';
 import { timeZoneForCity } from '@/lib/timezone';
 import { Spinner } from '@/components/Spinner';
 import { formatPrice } from '@/lib/price';
+import { eventLabel } from '@/lib/eventLabel';
 
 interface EventDetail {
   id: string; name: string; venue: { name: string; address: string | null; phone: string | null; websiteUrl: string | null }; startsAt: string; cost: string;
@@ -64,7 +65,9 @@ export default function AdminEventDetailPage() {
     // the blast form can pre-fill itself, including a booking link that
     // points at this specific event, not a generic events page.
     const params = new URLSearchParams({
-      subject: `${event.theme.name}, ${event.name}`,
+      // Type and name, the type left out if the name already says it (as the
+      // blast form's "Book Now goes to" fills it in).
+      subject: eventLabel(event),
       heading: event.theme.name,
       eventDetails: `When: ${dateStr}, ${timeStr}\nWhere: ${venueBlock(event.venue, event.city.name)}\nCost: ${formatPrice(event.cost)}`,
       bookingLink: `${window.location.origin}/events/${event.id}`,

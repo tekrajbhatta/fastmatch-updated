@@ -9,6 +9,15 @@ export const EMAIL_HEADING = `margin:0 0 20px;font-family:Arial,sans-serif;font-
 /** A section heading inside an email ("Date matches"); add a color after it. */
 export const EMAIL_SUBHEADING = 'margin:24px 0 8px;font-family:Arial,sans-serif;font-size:17px;line-height:1.4;font-weight:bold;';
 
+/**
+ * The frame around every email, blasts included (Gil, item 2: "a border
+ * around it, so that it would look visually nicer... for all the emails").
+ * In the logo's plum, to match the footer, rather than the red Gil marked
+ * (the user, 6 Oct: a colour that suits the template). Square corners: a
+ * rounded frame only works in some mail programs, and looks broken in others.
+ */
+export const EMAIL_FRAME = `border:2px solid ${BRAND_COLORS.plum};`;
+
 export function emailLayout(bodyHtml: string, opts: { unsubscribeUrl?: string } = {}) {
   const year = new Date().getFullYear();
 
@@ -24,13 +33,13 @@ export function emailLayout(bodyHtml: string, opts: { unsubscribeUrl?: string } 
   const logoSrc = `${(process.env.APP_URL ?? '').replace(/\/+$/, '')}/logo.png`;
 
   return `
-<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:${BRAND_COLORS.ink};max-width:600px;margin:0 auto;">
-  <div style="padding:20px 0;border-bottom:1px solid #eee;">
+<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:${BRAND_COLORS.ink};max-width:600px;margin:0 auto;background-color:#ffffff;${EMAIL_FRAME}">
+  <div style="padding:20px 24px;border-bottom:1px solid #eee;">
     <img src="${logoSrc}" width="180" height="55" alt="${BRAND_NAME}, ${BRAND_TAGLINE}"
          style="display:block;width:180px;height:auto;border:0;font-family:Arial,sans-serif;font-size:18px;font-weight:bold;color:${BRAND_COLORS.plum};" />
   </div>
 
-  <div style="padding:24px 0;">
+  <div style="padding:24px;">
     ${bodyHtml}
   </div>
 

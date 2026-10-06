@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Field, Input, Select, Button, Card, BackLink } from '@/components/ui';
 import PhotoUploadField from '@/components/PhotoUploadField';
 import VenuePickerField from '@/components/VenuePickerField';
+import BookNowEventField from '@/components/BookNowEventField';
 import ExcludeBookedField from '@/components/ExcludeBookedField';
 import SmsCounter from '@/components/SmsCounter';
 
@@ -136,10 +137,7 @@ function NewBlastInner() {
                 <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={4}
                   value={form.freeText} onChange={(e) => setForm({ ...form, freeText: e.target.value })} />
               </Field>
-              <VenuePickerField
-                hasExistingContent={Boolean(form.eventDetailsText.trim() || form.photoUrl)}
-                onApply={(patch) => setForm((f) => ({ ...f, ...patch }))}
-              />
+              <VenuePickerField current={form} onApply={(patch) => setForm((f) => ({ ...f, ...patch }))} />
               <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm((f) => ({ ...f, photoUrl: url }))} />
 
               <Field label="Event details">
@@ -148,6 +146,7 @@ function NewBlastInner() {
               </Field>
               <PhotoUploadField label="Venue logo" value={form.venueLogoUrl} onChange={(url) => setForm((f) => ({ ...f, venueLogoUrl: url }))}
                 hint="Optional. Shown under the event details. Filled in from the venue." />
+              <BookNowEventField bookingLink={form.bookingLink} subject={form.subject} heading={form.heading} onApply={(patch) => setForm((f) => ({ ...f, ...patch }))} />
               <Field label="Booking link"><Input value={form.bookingLink} onChange={(e) => setForm({ ...form, bookingLink: e.target.value })} /></Field>
             </div>
           )}

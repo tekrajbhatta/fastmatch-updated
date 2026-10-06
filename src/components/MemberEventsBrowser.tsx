@@ -28,11 +28,17 @@ interface BookedEvent {
  * own city — with "For events in other locations click here" to look
  * elsewhere. Used by Upcoming Events and My Match History.
  *
- * `splitByAge` (Upcoming Events): two tables instead of one (Gil, item 16):
- * "Events suitable for you", whose age range includes theirs, then "Other
- * events". Gil signed up as an 18-year-old and was shown events for 50s.
+ * `splitByAge`: two tables instead of one (Gil, item 16): "Events suitable
+ * for you", whose age range includes theirs, then "Other events". Gil signed
+ * up as an 18-year-old and was shown events for 50s. Upcoming Events drops
+ * the Profile Match column then; My Match History keeps its table exactly as
+ * it was, ticks included (`keepProfileMatch`, the user, 6 Oct).
  */
-export default function MemberEventsBrowser({ showBookedList, splitByAge = false }: { showBookedList: boolean; splitByAge?: boolean }) {
+export default function MemberEventsBrowser({ showBookedList, splitByAge = false, keepProfileMatch = false }: {
+  showBookedList: boolean;
+  splitByAge?: boolean;
+  keepProfileMatch?: boolean;
+}) {
   const [events, setEvents] = useState<ApiEvent[] | null>(null);
   const [cities, setCities] = useState<City[]>([]);
   const [age, setAge] = useState<number | null>(null);
@@ -110,7 +116,7 @@ export default function MemberEventsBrowser({ showBookedList, splitByAge = false
       )}
 
       {splitByAge && age !== null && rows.length > 0 ? (
-        <AgeSplitTables rows={rows} age={age} where={where} showCity={!cityId} />
+        <AgeSplitTables rows={rows} age={age} where={where} showCity={!cityId} showProfileMatch={keepProfileMatch} />
       ) : (
         <>
           <SectionTitle className="mb-[clamp(16px,1.7vw,24px)]">Looking at events in {where}</SectionTitle>
@@ -148,7 +154,9 @@ function EmptyNote({ children }: { children: ReactNode }) {
 }
 
 /** "Events suitable for you", then "Other events", each with its own table. */
-function AgeSplitTables({ rows, age, where, showCity }: { rows: ApiEvent[]; age: number; where: string; showCity: boolean }) {
+function AgeSplitTables({ rows, age, where, showCity, showProfileMatch }: {
+  rows: ApiEvent[]; age: number; where: string; showCity: boolean; showProfileMatch: boolean;
+}) {
   const { suitable, other } = splitBySuitability(rows, age);
   const lead = 'mb-[clamp(16px,1.7vw,24px)] mt-2 text-[15px] leading-normal text-ink-600';
   return (
@@ -157,7 +165,7 @@ function AgeSplitTables({ rows, age, where, showCity }: { rows: ApiEvent[]; age:
         <SectionTitle>Events suitable for you</SectionTitle>
         <p className={lead}>Events in {where} for your age.</p>
         {suitable.length > 0 ? (
-          <MemberEventsTable events={suitable} age={age} showCity={showCity} showProfileMatch={false} />
+          <MemberEventsTable events={suitable} age={age} showCity={showCity} showProfileMatch={showProfileMatch} />
         ) : (
           <EmptyNote>No events in {where} for your age right now. Check back soon, or see the other events below.</EmptyNote>
         )}
@@ -166,7 +174,7 @@ function AgeSplitTables({ rows, age, where, showCity }: { rows: ApiEvent[]; age:
         <SectionTitle>Other events</SectionTitle>
         <p className={lead}>Events in {where} for other age groups.</p>
         {other.length > 0 ? (
-          <MemberEventsTable events={other} age={age} showCity={showCity} showProfileMatch={false} />
+          <MemberEventsTable events={other} age={age} showCity={showCity} showProfileMatch={showProfileMatch} />
         ) : (
           <EmptyNote>No other events in {where} right now.</EmptyNote>
         )}

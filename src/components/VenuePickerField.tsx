@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Field, Select, Button } from '@/components/ui';
-import { venueBlock } from '@/lib/venue';
+import { venueFill, venueWouldReplace } from '@/lib/campaigns/blastFill';
 
 interface Venue {
   id: string; name: string; address: string | null; phone: string | null;
@@ -19,20 +19,20 @@ interface Venue {
  * can tweak the wording for one blast without affecting any other. This
  * matches how selecting a blast template already behaves.
  *
- * Brings everything the venue has: name, address, phone and website, then its
- * description, into Event details; its image as the blast photo (left as it
- * is if the venue has no image); and its logo, shown under the event details.
+ * What goes where is venueFill (src/lib/campaigns/blastFill.ts): the
+ * address and contact details into Event details, the description into Free
+ * text (Gil, item 1), the image as the photo and the logo under the details.
  *
- * Because it overwrites, it asks first when those fields already have
- * content — picking the wrong venue shouldn't silently discard copy.
+ * Because it overwrites, it asks first when a field it would replace already
+ * has content — picking the wrong venue shouldn't silently discard copy.
  */
 export default function VenuePickerField({
   onApply,
-  hasExistingContent,
+  current,
 }: {
-  onApply: (patch: { eventDetailsText: string; photoUrl?: string; venueLogoUrl: string }) => void;
-  /** True when event details or the photo already hold something worth protecting. */
-  hasExistingContent: boolean;
+  onApply: (patch: { eventDetailsText: string; freeText?: string; photoUrl?: string; venueLogoUrl: string }) => void;
+  /** What the blast holds now, to ask before replacing any of it. */
+  current: { eventDetailsText: string; freeText: string; photoUrl: string };
 }) {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -42,13 +42,11 @@ export default function VenuePickerField({
     fetch('/api/admin/venues').then((r) => r.json()).then(setVenues);
   }, []);
 
+  // The fields this venue would replace that already hold something.
+  const wouldReplace = (v: Venue) => venueWouldReplace(v, current);
+
   function apply(v: Venue) {
-    onApply({
-      eventDetailsText: [venueBlock(v), v.description?.trim()].filter(Boolean).join('\n\n'),
-      ...(v.imageUrl ? { photoUrl: v.imageUrl } : {}),
-      // Always set — a venue without a logo clears the previous venue's.
-      venueLogoUrl: v.logoUrl ?? '',
-    });
+    onApply(venueFill(v));
     setPending(null);
   }
 
@@ -56,7 +54,7 @@ export default function VenuePickerField({
     setSelectedId(id);
     const v = venues.find((x) => x.id === id);
     if (!v) return;
-    if (hasExistingContent) setPending(v);
+    if (wouldReplace(v).length) setPending(v);
     else apply(v);
   }
 
@@ -72,7 +70,7 @@ export default function VenuePickerField({
       {pending ? (
         <div className="mt-2 rounded-lg bg-cream/60 p-3 text-sm">
           <p className="mb-2 text-ink">
-            Replace the event details{pending.imageUrl ? ' and photo' : ''} with <strong>{pending.name}</strong>&apos;s?
+            Replace the {listOf(wouldReplace(pending))} with <strong>{pending.name}</strong>&apos;s?
           </p>
           <div className="flex gap-2">
             <Button type="button" onClick={() => apply(pending)}>Replace</Button>
@@ -81,10 +79,15 @@ export default function VenuePickerField({
         </div>
       ) : (
         <p className="mt-1 text-xs text-ink/50">
-          Copies the venue&apos;s name, address, phone, website, description, image and logo into this blast. Edit
-          freely afterwards. Changing the venue later won&apos;t alter this blast.
+          Copies the venue&apos;s name, address, phone and website into Event details, its description into Free text,
+          and its image and logo. Edit freely afterwards. Changing the venue later won&apos;t alter this blast.
         </p>
       )}
     </Field>
   );
+}
+
+/** "event details, free text and photo" */
+function listOf(items: string[]): string {
+  return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }

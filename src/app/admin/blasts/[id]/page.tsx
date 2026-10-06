@@ -6,6 +6,7 @@ import { Field, Input, Select, Button, Card, Badge, Loader, BackLink } from '@/c
 import BlastTestSend from '@/components/BlastTestSend';
 import BlastSendProgress, { blastOutcome } from '@/components/BlastSendProgress';
 import SmsCounter from '@/components/SmsCounter';
+import EmailPreview from '@/components/EmailPreview';
 import { withOptOut } from '@/lib/sms/optOut';
 import {
   boxesFromSavedFilter, filterWithBoxes, otherSavedFilterParts,
@@ -310,11 +311,12 @@ function ViewBlastInner() {
 
           <div className="mt-5 text-sm font-extrabold text-ink">Preview: how it actually renders</div>
           <p className="mb-2 text-xs text-ink/50">This is the real email, not a mockup. Edit the blast if anything here needs to change.</p>
-          {/* sandbox: without it, a srcDoc frame runs any script in the email
-              as the logged-in admin, on this site. A pasted emailBody is sent
-              exactly as written, so the preview can't assume it's harmless. */}
+          {/* Sandboxed (EmailPreview): without it, a srcDoc frame runs any
+              script in the email as the logged-in admin, on this site. A pasted
+              emailBody is sent exactly as written, so the preview can't assume
+              it's harmless. */}
           {renderedHtml ? (
-            <iframe srcDoc={renderedHtml} sandbox="" className="h-[420px] w-full rounded-lg border border-ink/10 bg-white" title="Email preview" />
+            <EmailPreview html={renderedHtml} className="h-[420px] w-full rounded-lg border border-ink/10 bg-white" />
           ) : (
             <Loader label="Loading preview…" className="py-8" />
           )}
@@ -458,7 +460,7 @@ function ViewBlastInner() {
             <p className="mb-3 text-sm text-ink/60">
               This will send to <b>{(previewCount ?? 0).toLocaleString()} members</b> right now. This is the last chance to check before it goes out.
             </p>
-            {campaign.sendEmail && renderedHtml && <iframe srcDoc={renderedHtml} sandbox="" className="mb-4 h-72 w-full rounded-lg border border-ink/10" title="Final preview" />}
+            {campaign.sendEmail && renderedHtml && <EmailPreview html={renderedHtml} className="mb-4 h-72 w-full rounded-lg border border-ink/10" title="Final preview" />}
             {campaign.sendSms && (
               <div className="mb-4">
                 <div className="mb-1 text-xs font-bold uppercase tracking-wide text-ink/50">Text message</div>

@@ -8,6 +8,7 @@ import BlastTestSend from '@/components/BlastTestSend';
 import { resolveCampaignEmailHtml } from '@/lib/emails/campaignEmail';
 import { memberFilterFromParams, memberFilterToParams, describeMemberFilter } from '@/lib/memberFilterParams';
 import BlastSendProgress from '@/components/BlastSendProgress';
+import EmailPreview from '@/components/EmailPreview';
 
 interface BlastOption { id: string; title: string; blastStatus: string; reusable: boolean; hasBeenSent: boolean }
 interface City { id: string; name: string }
@@ -217,10 +218,10 @@ export default function BlastFilteredMembersPage() {
           {previewHtml && (
             <Card className="mb-4">
               <div className="mb-2 text-sm font-extrabold text-ink">Email preview</div>
-              {/* sandbox: without it, a srcDoc frame runs any script in the
-                  email as the logged-in admin, on this site. The template
-                  escapes what it renders; the preview shouldn't rely on that. */}
-              <iframe srcDoc={previewHtml} sandbox="" className="h-[420px] w-full rounded-lg border border-ink/10 bg-white" title="Email preview" />
+              {/* Sandboxed (EmailPreview): without it, a srcDoc frame runs any
+                  script in the email as the logged-in admin, on this site. The
+                  template escapes what it renders; the preview shouldn't rely on that. */}
+              <EmailPreview html={previewHtml} className="h-[420px] w-full rounded-lg border border-ink/10 bg-white" />
             </Card>
           )}
 
@@ -284,7 +285,7 @@ export default function BlastFilteredMembersPage() {
               &ldquo;{title}&rdquo; will be {content.sendEmail && content.sendSms ? 'emailed and texted' : content.sendEmail ? 'emailed' : 'texted'} to{' '}
               <b>{audience.recipients.toLocaleString()} members</b> right now.{dirty ? ' Your changes are saved to the blast first.' : ''}
             </p>
-            {previewHtml && <iframe srcDoc={previewHtml} sandbox="" className="mb-4 h-72 w-full rounded-lg border border-ink/10" title="Final preview" />}
+            {previewHtml && <EmailPreview html={previewHtml} className="mb-4 h-72 w-full rounded-lg border border-ink/10" title="Final preview" />}
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setConfirming(false)} className="flex-1">Cancel</Button>
               <Button onClick={handleConfirmSend} className="flex-1">Confirm &amp; Send Now</Button>

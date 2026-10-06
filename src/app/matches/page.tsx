@@ -21,8 +21,9 @@ const BODY = 'pb-[clamp(56px,6.7vw,96px)] pt-[clamp(24px,3.9vw,56px)]';
 
 /**
  * My Match History, laid out as on the old site: the last six months of
- * events with each one's Date and Friend matches, then the events table
- * (booked first, then what's coming up) to view and book from.
+ * events with each one's Date and Friend matches, then the events tables
+ * (booked first, then what's coming up) to view and book from: events
+ * suitable for their age, then the others.
  */
 export default function MatchHistoryPage() {
   const [data, setData] = useState<MatchHistory | null>(null);
@@ -101,7 +102,8 @@ export default function MatchHistoryPage() {
             </Card>
           )}
 
-          {data && <MemberEventsBrowser showBookedList={false} />}
+          {/* The same two tables as Upcoming Events, each with the Profile Match column as before. */}
+          {data && <MemberEventsBrowser showBookedList={false} splitByAge keepProfileMatch />}
         </Container>
       </section>
     </>

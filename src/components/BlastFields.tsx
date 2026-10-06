@@ -3,6 +3,7 @@
 import { Field, Input } from '@/components/ui';
 import PhotoUploadField from '@/components/PhotoUploadField';
 import VenuePickerField from '@/components/VenuePickerField';
+import BookNowEventField from '@/components/BookNowEventField';
 import SmsCounter from '@/components/SmsCounter';
 import ExcludeBookedField from '@/components/ExcludeBookedField';
 
@@ -59,13 +60,14 @@ export default function BlastFields({ value, onChange }: { value: BlastContent; 
           <Field label="Free text">
             <textarea className={TEXTAREA} rows={4} value={value.freeText} onChange={(e) => onChange({ freeText: e.target.value })} />
           </Field>
-          <VenuePickerField hasExistingContent={Boolean(value.eventDetailsText.trim() || value.photoUrl)} onApply={(patch) => onChange(patch)} />
+          <VenuePickerField current={value} onApply={(patch) => onChange(patch)} />
           <PhotoUploadField value={value.photoUrl} onChange={(url) => onChange({ photoUrl: url })} />
           <Field label="Event details">
             <textarea className={TEXTAREA} rows={3} value={value.eventDetailsText} onChange={(e) => onChange({ eventDetailsText: e.target.value })} />
           </Field>
           <PhotoUploadField label="Venue logo" value={value.venueLogoUrl} onChange={(url) => onChange({ venueLogoUrl: url })}
             hint="Optional. Shown under the event details. Filled in from the venue." />
+          <BookNowEventField bookingLink={value.bookingLink} subject={value.subject} heading={value.heading} onApply={(patch) => onChange(patch)} />
           <Field label="Booking link"><Input value={value.bookingLink} onChange={(e) => onChange({ bookingLink: e.target.value })} /></Field>
         </div>
       )}

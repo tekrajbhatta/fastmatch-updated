@@ -1,6 +1,6 @@
 import { BRAND_COLORS } from '../brand';
 import { escapeHtml, safeHref, safeSrc } from '../escapeHtml';
-import { EMAIL_HEADING } from './layout';
+import { EMAIL_HEADING, EMAIL_FRAME } from './layout';
 
 /**
  * Resolves what a campaign should actually send: the raw emailBody override
@@ -143,7 +143,7 @@ export function renderCampaignEmailHtml(fields: {
   const bookingButtonHtml = `<p style="text-align:center;margin:24px 0 8px;"><a href="${bookingUrl}" style="background:${BRAND_COLORS.redCta};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:bold;">Book Now</a></p>`;
 
   return `
-    <div style="max-width:520px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:${BRAND_COLORS.ink};line-height:1.6;background-color:#ffffff;">
+    <div style="max-width:520px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:${BRAND_COLORS.ink};line-height:1.6;background-color:#ffffff;${EMAIL_FRAME}">
       ${campaignBanner(fields.bannerImageUrl)}
       <div style="padding:24px 24px 8px;">
         ${fields.heading ? `<h1 style="${EMAIL_HEADING}text-align:center;">${fields.heading.split('\n').filter((l) => l.trim()).map(escapeHtml).join('<br/>')}</h1>` : ''}
