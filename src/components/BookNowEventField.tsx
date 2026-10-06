@@ -4,13 +4,12 @@ import { useEffect, useState } from 'react';
 import { Field, Select } from '@/components/ui';
 import { eventAvailability } from '@/lib/eventAvailability';
 import { eventLabel } from '@/lib/eventLabel';
-import { bookNowFill, bookNowEventId } from '@/lib/campaigns/blastFill';
+import { bookNowFill, bookNowEventId, type EventForBlast } from '@/lib/campaigns/blastFill';
 import { eventClock } from '@/lib/timezone';
 
-interface AdminEvent {
-  id: string; name: string; startsAt: string; status: 'UPCOMING' | 'CLOSED' | 'CANCELLED';
+interface AdminEvent extends EventForBlast {
+  startsAt: string; status: 'UPCOMING' | 'CLOSED' | 'CANCELLED';
   visibility: 'PUBLIC' | 'NOT_PUBLIC'; draft: boolean;
-  theme: { name: string }; city: { name: string }; venue: { name: string };
 }
 
 /**
@@ -20,14 +19,16 @@ interface AdminEvent {
  * the event.
  *
  * Picking one sets the booking link to that event's page and, while they're
- * still empty, the subject and heading (bookNowFill). Only events members can
- * book are offered: not past, cancelled, hidden or unsaved ones.
+ * still empty, the subject, heading and event details (bookNowFill). Only
+ * events members can book are offered: not past, cancelled, hidden or unsaved
+ * ones.
  */
-export default function BookNowEventField({ bookingLink, subject, heading, onApply }: {
+export default function BookNowEventField({ bookingLink, subject, heading, eventDetailsText, onApply }: {
   bookingLink: string;
   subject: string;
   heading: string;
-  onApply: (patch: { bookingLink: string; subject?: string; heading?: string }) => void;
+  eventDetailsText: string;
+  onApply: (patch: { bookingLink: string; subject?: string; heading?: string; eventDetailsText?: string }) => void;
 }) {
   const [events, setEvents] = useState<AdminEvent[]>([]);
 
@@ -43,7 +44,7 @@ export default function BookNowEventField({ bookingLink, subject, heading, onApp
 
   function pick(id: string) {
     const e = events.find((x) => x.id === id);
-    if (e) onApply(bookNowFill(e, window.location.origin, { subject, heading }));
+    if (e) onApply(bookNowFill(e, window.location.origin, { subject, heading, eventDetailsText }));
   }
 
   return (
@@ -57,8 +58,8 @@ export default function BookNowEventField({ bookingLink, subject, heading, onApp
         ))}
       </Select>
       <p className="mt-1 text-xs text-ink/50">
-        Sets the booking link to that event&apos;s page, and fills in the subject and heading if they&apos;re empty. With no
-        booking link, Book Now goes to Upcoming Events.
+        Sets the booking link to that event&apos;s page, and fills in the subject, heading and event details if
+        they&apos;re empty. With no booking link, Book Now goes to Upcoming Events.
       </p>
     </Field>
   );

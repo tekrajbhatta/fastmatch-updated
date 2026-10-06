@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, Badge, Loader, BackLink } from '@/components/ui';
 import EventWhen from '@/components/EventWhen';
+import CancelSummary, { type CancelResult } from '@/components/CancelSummary';
 
 interface SeriesEvent {
   id: string; number: number; name: string; startsAt: string; visibility: string; status: string;
@@ -18,6 +19,11 @@ export default function SeriesPage() {
   const [loaded, setLoaded] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [result, setResult] = useState<{ text: string; warn: boolean } | null>(null);
+  // "Delete selected" left these booked events as they are, and asks Gil
+  // whether to cancel them instead (Q4).
+  const [askCancel, setAskCancel] = useState<{ id: string; number: number }[] | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelResult, setCancelResult] = useState<CancelResult | null>(null);
 
   function load() {
     fetch(`/api/admin/events/series/${seriesId}`).then((r) => r.json()).then((d) => { setEvents(d); setLoaded(true); });
@@ -35,18 +41,46 @@ export default function SeriesPage() {
 
   async function runAction(action: 'DELETE' | 'SET_NOT_PUBLIC' | 'SET_PUBLIC') {
     setResult(null);
+    setAskCancel(null);
+    setCancelResult(null);
     const res = await fetch(`/api/admin/events/series/${seriesId}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, eventIds: Array.from(checked) }),
     });
     const data = await res.json();
     if (action === 'DELETE') {
-      setResult(deleteMessage(data.deleted, data.cancelled));
+      setResult(deleteMessage(data.deleted, data.withBookings?.length ?? 0, data.leftAlone ?? []));
+      if (data.withBookings?.length) setAskCancel(data.withBookings);
     } else {
       setResult({ text: `${data.updated} event(s) updated.`, warn: false });
     }
     setChecked(new Set());
     load();
+  }
+
+  // YES: each is cancelled as from its own page: everyone booked is emailed
+  // and texted, and card payments are refunded.
+  async function cancelBooked() {
+    if (!askCancel) return;
+    setCancelling(true);
+    const res = await fetch(`/api/admin/events/series/${seriesId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'CANCEL', eventIds: askCancel.map((e) => e.id) }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setCancelling(false);
+    setAskCancel(null);
+    if (!res.ok) { setResult({ text: typeof data.error === 'string' ? data.error : 'Could not cancel them.', warn: true }); return; }
+    setResult(null);
+    setCancelResult(data);
+    load();
+  }
+
+  // NO: left exactly as they are.
+  function keepBooked() {
+    const n = askCancel?.length ?? 0;
+    setAskCancel(null);
+    setResult({ text: `${n === 1 ? 'The event with bookings was' : `The ${n} events with bookings were`} left as ${n === 1 ? 'it was' : 'they were'}.`, warn: false });
   }
 
   const allChecked = events.length > 0 && checked.size === events.length;
@@ -57,8 +91,9 @@ export default function SeriesPage() {
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Event series</h1>
       <p className="mb-6 text-sm text-ink/60">
         Select the events you want, then apply an action to just those, not the whole series. Deleting can&apos;t be
-        undone: events with no bookings are removed for good. An event with bookings isn&apos;t deleted but cancelled
-        instead (taken off the site and closed to booking), and the people booked aren&apos;t told, so let them know yourself.
+        undone: events with no bookings are removed for good. An event with bookings can&apos;t be deleted: you&apos;re asked
+        whether to cancel it instead, which emails and texts the people booked and refunds card payments. Making an
+        event not public only hides it: its bookings stay and nobody is told.
       </p>
 
       <div className="mb-3 flex items-center gap-2">
@@ -100,22 +135,32 @@ export default function SeriesPage() {
       </div>
 
       {result && <p role="status" className={`mt-4 text-sm font-bold ${result.warn ? 'text-coral' : 'text-green-dark'}`}>{result.text}</p>}
+      {askCancel && (
+        <div className="mt-3 rounded-lg bg-amber/15 p-3 text-sm text-ink">
+          <p className="mb-3 font-bold">
+            Do you want to cancel {askCancel.length === 1 ? 'the event' : `these ${askCancel.length} events`} ({askCancel.map((e) => `#${e.number}`).join(', ')}) and notify bookings and refund?
+          </p>
+          <div className="flex gap-2">
+            <Button variant="danger" onClick={cancelBooked} disabled={cancelling} loading={cancelling}>{cancelling ? 'Cancelling…' : 'Yes'}</Button>
+            <Button variant="ghost" onClick={keepBooked} disabled={cancelling}>No</Button>
+          </div>
+        </div>
+      )}
+      {cancelResult && <div role="status" className="mt-4 rounded-lg bg-cream/60 p-3"><CancelSummary result={cancelResult} /></div>}
 
       <Button variant="ghost" onClick={() => router.push('/admin/events')} className="mt-6 w-full">Back to events</Button>
     </div>
   );
 }
 
-// What "Delete selected" did. An event with bookings is never deleted: it is
-// cancelled instead (hidden from the public and closed to bookings), and the
-// message says so in plain words rather than "0 deleted, 1 cancelled".
-function deleteMessage(deleted: number, cancelled: number): { text: string; warn: boolean } {
+// What "Delete selected" did, in plain words rather than "0 deleted". An
+// event with bookings is never deleted: it's left as it is, and Gil is asked
+// whether to cancel it instead (the question under this message).
+function deleteMessage(deleted: number, withBookings: number, leftAlone: { number: number; reason: string }[]): { text: string; warn: boolean } {
   const parts: string[] = [];
   if (deleted > 0) parts.push(`${deleted} event${deleted === 1 ? '' : 's'} deleted.`);
-  if (cancelled === 1) {
-    parts.push("Cannot delete an event with bookings, so it has been cancelled instead: it's hidden and can't be booked. Its attendees haven't been told.");
-  } else if (cancelled > 1) {
-    parts.push(`Cannot delete events with bookings, so ${cancelled} have been cancelled instead: they're hidden and can't be booked. Their attendees haven't been told.`);
-  }
-  return { text: parts.join(' ') || 'Nothing was deleted.', warn: cancelled > 0 };
+  if (withBookings === 1) parts.push('Cannot delete an event with bookings.');
+  else if (withBookings > 1) parts.push(`Cannot delete events with bookings (${withBookings} of them).`);
+  for (const e of leftAlone) parts.push(`#${e.number} has bookings, so it can't be deleted. ${e.reason}`);
+  return { text: parts.join(' ') || 'Nothing was deleted.', warn: withBookings > 0 || leftAlone.length > 0 };
 }

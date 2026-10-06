@@ -1,5 +1,7 @@
 import { venueBlock } from '../venue';
 import { eventLabel } from '../eventLabel';
+import { timeZoneForCity } from '../timezone';
+import { formatPrice } from '../price';
 
 /**
  * What the blast form's pickers write into a blast. Copies, not references:
@@ -39,21 +41,44 @@ export function venueWouldReplace(v: VenueForBlast, current: { eventDetailsText:
   ].filter((x): x is string => x !== null);
 }
 
+/** An event in the blast form's pickers: what they fill in from it. */
+export interface EventForBlast {
+  id: string; name: string; startsAt: string | Date; cost: string | number;
+  theme: { name: string }; city: { name: string };
+  venue: { name: string; address?: string | null; phone?: string | null; websiteUrl?: string | null };
+}
+
+/**
+ * A blast's Event details for an event: "When: Saturday 14 November, 7:30 pm",
+ * "Where:" its venue, "Cost: $55". The event's own local time, as members
+ * read it, not the admin's device clock.
+ */
+export function blastEventDetails(e: Omit<EventForBlast, 'id' | 'name' | 'theme'>): string {
+  const date = new Date(e.startsAt);
+  const timeZone = timeZoneForCity(e.city.name);
+  const dateStr = date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone });
+  const timeStr = date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone });
+  return `When: ${dateStr}, ${timeStr}\nWhere: ${venueBlock(e.venue, e.city.name)}\nCost: ${formatPrice(e.cost)}`;
+}
+
 /**
  * "Book Now goes to" an event (Gil, item 19): the booking link becomes the
- * event's page; the subject and heading, only while still empty, become what
- * the event page's "Create blast for this event" puts there: the subject its
- * type and name, the heading its type (item 14: the event type in the blast).
+ * event's page; the subject, heading and event details, only while still
+ * empty, become what the event page's "Create blast for this event" puts
+ * there: the subject its type and name, the heading its type (item 14: the
+ * event type in the blast), the details its date, venue and price (the user,
+ * 6 Oct).
  */
 export function bookNowFill(
-  e: { id: string; name: string; theme: { name: string } },
+  e: EventForBlast,
   origin: string,
-  current: { subject: string; heading: string },
-): { bookingLink: string; subject?: string; heading?: string } {
+  current: { subject: string; heading: string; eventDetailsText: string },
+): { bookingLink: string; subject?: string; heading?: string; eventDetailsText?: string } {
   return {
     bookingLink: `${origin.replace(/\/+$/, '')}/events/${e.id}`,
     ...(current.subject.trim() ? {} : { subject: eventLabel(e) }),
     ...(current.heading.trim() ? {} : { heading: e.theme.name }),
+    ...(current.eventDetailsText.trim() ? {} : { eventDetailsText: blastEventDetails(e) }),
   };
 }
 

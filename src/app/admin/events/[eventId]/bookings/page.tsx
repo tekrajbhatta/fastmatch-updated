@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Field, Input, Select, Loader, BackLink } from '@/components/ui';
 import { calculateAge } from '@/lib/age';
-import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethod';
+import { PAYMENT_METHODS, paymentMethodLabel, bookingStatusLabel } from '@/lib/paymentMethod';
 import { formatPrice } from '@/lib/price';
 
 interface Booking {
@@ -100,7 +100,7 @@ export default function EventBookingsPage() {
                 <td className="px-4 py-3 text-ink/60">{calculateAge(new Date(b.member.dateOfBirth))}</td>
                 <td className="px-4 py-3 text-ink/60">{b.member.email} · {b.member.mobile}</td>
                 <td className="px-4 py-3">
-                  {b.status === 'CONFIRMED' ? `Paid ${formatPrice(b.paidAmount)}` : b.status}
+                  {bookingStatusLabel(b.status, formatPrice(b.paidAmount))}
                   <span className="ml-1 text-xs text-ink/50">· {paymentMethodLabel(b.paymentMethod)}</span>
                   {b.checkedIn && <span className="ml-2 text-xs font-bold text-green-dark">checked in</span>}
                   {/* Unpaid: their friends aren't booked yet, and appear as
@@ -125,7 +125,7 @@ export default function EventBookingsPage() {
                             <option value="PENDING">Pending</option>
                             <option value="CONFIRMED">Paid</option>
                             <option value="CANCELLED">Cancelled</option>
-                            <option value="REFUNDED">Refunded</option>
+                            <option value="REFUNDED">Cancelled – refunded</option>
                           </Select>
                         </Field>
                       </div>

@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, Button, Loader, BackLink } from '@/components/ui';
-import { venueLine, venueBlock } from '@/lib/venue';
+import { venueLine } from '@/lib/venue';
 import { timeZoneForCity } from '@/lib/timezone';
 import { Spinner } from '@/components/Spinner';
 import { formatPrice } from '@/lib/price';
 import { eventLabel } from '@/lib/eventLabel';
+import { blastEventDetails } from '@/lib/campaigns/blastFill';
+import CancelSummary, { type CancelResult } from '@/components/CancelSummary';
 
 interface EventDetail {
   id: string; name: string; venue: { name: string; address: string | null; phone: string | null; websiteUrl: string | null }; startsAt: string; cost: string;
@@ -34,11 +36,20 @@ export default function AdminEventDetailPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [duplicating, setDuplicating] = useState(false);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
+  // "Cancel event": what it would do (asked first), then what it did.
+  const [cancelPreview, setCancelPreview] = useState<{ blocked: string | null; attendees: number; onlinePayments: number; onlineTotal: number; byHand: number; unpaidPages: number } | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelResult, setCancelResult] = useState<CancelResult | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
-  useEffect(() => {
+  function loadEvent() {
     fetch(`/api/admin/events`).then((r) => r.json()).then((events: any[]) => {
       setEvent(events.find((e) => e.id === eventId) ?? null);
     });
+  }
+
+  useEffect(() => {
+    loadEvent();
     loadCloseStatus();
   }, [eventId]);
 
@@ -54,12 +65,6 @@ export default function AdminEventDetailPage() {
 
   function createBlastForEvent() {
     if (!event) return;
-    // The event's own local time, as members read it — not the admin's device clock.
-    const date = new Date(event.startsAt);
-    const timeZone = timeZoneForCity(event.city.name);
-    const dateStr = date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone });
-    const timeStr = date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone });
-
     // This is the actual fix for "creating a blast means retyping the same
     // info" — carries the event's real details through as query params so
     // the blast form can pre-fill itself, including a booking link that
@@ -69,7 +74,8 @@ export default function AdminEventDetailPage() {
       // blast form's "Book Now goes to" fills it in).
       subject: eventLabel(event),
       heading: event.theme.name,
-      eventDetails: `When: ${dateStr}, ${timeStr}\nWhere: ${venueBlock(event.venue, event.city.name)}\nCost: ${formatPrice(event.cost)}`,
+      // When, where and the price (also what "Book Now goes to" fills in).
+      eventDetails: blastEventDetails(event),
       bookingLink: `${window.location.origin}/events/${event.id}`,
       // Only for the blast form's "← Back to event" link.
       fromEvent: event.id,
@@ -100,6 +106,25 @@ export default function AdminEventDetailPage() {
     setDeleting(false);
     if (!res.ok) { setDeleteError(typeof data.error === 'string' ? data.error : 'Could not delete this event.'); return; }
     router.push('/admin/events');
+  }
+
+  async function askToCancel() {
+    setCancelError(null);
+    const res = await fetch(`/api/admin/events/${eventId}/cancel`);
+    if (!res.ok) { setCancelError('Could not check the bookings. Please try again.'); return; }
+    setCancelPreview(await res.json());
+  }
+
+  async function handleCancel() {
+    setCancelling(true);
+    setCancelError(null);
+    const res = await fetch(`/api/admin/events/${eventId}/cancel`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    setCancelling(false);
+    if (!res.ok) { setCancelError(typeof data.error === 'string' ? data.error : 'Could not cancel the event.'); return; }
+    setCancelPreview(null);
+    setCancelResult(data);
+    loadEvent();
   }
 
   async function handleCloseEventNow() {
@@ -206,6 +231,54 @@ export default function AdminEventDetailPage() {
         <Link href={`/admin/events/${event.id}/checkin-qr`} className="block font-bold text-ink hover:text-plum">Printable check-in QR code</Link>
         <p className="mt-0.5 text-sm text-ink/50">Display or print at the venue for attendees to scan when they check in</p>
       </Card>
+
+      {/* Cancelling is its own action (Gil, Q3): hiding the event (Edit event,
+          "Visible to the public") only hides it. */}
+      {(event.status !== 'CANCELLED' || cancelResult) && (
+        <Card className="mb-3">
+          <div className="font-bold text-ink">Cancel event</div>
+          {cancelResult ? (
+            <div className="mt-2"><CancelSummary result={cancelResult} /></div>
+          ) : (
+            <>
+              <p className="mt-0.5 mb-3 text-sm text-ink/50">
+                Tells everyone booked by email and text, and refunds what they paid online. To only take it off the site, untick
+                &ldquo;Visible to the public&rdquo; in Edit event instead.
+              </p>
+              {cancelPreview ? (
+                cancelPreview.blocked ? (
+                  <p className="text-sm font-medium text-coral">{cancelPreview.blocked}</p>
+                ) : (
+                  <div className="rounded-lg bg-coral/10 p-3 text-sm text-ink">
+                    <p className="mb-2 font-bold">Cancel this event? This can&apos;t be undone.</p>
+                    <ul className="mb-3 list-inside list-disc space-y-1">
+                      <li>
+                        {cancelPreview.attendees === 0
+                          ? 'Nobody is booked, so nobody needs telling.'
+                          : `${cancelPreview.attendees === 1 ? '1 person is' : `${cancelPreview.attendees} people are`} booked: each is emailed and texted that it's cancelled, and their booking is marked cancelled.`}
+                      </li>
+                      {cancelPreview.onlinePayments > 0 && (
+                        <li>{cancelPreview.onlinePayments} paid online: refunded in full to their card automatically ({formatPrice(cancelPreview.onlineTotal)}).</li>
+                      )}
+                      {cancelPreview.byHand > 0 && (
+                        <li>{cancelPreview.byHand} paid another way (cash, card at the desk, at the door): not refunded automatically, so refund them yourself.</li>
+                      )}
+                      {cancelPreview.unpaidPages > 0 && <li>{cancelPreview.unpaidPages} unpaid payment page{cancelPreview.unpaidPages === 1 ? ' is' : 's are'} closed.</li>}
+                    </ul>
+                    <div className="flex gap-2">
+                      <Button variant="danger" onClick={handleCancel} disabled={cancelling} loading={cancelling}>{cancelling ? 'Cancelling…' : 'Yes, cancel and refund'}</Button>
+                      <Button variant="ghost" onClick={() => setCancelPreview(null)} disabled={cancelling}>Keep it</Button>
+                    </div>
+                  </div>
+                )
+              ) : (
+                <Button variant="ghost" onClick={askToCancel}>Cancel event</Button>
+              )}
+            </>
+          )}
+          {cancelError && <p className="mt-2 text-sm font-medium text-coral">{cancelError}</p>}
+        </Card>
+      )}
 
       {/* Only for an event nobody has booked (a duplicate made by mistake, say):
           one with bookings is never deleted. */}

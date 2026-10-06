@@ -192,7 +192,7 @@ export default function AddBookingPage() {
                       <span className="text-right text-xs text-ink/50">Unpaid online booking:<br />adding confirms it</span>
                     )}
                     {!already && (otherStatus.get(m.id) === 'CANCELLED' || otherStatus.get(m.id) === 'REFUNDED') && (
-                      <span className="text-right text-xs text-ink/50">{otherStatus.get(m.id) === 'CANCELLED' ? 'Cancelled' : 'Refunded'}:<br />adding reopens it</span>
+                      <span className="text-right text-xs text-ink/50">{otherStatus.get(m.id) === 'CANCELLED' ? 'Cancelled' : 'Cancelled – refunded'}:<br />adding reopens it</span>
                     )}
                   </label>
                 </li>

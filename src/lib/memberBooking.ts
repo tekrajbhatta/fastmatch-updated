@@ -302,11 +302,13 @@ export async function confirmBookingGroup(
 
   const created = await prisma.$transaction(
     async (tx) => {
+      // Never for an event that has been cancelled: a payment completing
+      // as Gil cancelled it is refunded instead (the Stripe webhook).
       const flipped = await tx.booking.updateMany({
-        where: { id: lead.id, status: 'PENDING', ...(opts.sessionId ? { stripePaymentIntentId: opts.sessionId } : {}) },
+        where: { id: lead.id, status: 'PENDING', event: { status: { not: 'CANCELLED' } }, ...(opts.sessionId ? { stripePaymentIntentId: opts.sessionId } : {}) },
         data: { status: 'CONFIRMED', pendingFriends: Prisma.DbNull, reopenedFrom: Prisma.DbNull, confirmedAt: lead.confirmedAt ?? new Date() },
       });
-      if (flipped.count === 0) return null; // another delivery of this webhook got here first
+      if (flipped.count === 0) return null; // another delivery of this webhook got here first, or the event was cancelled
 
       const highest = await tx.booking.aggregate({ where: { eventId: lead.eventId }, _max: { badge: true } });
       let badge = (highest._max.badge ?? 0) + 1;

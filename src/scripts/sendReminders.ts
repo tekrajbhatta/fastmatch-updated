@@ -33,14 +33,10 @@ async function run() {
       reminderSent: false,
       event: {
         startsAt: { gte: windowStart, lte: windowEnd },
-        // Never "see you tomorrow" for an event that isn't on: not a
-        // cancelled one, and not a hidden one either, since unticking
-        // "Visible to the public" is how the admin cancels and it texts
-        // everyone a cancellation.
-        // PENDING GIL (question 3): if hiding comes to mean something other
-        // than cancelling, hidden events should get reminders again.
+        // Never "see you tomorrow" for an event that isn't on. A hidden one
+        // is still on: hiding only takes it off the site, bookings and all
+        // (Gil, Q3), so its attendees get their reminder like everyone else.
         status: { not: 'CANCELLED' },
-        visibility: 'PUBLIC',
         draft: false,
       },
     },

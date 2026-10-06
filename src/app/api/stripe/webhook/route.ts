@@ -5,6 +5,7 @@ import { getStripe, getStripeWebhookSecret, isOurCheckoutSession } from '@/lib/s
 import { dropUnpaidBooking } from '@/lib/pendingBooking';
 import { confirmBookingGroup } from '@/lib/memberBooking';
 import { alertRefundNeeded } from '@/lib/paymentAlerts';
+import { refundPaymentForCancelledEvent } from '@/lib/cancelEvent';
 import { eventLabel } from '@/lib/eventLabel';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
@@ -65,7 +66,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
  * double-count a code or re-send confirmations.
  *
  * If the booking didn't need this payment — the admin had already marked it
- * paid by hand, or it was cancelled — the money is flagged for a refund.
+ * paid by hand, or it was cancelled — the money is flagged for a refund. A
+ * payment for an event that has been cancelled is refunded automatically
+ * (Gil: everyone is refunded when an event is cancelled).
  */
 async function confirmPaid(bookingId: string, session: Stripe.Checkout.Session) {
   // Only the payment page the booking is waiting on confirms it.
@@ -76,6 +79,10 @@ async function confirmPaid(bookingId: string, session: Stripe.Checkout.Session) 
   const amount = session.amount_total != null ? session.amount_total / 100 : null;
   // A retry of a payment that already confirmed this booking is fine.
   if (b?.status === 'CONFIRMED' && !b.paymentMethod && b.stripePaymentIntentId === session.id) return;
+  if (b?.event.status === 'CANCELLED' && b.stripePaymentIntentId === session.id) {
+    await refundPaymentForCancelledEvent(b.id, session.id);
+    return;
+  }
   const reason = !b
     ? 'the booking no longer exists'
     : b.status === 'CONFIRMED'

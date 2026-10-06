@@ -11,8 +11,11 @@ import { eventLabel } from '@/lib/eventLabel';
 import { checkEventEdit, CHECK_FIELDS } from '@/lib/eventInput';
 
 // PATCH /api/admin/events/:id — edit any field. Attendees are notified by
-// email and SMS ONLY when the date/time, the venue, or the event's public
-// visibility (i.e. a cancellation) changes.
+// email and SMS ONLY when the date/time or the venue changes. Unticking
+// "Visible to the public" only hides the event (Gil, Q3: "I may have reasons
+// to hide an event but still keep bookings"); it used to be how an event was
+// cancelled, and told everyone. Cancelling is its own action now
+// (/api/admin/events/:id/cancel), which also refunds.
 export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
@@ -36,9 +39,9 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   let notified = 0;
   const notifyFailures: { member: string; channel: 'email' | 'sms' }[] = [];
 
-  // ONLY these three things notify attendees. Everything else on this form —
-  // expenses, cost, capacity, age range, name, theme — is admin bookkeeping
-  // that no attendee needs a text about.
+  // ONLY these two things notify attendees. Everything else on this form —
+  // expenses, cost, capacity, age range, name, theme, visibility — is admin
+  // bookkeeping that no attendee needs a text about.
   //
   // This used to compare startsAt alone, but the edit form round-tripped the
   // timestamp through a timezone bug (see src/lib/datetime.ts), so the value
@@ -47,12 +50,8 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   // and the comparison below is explicit about what counts as a change.
   const timeChanged = before.startsAt.getTime() !== new Date(event.startsAt).getTime();
   const venueChanged = before.venueId !== event.venueId;
-  // Gil's definition: cancelling an event means unchecking "Visible to the
-  // public". Only the PUBLIC -> NOT_PUBLIC direction is a cancellation;
-  // re-publishing something is not an event worth texting about.
-  const cancelled = before.visibility === 'PUBLIC' && event.visibility === 'NOT_PUBLIC';
 
-  if (timeChanged || venueChanged || cancelled) {
+  if (timeChanged || venueChanged) {
     const change = {
       eventName: eventLabel(event),
       themeName: event.theme.name,
@@ -65,7 +64,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
       newStartsAt: new Date(event.startsAt),
       venueChanged,
       timeChanged,
-      cancelled,
+      cancelled: false,
     };
 
     const bookings = await prisma.booking.findMany({
@@ -101,7 +100,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   }
 
   // What the attendees were told about, so the screen can word any failures.
-  return NextResponse.json({ ...event, notified, notifyFailures, notifiedAbout: { time: timeChanged, venue: venueChanged, cancelled } });
+  return NextResponse.json({ ...event, notified, notifyFailures, notifiedAbout: { time: timeChanged, venue: venueChanged } });
 });
 
 // DELETE /api/admin/events/:id — the event page's "Delete event", offered

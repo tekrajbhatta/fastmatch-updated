@@ -67,7 +67,7 @@ export default function BlastFields({ value, onChange }: { value: BlastContent; 
           </Field>
           <PhotoUploadField label="Venue logo" value={value.venueLogoUrl} onChange={(url) => onChange({ venueLogoUrl: url })}
             hint="Optional. Shown under the event details. Filled in from the venue." />
-          <BookNowEventField bookingLink={value.bookingLink} subject={value.subject} heading={value.heading} onApply={(patch) => onChange(patch)} />
+          <BookNowEventField bookingLink={value.bookingLink} subject={value.subject} heading={value.heading} eventDetailsText={value.eventDetailsText} onApply={(patch) => onChange(patch)} />
           <Field label="Booking link"><Input value={value.bookingLink} onChange={(e) => onChange({ bookingLink: e.target.value })} /></Field>
         </div>
       )}

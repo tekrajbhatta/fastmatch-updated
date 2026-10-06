@@ -39,10 +39,10 @@ export default function EditEventPage() {
   // sends this back exactly, so the "has the time changed?" check can't be
   // tripped (it texts every attendee) by a value that only looks the same.
   const loaded = useRef<{ startsAt: string; wall: string; cityId: string; cityName: string; venueId: string; visibility: string; attendees: number } | null>(null);
-  // Saving a new time or venue, or hiding the event (which cancels it), emails
-  // and texts every paid attendee: the admin is asked first.
+  // Saving a new time or venue emails and texts every paid attendee: the
+  // admin is asked first. Hiding the event tells nobody (Gil, Q3).
   const [pendingNotice, setPendingNotice] = useState<string | null>(null);
-  const [notifiedAbout, setNotifiedAbout] = useState<{ time: boolean; venue: boolean; cancelled: boolean } | null>(null);
+  const [notifiedAbout, setNotifiedAbout] = useState<{ time: boolean; venue: boolean } | null>(null);
   useEffect(() => {
     setCopiedFrom(new URLSearchParams(window.location.search).get('copiedFrom'));
   }, []);
@@ -100,12 +100,11 @@ export default function EditEventPage() {
     const checked = checkEventFields(body);
     if (!checked.ok) { setFieldErrors(checked.fieldErrors); setError(CHECK_FIELDS); setPendingNotice(null); return; }
 
-    // The same three changes the server notifies about (see its PATCH).
+    // The same two changes the server notifies about (see its PATCH).
     if (!confirmed && was && was.attendees > 0) {
       const changes = [
         new Date(startsAt).getTime() !== new Date(was.startsAt).getTime() && 'the new date and time',
         form.venueId !== was.venueId && 'the new venue',
-        was.visibility === 'PUBLIC' && form.visibility === 'NOT_PUBLIC' && 'the event being cancelled (unticking "Visible to the public" cancels it)',
       ].filter(Boolean) as string[];
       if (changes.length) {
         setPendingNotice(`This will email and text ${was.attendees} attendee${was.attendees === 1 ? '' : 's'} about ${changes.join(' and ')}.`);
@@ -209,9 +208,15 @@ export default function EditEventPage() {
           </div>
           <Field label="Expenses ($)" error={err('expenses')}><Input type="number" step="0.01" value={form.expenses} onChange={(e) => setForm({ ...form, expenses: e.target.value })} /></Field>
 
-          <label className="mb-4 flex items-center gap-2 text-sm font-semibold text-ink">
-            <input type="checkbox" checked={form.visibility === 'PUBLIC'} onChange={(e) => setForm({ ...form, visibility: e.target.checked ? 'PUBLIC' : 'NOT_PUBLIC' })} />
-            Visible to the public
+          <label className="mb-4 flex items-start gap-2 text-sm font-semibold text-ink">
+            <input type="checkbox" className="mt-0.5" checked={form.visibility === 'PUBLIC'} onChange={(e) => setForm({ ...form, visibility: e.target.checked ? 'PUBLIC' : 'NOT_PUBLIC' })} />
+            <span>
+              Visible to the public
+              <span className="block text-xs font-normal text-ink/50">
+                Untick to take it off the site, so it can&apos;t be booked online. Nothing else changes: bookings stay and nobody is told.
+                To call it off, use &ldquo;Cancel event&rdquo; on the event&apos;s page.
+              </span>
+            </span>
           </label>
           <EventFlagFields value={form} onChange={(patch) => setForm({ ...form, ...patch })} />
 
@@ -224,9 +229,7 @@ export default function EditEventPage() {
               </ul>
               <p className="mt-1 text-ink/60">
                 Please contact them directly about{' '}
-                {notifiedAbout?.cancelled
-                  ? 'the cancellation'
-                  : [notifiedAbout?.time && 'the new date and time', notifiedAbout?.venue && 'the new venue'].filter(Boolean).join(' and ') || 'the change'}.
+                {[notifiedAbout?.time && 'the new date and time', notifiedAbout?.venue && 'the new venue'].filter(Boolean).join(' and ') || 'the change'}.
               </p>
             </div>
           )}

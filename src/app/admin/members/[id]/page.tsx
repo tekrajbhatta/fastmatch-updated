@@ -9,6 +9,7 @@ import { timeZoneForCity } from '@/lib/timezone';
 import { attendedBooking } from '@/lib/attended';
 import { formatPrice } from '@/lib/price';
 import { AU_MOBILE_MESSAGE } from '@/lib/mobile';
+import { bookingStatusLabel } from '@/lib/paymentMethod';
 
 interface Booking {
   id: string; badge: number; status: string; paidAmount: string; checkedIn: boolean;
@@ -201,7 +202,7 @@ export default function MemberDetailPage() {
                 </div>
               </div>
               <div className="flex gap-1.5">
-                <Badge tone={b.status === 'CONFIRMED' ? 'green' : 'muted'}>{b.status === 'CONFIRMED' ? `Paid ${formatPrice(b.paidAmount)}` : b.status}</Badge>
+                <Badge tone={b.status === 'CONFIRMED' ? 'green' : 'muted'}>{bookingStatusLabel(b.status, formatPrice(b.paidAmount))}</Badge>
                 {b.checkedIn && <Badge tone="plum">Checked in</Badge>}
               </div>
             </div>

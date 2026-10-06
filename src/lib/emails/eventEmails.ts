@@ -3,6 +3,7 @@ import { BRAND_COLORS } from '../brand';
 import { formatEventShort, EVENT_TIME_ZONE } from '../datetime';
 import { escapeHtml, oneLine } from '../escapeHtml';
 import { registeredAccountHtml, type RegisteredLinks } from './signupEmails';
+import { formatPrice } from '../price';
 
 // Names (member, event, venue, city) are typed by members and admins, so each
 // is escaped where it goes into the HTML, and kept to one line in a subject.
@@ -166,7 +167,12 @@ export function eventChangeSms(c: EventChange): string {
   return `${from} has been changed to ${formatEventShort(c.newStartsAt, c.timeZone)} at ${c.newVenue}. ${contact}`;
 }
 
-export function eventChangeEmail(c: EventChange & { memberName: string }) {
+/**
+ * `refunded`: what their card was refunded when the event was cancelled
+ * (src/lib/cancelEvent.ts), said in the cancellation email. Not in the text
+ * message, which stays one SMS.
+ */
+export function eventChangeEmail(c: EventChange & { memberName: string; refunded?: number | null }) {
   const timeZone = c.timeZone ?? EVENT_TIME_ZONE;
   const fmt = (d: Date) =>
     d.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone }) +
@@ -184,6 +190,7 @@ export function eventChangeEmail(c: EventChange & { memberName: string }) {
         <p style="${P}">Hi ${escapeHtml(c.memberName)},</p>
         <p style="${P}">We're sorry to let you know that <strong>${escapeHtml(c.oldVenue)} ${escapeHtml(c.themeName)} ${c.ageMin}-${c.ageMax} years</strong>
           on <strong>${fmt(c.oldStartsAt)}</strong>, which you were booked into, has been cancelled.</p>
+        ${c.refunded ? `<p style="${P}">Your payment of <strong>${formatPrice(c.refunded)}</strong> has been refunded to your card. Depending on your bank, it can take 5 to 10 business days to show.</p>` : ''}
         <p style="${P}">If any issues please contact
           <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>
         <p style="${P}">The FastMatch Team</p>

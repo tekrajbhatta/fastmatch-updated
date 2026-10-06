@@ -20,3 +20,17 @@ export function paymentMethodLabel(method: string | null | undefined): string {
   if (method === 'CARD') return 'Credit card';
   return PAYMENT_METHODS.find((m) => m.value === method)?.label ?? method;
 }
+
+/**
+ * A booking's status as the admin screens show it. A refunded one reads
+ * "Cancelled – refunded": refunded automatically when its event was cancelled
+ * (its card payment, src/lib/cancelEvent.ts), or marked so by hand; plain
+ * "Cancelled" means nothing went back automatically (Gil, Q2; the user, 6 Oct).
+ */
+export function bookingStatusLabel(status: string, paidAmountLabel: string): string {
+  if (status === 'CONFIRMED') return `Paid ${paidAmountLabel}`;
+  if (status === 'REFUNDED') return 'Cancelled – refunded';
+  if (status === 'CANCELLED') return 'Cancelled';
+  if (status === 'PENDING') return 'Pending';
+  return status;
+}

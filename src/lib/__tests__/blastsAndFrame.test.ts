@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { venueFill, venueWouldReplace, bookNowFill, bookNowEventId } from '@/lib/campaigns/blastFill';
+import { venueFill, venueWouldReplace, bookNowFill, bookNowEventId, blastEventDetails } from '@/lib/campaigns/blastFill';
 import { emailLayout, EMAIL_FRAME } from '@/lib/emails/layout';
 import { renderCampaignEmailHtml, resolveCampaignEmailHtml } from '@/lib/emails/campaignEmail';
 import { bookingConfirmationEmail } from '@/lib/emails/eventEmails';
@@ -45,23 +45,31 @@ describe('"Fill from a venue" (item 1)', () => {
 });
 
 describe('"Book Now goes to" an event (item 19)', () => {
-  const ev = { id: 'ev1', name: 'Ages 25 to 45 years', theme: { name: 'Cocktail speed dating' } };
+  const ev = {
+    id: 'ev1', name: 'Ages 25 to 45 years', theme: { name: 'Cocktail speed dating' }, cost: '55',
+    startsAt: '2026-11-14T08:30:00.000Z', city: { name: 'Sydney' }, venue: { name: 'Soultrap', address: '1 Crown St, Surry Hills' },
+  };
+  const blank = { subject: '', heading: ' ', eventDetailsText: '' };
 
-  it('links Book Now to the event, and fills an empty subject and heading with its type and name', () => {
-    expect(bookNowFill(ev, 'https://5minutedating.com.au/', { subject: '', heading: ' ' })).toEqual({
+  it('links Book Now to the event, and fills an empty subject, heading and event details', () => {
+    expect(bookNowFill(ev, 'https://5minutedating.com.au/', blank)).toEqual({
       bookingLink: 'https://5minutedating.com.au/events/ev1',
       subject: 'Cocktail speed dating, Ages 25 to 45 years',
       heading: 'Cocktail speed dating',
+      // As "Create blast for this event" fills them (the user, 6 Oct): the event's own clock.
+      eventDetailsText: 'When: Saturday 14 November, 7:30 pm\nWhere: Soultrap\n1 Crown St, Surry Hills, Sydney\nCost: $55',
     });
+    expect(blastEventDetails(ev)).toBe(bookNowFill(ev, 'https://x.test', blank).eventDetailsText);
   });
 
-  it('never overwrites a subject or heading already written', () => {
-    expect(bookNowFill(ev, 'https://x.test', { subject: 'Last places!', heading: 'This Saturday' })).toEqual({ bookingLink: 'https://x.test/events/ev1' });
+  it('never overwrites a subject, heading or event details already written', () => {
+    expect(bookNowFill(ev, 'https://x.test', { subject: 'Last places!', heading: 'This Saturday', eventDetailsText: 'Our own words' }))
+      .toEqual({ bookingLink: 'https://x.test/events/ev1' });
   });
 
   it('doesn\'t repeat a type the name already has', () => {
-    const full = { id: 'ev2', name: 'Professional Speed Dating, 28 to 40 years', theme: { name: 'Professionals speed dating' } };
-    expect(bookNowFill(full, 'https://x.test', { subject: '', heading: 'x' }).subject).toBe('Professional Speed Dating, 28 to 40 years');
+    const full = { ...ev, id: 'ev2', name: 'Professional Speed Dating, 28 to 40 years', theme: { name: 'Professionals speed dating' } };
+    expect(bookNowFill(full, 'https://x.test', blank).subject).toBe('Professional Speed Dating, 28 to 40 years');
   });
 
   it('recognises the event an existing link goes to', () => {

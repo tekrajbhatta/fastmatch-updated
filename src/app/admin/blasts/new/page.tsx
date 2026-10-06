@@ -146,7 +146,8 @@ function NewBlastInner() {
               </Field>
               <PhotoUploadField label="Venue logo" value={form.venueLogoUrl} onChange={(url) => setForm((f) => ({ ...f, venueLogoUrl: url }))}
                 hint="Optional. Shown under the event details. Filled in from the venue." />
-              <BookNowEventField bookingLink={form.bookingLink} subject={form.subject} heading={form.heading} onApply={(patch) => setForm((f) => ({ ...f, ...patch }))} />
+              <BookNowEventField bookingLink={form.bookingLink} subject={form.subject} heading={form.heading} eventDetailsText={form.eventDetailsText}
+                onApply={(patch) => setForm((f) => ({ ...f, ...patch }))} />
               <Field label="Booking link"><Input value={form.bookingLink} onChange={(e) => setForm({ ...form, bookingLink: e.target.value })} /></Field>
             </div>
           )}
