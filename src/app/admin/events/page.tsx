@@ -105,7 +105,7 @@ export default function AdminEventsPage() {
               <th className="px-4 py-3">#</th>
               <th className="px-4 py-3">Title</th>
               <th className="px-4 py-3">Date &amp; Time</th>
-              <th className="px-4 py-3">Theme</th>
+              <th className="px-4 py-3">Event type</th>
               <th className="px-4 py-3">City</th>
               <th className="px-4 py-3">Venue</th>
               <th className="px-4 py-3">Ages</th>
@@ -132,7 +132,7 @@ export default function AdminEventsPage() {
                   )}
                 </td>
                 {/* Cell order must mirror the <th> order above: Date & Time,
-                    Theme, City, Venue, Ages, Men, Women, Visibility, Action. */}
+                    Event type, City, Venue, Ages, Men, Women, Visibility, Action. */}
                 <td className="whitespace-nowrap px-4 py-3">
                   <EventWhen startsAt={e.startsAt} city={e.city.name} />
                 </td>

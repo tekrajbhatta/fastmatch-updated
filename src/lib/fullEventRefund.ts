@@ -46,7 +46,7 @@ export async function refundPaymentForFullEvent(bookingId: string, sessionId: st
     },
   });
   if (!moved.count) return;
-  if (ok) await notifyAutoRefund({ sessionId, memberName: b.member.name, memberEmail: b.member.email, eventName: eventLabel(b.event), amount: r.amount });
+  if (ok) await notifyAutoRefund({ why: 'full', sessionId, memberName: b.member.name, memberEmail: b.member.email, eventName: eventLabel(b.event), amount: r.amount });
   try {
     const { subject, html } = eventFullRefundEmail({
       memberName: b.member.name, eventName: eventLabel(b.event), startsAt: b.event.startsAt,

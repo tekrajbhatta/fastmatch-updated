@@ -11,10 +11,11 @@ import { checkoutRefunded } from '@/lib/refunds';
 import { eventLabel } from '@/lib/eventLabel';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
-// Per the Terms & Conditions: "Your credit card will not be debited until
-// your place at one of our events is confirmed." Booking status only flips
-// to CONFIRMED here, once Stripe confirms the charge actually succeeded —
-// never optimistically on the client side.
+// Per the Terms & Conditions, a card is charged when the booking is paid for
+// (Gil, Q32), and a payment for an event that's full or cancelled by then is
+// refunded automatically. Booking status only flips to CONFIRMED here, once
+// Stripe confirms the charge actually succeeded — never optimistically on
+// the client side.
 //
 // The Stripe webhook endpoint must send these events:
 //   checkout.session.completed                — paid (or, for slower payment

@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   emails: [] as { to: string; subject: string; html: string }[],
   sms: [] as { to: string; body: string }[],
   alerts: [] as any[],
+  notices: [] as any[],
   close: {} as Record<string, 'paid' | 'closed'>,
   dropped: [] as string[],
   refunds: {} as Record<string, any>,
@@ -50,7 +51,10 @@ vi.mock('../refunds', () => ({
 }));
 vi.mock('../emails/send', () => ({ sendEmail: vi.fn(async (m: any) => { h.emails.push(m); }) }));
 vi.mock('../sms/send', () => ({ sendSms: vi.fn(async (m: any) => { h.sms.push(m); }) }));
-vi.mock('../paymentAlerts', () => ({ alertRefundNeeded: vi.fn(async (a: any) => { h.alerts.push(a); }) }));
+vi.mock('../paymentAlerts', () => ({
+  alertRefundNeeded: vi.fn(async (a: any) => { h.alerts.push(a); }),
+  notifyAutoRefund: vi.fn(async (a: any) => { h.notices.push(a); }),
+}));
 
 const sydney = { name: 'Sydney' };
 const member = (n: string) => ({ name: n, email: `${n.toLowerCase()}@example.test`, mobile: `04000000${n.length}`, city: sydney });
@@ -74,7 +78,7 @@ beforeEach(() => {
     booking('Paying', { status: 'PENDING', stripePaymentIntentId: 'cs_paying' }),    // paying right now
     booking('Abandoned', { status: 'PENDING', stripePaymentIntentId: 'cs_open' }),   // page still open, unpaid
   ];
-  h.updates = []; h.emails = []; h.sms = []; h.alerts = []; h.dropped = []; h.refundCalls = [];
+  h.updates = []; h.emails = []; h.sms = []; h.alerts = []; h.notices = []; h.dropped = []; h.refundCalls = [];
   h.close = { Paying: 'paid', Abandoned: 'closed' };
   h.refunds = {
     cs_lead: { outcome: 'refunded', amount: 88 },
@@ -136,16 +140,33 @@ describe('cancelEvent (Gil, Q2-Q4)', () => {
   it('a payment completing for the cancelled event is refunded and the member told, once', async () => {
     const { cancelEvent, refundPaymentForCancelledEvent } = await import('../cancelEvent');
     await cancelEvent('e1');
+    // Gil cancelled it himself and sees what was refunded: no email for those.
+    expect(h.notices).toEqual([]);
     h.emails = []; h.sms = [];
     h.refunds.cs_paying = { outcome: 'refunded', amount: 49 };
     await refundPaymentForCancelledEvent('Paying', 'cs_paying');
     expect(h.bookings.find((b) => b.id === 'Paying')).toMatchObject({ status: 'REFUNDED', paidAmount: 49 });
     expect(h.emails).toHaveLength(1);
     expect(h.emails[0].html).toContain('Your payment of <strong>$49</strong> has been refunded to your card.');
+    // The late payment is emailed to Gil, for his records (the user, 6 Oct).
+    expect(h.notices).toEqual([{ why: 'cancelled', sessionId: 'cs_paying', memberName: 'Paying', memberEmail: 'paying@example.test', eventName: 'Speed dating, 28-40 years', amount: 49 }]);
     // Stripe delivers it again: refunded already, nobody emailed again.
     h.refunds.cs_paying = { outcome: 'already-refunded', amount: 49 };
     await refundPaymentForCancelledEvent('Paying', 'cs_paying');
     expect(h.emails).toHaveLength(1);
+    expect(h.notices).toHaveLength(1);
+  });
+
+  it('a late payment Stripe won\'t refund: Gil is asked to refund it, not told it\'s done', async () => {
+    const { cancelEvent, refundPaymentForCancelledEvent } = await import('../cancelEvent');
+    await cancelEvent('e1');
+    h.alerts = [];
+    h.refunds.cs_paying = { outcome: 'failed', reason: 'Stripe is down' };
+    await refundPaymentForCancelledEvent('Paying', 'cs_paying');
+    expect(h.bookings.find((b) => b.id === 'Paying')?.status).toBe('CANCELLED');
+    expect(h.alerts).toHaveLength(1);
+    expect(h.alerts[0]).toMatchObject({ sessionId: 'cs_paying', memberName: 'Paying' });
+    expect(h.notices).toEqual([]);
   });
 
   it('a payment for an event that isn\'t cancelled is none of its business', async () => {

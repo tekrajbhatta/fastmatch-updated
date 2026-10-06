@@ -9,7 +9,7 @@ import { venueLine } from './venue';
 import { eventTimeFor } from './timezone';
 import { closeCheckout, dropUnpaidBooking } from './pendingBooking';
 import { refundCheckoutSession } from './refunds';
-import { alertRefundNeeded } from './paymentAlerts';
+import { alertRefundNeeded, notifyAutoRefund } from './paymentAlerts';
 import { endOfEventNight } from './eventNight';
 import { paymentMethodLabel } from './paymentMethod';
 
@@ -187,8 +187,9 @@ async function tellCancelled(event: FullEvent, b: Attendee, refunded: number | n
 /**
  * A payment that completed for an event that has been cancelled: its page
  * was being paid as Gil cancelled. Refunded in full automatically, never
- * booked, and the member is told as everyone booked was. Called by the
- * Stripe webhook; on Stripe's retries nothing is refunded or sent twice.
+ * booked, and the member is told as everyone booked was. Gil is emailed it
+ * too, for his records (the user, 6 Oct). Called by the Stripe webhook; on
+ * Stripe's retries nothing is refunded or sent twice.
  */
 export async function refundPaymentForCancelledEvent(bookingId: string, sessionId: string): Promise<void> {
   const b = await prisma.booking.findUnique({
@@ -214,5 +215,7 @@ export async function refundPaymentForCancelledEvent(bookingId: string, sessionI
       pendingFriends: Prisma.DbNull, reopenedFrom: Prisma.DbNull, checkedIn: false, checkedInAt: null,
     },
   });
-  if (moved.count) await tellCancelled(b.event, b, ok ? r.amount : null);
+  if (!moved.count) return;
+  if (ok) await notifyAutoRefund({ why: 'cancelled', sessionId, memberName: b.member.name, memberEmail: b.member.email, eventName: eventLabel(b.event), amount: r.amount });
+  await tellCancelled(b.event, b, ok ? r.amount : null);
 }

@@ -41,25 +41,39 @@ export async function alertRefundNeeded(opts: {
   }
 }
 
+const AUTO_REFUND = {
+  full: {
+    subject: 'FastMatch: a payment was refunded automatically (event full)',
+    what: 'A card payment came through after the event was full, so it was refunded automatically and the member wasn\'t booked in.',
+  },
+  cancelled: {
+    subject: 'FastMatch: a payment was refunded automatically (event cancelled)',
+    what: 'A card payment came through after the event was cancelled, so it was refunded automatically.',
+  },
+} as const;
+
 /**
- * A payment refunded automatically because the event was full by the time
- * it came through (src/lib/fullEventRefund.ts). Nothing for Gil to do: the
- * member has been told and the money is on its way back. He asked to hear
- * about each one all the same (the user, 6 Oct). Never throws.
+ * A payment refunded automatically because, by the time it came through, the
+ * event was full (src/lib/fullEventRefund.ts) or cancelled
+ * (src/lib/cancelEvent.ts). Nothing for Gil to do: the member has been told
+ * and the money is on its way back. He asked to hear about each one all the
+ * same (the user, 6 Oct). Never throws.
  */
 export async function notifyAutoRefund(opts: {
+  why: keyof typeof AUTO_REFUND;
   sessionId: string;
   memberName: string;
   memberEmail: string;
   eventName: string;
   amount: number;
 }): Promise<void> {
+  const { subject, what } = AUTO_REFUND[opts.why];
   try {
     await sendEmail({
       to: ADMIN_EMAIL,
-      subject: 'FastMatch: a payment was refunded automatically (event full)',
+      subject,
       html: emailLayout(`
-        <p style="margin:0 0 16px;">A card payment came through after the event was full, so it was refunded automatically and the member wasn't booked in. They've been emailed. There's nothing you need to do.</p>
+        <p style="margin:0 0 16px;">${what} They've been emailed. There's nothing you need to do.</p>
         <p style="margin:0 0 16px;"><strong>Member:</strong> ${escapeHtml(opts.memberName)} (${escapeHtml(opts.memberEmail)})<br>
         <strong>Event:</strong> ${escapeHtml(opts.eventName)}<br>
         <strong>Refunded:</strong> ${escapeHtml(formatPrice(opts.amount))}<br>

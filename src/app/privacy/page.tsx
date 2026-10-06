@@ -12,7 +12,7 @@ export default function PrivacyPage() {
       <Container className="pb-[clamp(56px,6.7vw,96px)] pt-[clamp(32px,4.4vw,64px)]">
         <div className="max-w-[720px] text-base leading-relaxed text-ink-600 md:text-[17px]">
           <P>Fast Match conducts events, workshops and seminars for singles, couples and friends and the main vehicle for information distribution and collection is www.fastmatch.com.au</P>
-          <P>Fast Match is bound by the National Privacy Principles contained in the Commonwealth Privacy Act. Fast Match may, from time to time, review and update this privacy policy statement to take account of new laws and technology and changes to Fast Match&apos;s operations. All personal information held by Fast Match will be governed by its most recent policy, posted on Fast Match.</P>
+          <P>Fast Match is bound by the Australian Privacy Principles contained in the Privacy Act 1988 (Cth). Fast Match may, from time to time, review and update this privacy policy statement to take account of new laws and technology and changes to Fast Match&apos;s operations. All personal information held by Fast Match will be governed by its most recent policy, posted on Fast Match.</P>
 
           <H2>What we collect</H2>
           <P>Fast Match collects personal information from members of the public, including (but not limited to) name, address, contact details, gender, occupation, age, hobbies, event preferences, and in some cases financial information, including credit card information, banking details and income information.</P>

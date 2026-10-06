@@ -68,7 +68,7 @@ describe('refundPaymentForFullEvent', () => {
     expect(h.emails[0]).toMatchObject({ to: 'ann@example.test', subject: 'Sorry, Speed dating, 28-40 years is full' });
     expect(h.emails[0].html).toContain('Hi Ann &lt;A&gt;,');
     // Gil hears about it too, for his records (the user, 6 Oct).
-    expect(h.notices).toEqual([{ sessionId: 'cs_1', memberName: 'Ann <A>', memberEmail: 'ann@example.test', eventName: 'Speed dating, 28-40 years', amount: 49 }]);
+    expect(h.notices).toEqual([{ why: 'full', sessionId: 'cs_1', memberName: 'Ann <A>', memberEmail: 'ann@example.test', eventName: 'Speed dating, 28-40 years', amount: 49 }]);
     // Stripe sends the notice again: refunded already, nobody emailed again.
     h.refund = { outcome: 'already-refunded', amount: 49 };
     await refundPaymentForFullEvent('b1', 'cs_1', 49);

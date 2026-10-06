@@ -14,6 +14,11 @@
  * reply was never recorded on the site anyway (Gil, Q16). It's one link for
  * everyone, so a blast is still one message to all its recipients.
  *
+ * Every blast text gets it, even one that already says "Reply STOP": nobody
+ * can reply to a text from "Fastmatch", so that text would otherwise have no
+ * opt-out that works (the user, 6 Oct). The blast forms point a STOP out to
+ * the admin, to take it out themselves (mentionsReplyStop).
+ *
  * TRANSACTIONAL messages (verification codes, event-change alerts) must NOT
  * get this. They aren't marketing, and inviting someone to opt out of the
  * text telling them their event moved would be actively harmful.
@@ -38,7 +43,16 @@ export function smsOptOutLine(host: string = siteHost()): string {
 export function withOptOut(body: string, host?: string): string {
   const text = body.trim();
   if (!text) return text;
-  // Don't double up if the admin already wrote their own opt-out line.
-  if (/\bSTOP\b/i.test(text) || /\/optout\b/i.test(text)) return text;
+  // Don't add the link twice, when the admin already put it in.
+  if (/\/optout\b/i.test(text)) return text;
   return `${text}\n${smsOptOutLine(host)}`;
+}
+
+/**
+ * Does the admin's text ask members to reply STOP? That can't work, so the
+ * blast forms ask for it to be taken out (the opt-out link is added anyway).
+ * A capitalised STOP or "reply stop": not "don't stop now".
+ */
+export function mentionsReplyStop(body: string): boolean {
+  return /\bSTOP\b/.test(body) || /\breply\s+stop\b/i.test(body);
 }

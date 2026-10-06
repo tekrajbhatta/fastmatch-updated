@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { eventChangeSms, type EventChange } from '@/lib/emails/eventEmails';
 import { withOptOut, smsOptOutLine } from '@/lib/sms/send';
+import { mentionsReplyStop } from '@/lib/sms/optOut';
 
 const base: EventChange = {
   eventName: '28-40 years',
@@ -108,9 +109,19 @@ describe('withOptOut — marketing SMS only', () => {
     expect(withOptOut(body)).toBe(body);
   });
 
-  it("doesn't double up when the admin already wrote one", () => {
+  it('still adds the link when the text asks for a STOP reply: nobody can reply to Fastmatch (the user, 6 Oct)', () => {
     const body = 'Speed dating Friday! Text STOP to unsubscribe';
-    expect(withOptOut(body)).toBe(body);
+    expect(withOptOut(body)).toBe(`${body}\nOpt out: 5minutedating.com.au/optout`);
+    // Before, any "stop" at all, as in "don't stop now", left a text with no opt-out.
+    expect(withOptOut("Don't stop now, book Friday!")).toBe("Don't stop now, book Friday!\nOpt out: 5minutedating.com.au/optout");
+  });
+
+  it('a STOP reply is pointed out to the admin, an ordinary "stop" isn\'t', () => {
+    expect(mentionsReplyStop('Speed dating Friday! Reply STOP to opt out')).toBe(true);
+    expect(mentionsReplyStop('Text STOP to 0412 345 678')).toBe(true);
+    expect(mentionsReplyStop('reply stop to opt out')).toBe(true);
+    expect(mentionsReplyStop("Don't stop now, book Friday!")).toBe(false);
+    expect(mentionsReplyStop('Bus stops right outside')).toBe(false);
   });
 
   it('leaves an empty body alone rather than sending a bare opt-out', () => {

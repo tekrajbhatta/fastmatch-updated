@@ -19,16 +19,19 @@ export default function TermsPage() {
           <P>Under no circumstances will Fast Match be liable to you for any incidental, consequential, or indirect damages arising out of the Fast Match service. In addition, Fast Match disclaims all liability, regardless of the form of action, for the acts or omissions of other members or users.</P>
           <P>Places at an event will be allocated on a &apos;first come, first served&apos; system.</P>
           <P>If an event for a certain night is over or under-subscribed, an alternate evening will be arranged and you will be notified by email of the new date.</P>
-          <P>Your credit card will not be debited until your place at one of our events is confirmed.</P>
+          <P>Your card is charged automatically when you pay for your booking.</P>
           <P>Fast Match makes no guarantees or promises in regard to the quantity or quality of people you may meet through one of our events.</P>
 
           <H2>Cancellations &amp; refunds</H2>
           <P>Reservations may be cancelled by giving at least 7 days notice before an event. All bookings for non speed dating events (eg wine tours, food nights, bowling events, etc) cannot be cancelled or transferred within 7 days of the event. Cancellations must be received in writing via email to Fast Match. An administration fee of $5 will be retained from cancelled bookings.</P>
           <P>For cancellations with less than 7 days notice, you may only request a transfer to another event, refunds will not be given. All event transfers must be requested by 48 hours prior to the event taking place. For any cancellations after this time, no event transfers will be given and no refunds will be given.</P>
           <P>There are no refunds or transfers given to people who do not show up to an event. There are no refunds for being dissatisfied with the quality or calibre of fellow participants at the event. You take part in a Fast Match event with a clear understanding that you may, or may not meet someone.</P>
+          <P>If Fast Match cancels an event, payments made by card on our website for that event are refunded to the card automatically, in full.</P>
+          <P>If an event fills up while you are paying for your booking, you will not be booked in, and your payment is refunded to your card automatically, in full.</P>
+          <P>Depending on your bank, a refund can take 5 to 10 business days to show.</P>
 
           <H2>Matches &amp; privacy</H2>
-          <P>At the conclusion of the event, Fast Match will collate all match choices and exchange phone numbers for only those couples who have both expressed an interest in meeting each other. All other information will remain private and confidential.</P>
+          <P>At the conclusion of the event, Fast Match will collate all match choices and exchange mobile numbers and email addresses for only those couples who have both expressed an interest in meeting each other. All other information will remain private and confidential.</P>
           <P>Fast Match takes no responsibility for false information supplied by members. We reserve the right to refuse or accept a reservation at our discretion. We reserve the right to use any photos or video footage taken at one of our events for ongoing advertising and promotional purposes. Should you not wish to be photographed or filmed, please advise the cameraman.</P>
           <P>Every attempt will be made to co-ordinate events which bring together people of similar age groups and locations, however, Fast Match may, at its discretion and without notice, combine or change configurations in order to facilitate an event.</P>
           <P>Acceptance of these terms and conditions also gives Fast Match permission to contact you from time to time with invitations, discounts, special offers, information and surveys for any products, services or sponsorships which Fast Match has negotiated on behalf of its members. Should you not wish to receive these offers, please contact Fast Match on <a href="mailto:gil@fastmatch.com.au" className={linkClass}>gil@fastmatch.com.au</a></P>

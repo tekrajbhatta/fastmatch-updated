@@ -11,8 +11,13 @@ describe('smsLength', () => {
     expect(smsLength('Hi').characters).toBe(2 + optOut);
   });
 
-  it('does not count an opt-out the admin already wrote', () => {
+  it('counts the link on a text that asks for a STOP reply too: it gets the link all the same', () => {
     const own = 'Speed dating Friday! Text STOP to unsubscribe';
+    expect(smsLength(own).characters).toBe(own.length + optOut);
+  });
+
+  it('does not count the link twice when the admin already put it in', () => {
+    const own = `Speed dating Friday! ${smsOptOutLine()}`;
     expect(smsLength(own).characters).toBe(own.length);
   });
 
