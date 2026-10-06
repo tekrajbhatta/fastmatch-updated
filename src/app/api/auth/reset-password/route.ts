@@ -43,7 +43,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
-  await prisma.member.update({ where: { id: member.id }, data: { passwordHash } });
+  // Their own now, whoever set the old one.
+  await prisma.member.update({ where: { id: member.id }, data: { passwordHash, passwordSetByAdmin: false } });
 
   return NextResponse.json({ ok: true });
 });

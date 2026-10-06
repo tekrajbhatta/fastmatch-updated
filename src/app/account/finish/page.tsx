@@ -10,7 +10,7 @@ import ResendConfirmation from '@/components/ResendConfirmation';
 import { safeNext } from '@/lib/safeNext';
 import { unfinishedSteps, finishSetupHref, verifyMobileHref } from '@/lib/accountSetup';
 
-interface Me { email: string; mobile: string; emailVerified: boolean; mobileVerified: boolean; agreedTerms: boolean }
+interface Me { email: string; mobile: string; emailVerified: boolean; mobileVerified: boolean; agreedTerms: boolean; passwordSetByAdmin: boolean }
 
 /**
  * "Finish setting up your account" — where a member with something still to
@@ -24,6 +24,7 @@ function FinishSetupInner() {
   const [me, setMe] = useState<Me | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const [keeping, setKeeping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [next, setNext] = useState('/events');
 
@@ -41,6 +42,15 @@ function FinishSetupInner() {
     const res = await fetch('/api/account/accept-terms', { method: 'POST' }).catch(() => null).finally(() => setAccepting(false));
     if (!res?.ok) { setError('That didn’t work. Please try again.'); return; }
     setMe((m) => (m ? { ...m, agreedTerms: true } : m));
+  }
+
+  // Keeps the password the admin set: they aren't asked again.
+  async function keepPassword() {
+    setError(null);
+    setKeeping(true);
+    const res = await fetch('/api/account/keep-password', { method: 'POST' }).catch(() => null).finally(() => setKeeping(false));
+    if (!res?.ok) { setError('That didn’t work. Please try again.'); return; }
+    setMe((m) => (m ? { ...m, passwordSetByAdmin: false } : m));
   }
 
   if (!loaded) {
@@ -62,15 +72,29 @@ function FinishSetupInner() {
   }
 
   const steps = unfinishedSteps(me);
+  // Added by the admin with a password they were given: keep it, or choose
+  // their own. Optional, unlike the steps above.
+  const askPassword = me.passwordSetByAdmin;
   // After the mobile code, back here if something else is still to do.
-  const afterMobile = steps.some((s) => s !== 'mobile') ? finishSetupHref(next) : next;
+  const afterMobile = steps.some((s) => s !== 'mobile') || askPassword ? finishSetupHref(next) : next;
+  const allDone = steps.length === 0 && !askPassword;
 
   return (
     <SplitLayout
-      title={steps.length ? 'Finish setting up your account' : 'You’re all set'}
-      lead={steps.length ? 'A few things to do before you can book events.' : 'Your account is ready. You can book events now.'}
+      title={allDone ? 'You’re all set' : 'Finish setting up your account'}
+      lead={steps.length ? 'A few things to do before you can book events.' : allDone ? 'Your account is ready. You can book events now.' : 'One last thing.'}
     >
       <FormCard>
+        {askPassword && (
+          <Notice className="flex flex-col gap-3">
+            <p className="font-bold">Your password</p>
+            <p className="text-ink-600">
+              FastMatch set a password for you when you were added. You can keep using it, or choose your own.
+            </p>
+            <ButtonLink href={`/account/change-password?next=${encodeURIComponent(finishSetupHref(next))}`} block>Choose my own password</ButtonLink>
+            <Button variant="secondary" onClick={keepPassword} disabled={keeping} loading={keeping} block>Keep this password</Button>
+          </Notice>
+        )}
         {steps.includes('email') && (
           <Notice className="flex flex-col gap-3">
             <p className="font-bold">Confirm your email address</p>
@@ -101,7 +125,7 @@ function FinishSetupInner() {
           </Notice>
         )}
 
-        {steps.length === 0 ? (
+        {allDone ? (
           <ButtonLink href={next} block>Continue</ButtonLink>
         ) : (
           <Link href={next} className={`${linkClass} self-center text-[15px]`}>Skip for now</Link>

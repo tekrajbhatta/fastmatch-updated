@@ -93,6 +93,11 @@ model Member {
   // chose a password. Their booking email carries a one-time "set your
   // password" link; using it clears this. See /set-password.
   awaitingPasswordSetup Boolean @default(false)
+  // Added by the admin, with a password the admin chose and gave them. They
+  // can keep it, or choose their own: until they do one or the other, they're
+  // asked after logging in (src/app/account/finish). Cleared by any password
+  // change or reset.
+  passwordSetByAdmin Boolean @default(false)
   // The member who invited them through "Tell A Friend". Their date of birth
   // is then only worked out from an age the inviter typed, so /set-password
   // asks them for the real one.
@@ -270,6 +275,10 @@ model Booking {
   checkedIn      Boolean       @default(false)
   checkedInAt    DateTime?
   reminderSent   Boolean       @default(false)
+  // When this attendee was emailed their results — their matches, or Gil's
+  // "no mutual matches this time" email — so none is sent twice and the
+  // admin's "N people emailed" counts both (src/lib/sendMatchEmails.ts).
+  resultsEmailedAt DateTime?
   // When it was first confirmed (paid). Confirming it again after it was set
   // back to unpaid doesn't re-send the emails or count its discount code twice.
   confirmedAt    DateTime?

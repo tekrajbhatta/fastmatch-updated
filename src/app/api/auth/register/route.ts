@@ -10,6 +10,7 @@ import { parseDateOfBirth } from '@/lib/friendBooking';
 import { setPasswordUrl } from '@/lib/welcomeLink';
 import { newSignupToken, signupNext, PENDING_SIGNUP_DAYS, type PendingSignupData } from '@/lib/pendingSignup';
 import { hitRateLimit, rateKey, clientIp, LIMITS } from '@/lib/rateLimit';
+import { isAustralianMobile, AU_MOBILE_MESSAGE } from '@/lib/mobile';
 
 const bodySchema = z.object({
   name: z.string().trim().min(1),
@@ -18,7 +19,8 @@ const bodySchema = z.object({
   password: z.string().min(8),
   cityId: z.string(),
   dateOfBirth: z.string(), // YYYY-MM-DD
-  mobile: z.string().trim().min(1),
+  // Australian mobiles only (Gil, Q21).
+  mobile: z.string().trim().min(1).refine(isAustralianMobile, AU_MOBILE_MESSAGE),
   agreedTerms: z.literal(true, {
     errorMap: () => ({ message: 'You must agree to the Terms & Conditions and Privacy Policy' }),
   }),
@@ -45,6 +47,9 @@ const bodySchema = z.object({
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) {
+    // The mobile's own message, so the form can say what's wrong with it.
+    const mobileIssue = parsed.error.issues.find((i) => i.path[0] === 'mobile' && i.message === AU_MOBILE_MESSAGE);
+    if (mobileIssue) return NextResponse.json({ error: AU_MOBILE_MESSAGE }, { status: 400 });
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
   const data = parsed.data;

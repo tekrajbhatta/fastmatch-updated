@@ -7,21 +7,13 @@ import { Button, Card, Field, Input, Select, Loader, BackLink } from '@/componen
 import { venueLine } from '@/lib/venue';
 import { PAYMENT_METHODS } from '@/lib/paymentMethod';
 import { eventClock } from '@/lib/timezone';
+import NewMemberFields, { BLANK_NEW_MEMBER } from '@/components/NewMemberFields';
 
 interface EventSummary {
   id: string; name: string; startsAt: string; cost: string; cityId: string;
   venue: { name: string; address: string | null }; city: { name: string };
 }
 interface City { id: string; name: string; }
-
-// What each "Email/Phone confirmation" choice means for the person, shown
-// under the select so the admin knows what will be sent.
-const CONFIRMATION_HELP: Record<string, string> = {
-  CONFIRMED: 'Nothing to confirm. They can book online straight away.',
-  EMAIL: 'Email is confirmed. They’ll be texted a code to confirm their mobile.',
-  PHONE: 'Mobile is confirmed. They’ll be emailed a link to confirm their email.',
-  UNCONFIRMED: 'They’ll be emailed a link and texted a code, and must confirm both before booking online.',
-};
 
 /**
  * "Add a new member" — for someone NOT yet registered: creates their account
@@ -35,8 +27,7 @@ export default function AddMemberPage() {
   const [event, setEvent] = useState<EventSummary | null>(null);
   const [cities, setCities] = useState<City[]>([]);
   const [form, setForm] = useState({
-    name: '', email: '', password: '', gender: 'MALE', dateOfBirth: '', mobile: '', cityId: '',
-    confirmation: 'CONFIRMED', contactMethod: 'EMAIL_AND_SMS', marketingOptIn: false,
+    ...BLANK_NEW_MEMBER,
     // Checked in by default (Gil): most people are added at the door.
     paymentMethod: 'CASH', paidAmount: '', checkedIn: true,
   });
@@ -112,59 +103,7 @@ export default function AddMemberPage() {
       </p>
 
       <form onSubmit={handleSubmit}>
-        <Card className="mb-4">
-          <h2 className="mb-3 font-extrabold text-ink">Member details</h2>
-          <Field label="Name"><Input required value={form.name} onChange={(e) => set({ name: e.target.value })} /></Field>
-          {/* autoComplete off / new-password: otherwise the browser offers the
-              ADMIN's own saved login for these two fields. */}
-          <Field label="Email"><Input type="email" required autoComplete="off" value={form.email} onChange={(e) => set({ email: e.target.value })} /></Field>
-          <Field label="Password">
-            <Input type="password" required minLength={8} autoComplete="new-password" value={form.password} onChange={(e) => set({ password: e.target.value })} />
-            <p className="mt-1 text-xs text-ink/50">At least 8 characters. They&apos;ll use this with their email to log in.</p>
-          </Field>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Gender">
-              <Select value={form.gender} onChange={(e) => set({ gender: e.target.value })}>
-                <option value="MALE">Male</option><option value="FEMALE">Female</option>
-              </Select>
-            </Field>
-            <Field label="Date of birth">
-              <Input type="date" required value={form.dateOfBirth} onChange={(e) => set({ dateOfBirth: e.target.value })} />
-            </Field>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Mobile"><Input required autoComplete="off" value={form.mobile} onChange={(e) => set({ mobile: e.target.value })} /></Field>
-            <Field label="Location">
-              <Select required value={form.cityId} onChange={(e) => set({ cityId: e.target.value })}>
-                {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </Select>
-            </Field>
-          </div>
-          <Field label="Email/Phone confirmation">
-            <Select value={form.confirmation} onChange={(e) => set({ confirmation: e.target.value })}>
-              <option value="CONFIRMED">Confirmed</option>
-              <option value="EMAIL">Confirmed Email</option>
-              <option value="PHONE">Confirmed Phone</option>
-              <option value="UNCONFIRMED">Unconfirmed</option>
-            </Select>
-            <p className="mt-1 text-xs text-ink/50">{CONFIRMATION_HELP[form.confirmation]} Either way, they&apos;re booked into this event now.</p>
-          </Field>
-          <Field label="Preferred contact method">
-            <Select value={form.contactMethod} onChange={(e) => set({ contactMethod: e.target.value })}>
-              <option value="EMAIL_AND_SMS">Email and SMS</option>
-              <option value="EMAIL">Email</option>
-              <option value="SMS">SMS</option>
-              <option value="DO_NOT_CONTACT">Do not contact</option>
-            </Select>
-          </Field>
-          <label className="flex items-start gap-2 text-sm font-semibold text-ink">
-            <input type="checkbox" className="mt-0.5" checked={form.marketingOptIn} onChange={(e) => set({ marketingOptIn: e.target.checked })} />
-            <span>
-              Receive special offers
-              <span className="block text-xs font-normal text-ink/50">Only tick if they&apos;ve said yes. Blasts go only to members who opted in.</span>
-            </span>
-          </label>
-        </Card>
+        <NewMemberFields form={form} set={set} cities={cities} confirmationNote="Either way, they’re booked into this event now." />
 
         <Card className="mb-4">
           <h2 className="mb-3 font-extrabold text-ink">Booking</h2>

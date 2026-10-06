@@ -10,6 +10,7 @@ import { hitRateLimit, rateKey, LIMITS } from '@/lib/rateLimit';
 import { parseDateOfBirth } from '@/lib/friendBooking';
 import { calculateAge } from '@/lib/age';
 import { sendMobileVerification } from '@/lib/memberVerification';
+import { isAustralianMobile, sameMobile, AU_MOBILE_MESSAGE } from '@/lib/mobile';
 
 const schema = z.object({
   name: z.string().min(1),
@@ -71,8 +72,12 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
   // could otherwise switch to any number and stay "confirmed". (Changes the
   // admin makes are trusted.) Each new number is a paid text, so it shares
   // the "Resend code" limit.
-  const digits = (m: string) => m.replace(/\D/g, '');
-  const mobileChanged = digits(data.mobile) !== digits(member.mobile);
+  // The same number written differently ("0412 345 678", "+61412345678") isn't a change.
+  const mobileChanged = !sameMobile(data.mobile, member.mobile);
+  // A new number must be an Australian mobile (Gil, Q21); one already saved is left alone.
+  if (mobileChanged && !isAustralianMobile(data.mobile)) {
+    return NextResponse.json({ error: AU_MOBILE_MESSAGE }, { status: 400 });
+  }
   if (mobileChanged && !(await hitRateLimit(rateKey('resend-code', member.id), LIMITS.codeResends.limit, LIMITS.codeResends.windowMs)).allowed) {
     return NextResponse.json(
       { error: "You've asked for several codes in the last hour. Please wait a while before changing your mobile again." },

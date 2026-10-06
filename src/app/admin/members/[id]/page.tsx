@@ -8,6 +8,7 @@ import { calculateAge } from '@/lib/age';
 import { timeZoneForCity } from '@/lib/timezone';
 import { attendedBooking } from '@/lib/attended';
 import { formatPrice } from '@/lib/price';
+import { AU_MOBILE_MESSAGE } from '@/lib/mobile';
 
 interface Booking {
   id: string; badge: number; status: string; paidAmount: string; checkedIn: boolean;
@@ -15,8 +16,11 @@ interface Booking {
 }
 interface MemberDetail {
   id: string; name: string; email: string; mobile: string; gender: string;
-  dateOfBirth: string; createdAt: string; agreedTerms: boolean; cityId: string;
+  dateOfBirth: string; createdAt: string; agreedTerms: boolean; agreedTermsAt: string | null; cityId: string;
   city: { name: string };
+  // Gil (Q15): shown, and changeable here (all but admin access).
+  contactMethod: string; marketingOptIn: boolean; emailBounced: boolean; bounceReason: string | null;
+  emailVerified: boolean; mobileVerified: boolean; isAdmin: boolean; awaitingPasswordSetup: boolean; passwordSetByAdmin: boolean;
   bookings: Booking[];
   matches: { id: string; result: string; memberAId: string; memberBId: string }[];
 }
@@ -29,7 +33,10 @@ export default function MemberDetailPage() {
   const [cities, setCities] = useState<City[]>([]);
 
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', mobile: '', gender: 'MALE', dateOfBirth: '', cityId: '' });
+  const [form, setForm] = useState({
+    name: '', email: '', mobile: '', gender: 'MALE', dateOfBirth: '', cityId: '',
+    contactMethod: 'EMAIL_AND_SMS', marketingOptIn: false, emailBounced: false, emailVerified: false, mobileVerified: false,
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -57,6 +64,11 @@ export default function MemberDetailPage() {
       // <input type="date"> needs YYYY-MM-DD, not a full ISO timestamp.
       dateOfBirth: member.dateOfBirth.slice(0, 10),
       cityId: member.cityId,
+      contactMethod: member.contactMethod,
+      marketingOptIn: member.marketingOptIn,
+      emailBounced: member.emailBounced,
+      emailVerified: member.emailVerified,
+      mobileVerified: member.mobileVerified,
     });
     setEditing(true);
   }
@@ -112,6 +124,23 @@ export default function MemberDetailPage() {
       </p>
 
       {saved && !editing && <p className="mb-4 text-sm font-bold text-green-dark">Member details updated.</p>}
+
+      {/* Everything about how we reach them and where their account stands (Gil, Q15). */}
+      {!editing && (
+        <Card className="mb-6">
+          <h2 className="mb-2 font-extrabold text-ink">Account and contact</h2>
+          <dl className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-[auto_1fr]">
+            <InfoRow label="Contact method" value={CONTACT_LABELS[member.contactMethod] ?? member.contactMethod} />
+            <InfoRow label="Special offers" value={member.marketingOptIn ? 'Yes, opted in' : 'No'} />
+            <InfoRow label="Email" value={member.emailBounced ? `Bounced${member.bounceReason ? ` (${member.bounceReason})` : ''}: emails aren’t sent to it` : 'Working'} warn={member.emailBounced} />
+            <InfoRow label="Email confirmed" value={member.emailVerified ? 'Yes' : 'No'} warn={!member.emailVerified} />
+            <InfoRow label="Mobile confirmed" value={member.mobileVerified ? 'Yes' : 'No'} warn={!member.mobileVerified} />
+            <InfoRow label="Terms & Conditions" value={member.agreedTerms ? `Accepted${member.agreedTermsAt ? ` on ${new Date(member.agreedTermsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}` : 'Not yet accepted'} warn={!member.agreedTerms} />
+            <InfoRow label="Password" value={member.awaitingPasswordSetup ? 'Not set yet (added by a friend)' : member.passwordSetByAdmin ? 'The one FastMatch set (they’ll be asked to keep or change it)' : 'Their own'} />
+            {member.isAdmin && <InfoRow label="Admin access" value="Yes" />}
+          </dl>
+        </Card>
+      )}
       {error && !editing && !confirmingDelete && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
 
       {editing && (
@@ -120,7 +149,7 @@ export default function MemberDetailPage() {
           <form onSubmit={handleSave}>
             <Field label="Name"><Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
             <Field label="Email"><Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-            <Field label="Mobile"><Input required value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} /></Field>
+            <Field label="Mobile"><Input required title={AU_MOBILE_MESSAGE} value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} /></Field>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Gender">
                 <Select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
@@ -136,6 +165,15 @@ export default function MemberDetailPage() {
                 {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </Select>
             </Field>
+            <Field label="Preferred contact method">
+              <Select value={form.contactMethod} onChange={(e) => setForm({ ...form, contactMethod: e.target.value })}>
+                {Object.entries(CONTACT_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </Select>
+            </Field>
+            <Tick label="Receive special offers" hint="Blasts go only to members who opted in." checked={form.marketingOptIn} onChange={(v) => setForm({ ...form, marketingOptIn: v })} />
+            <Tick label="Email bounced" hint="Untick to start emailing this address again (once it's been fixed)." checked={form.emailBounced} onChange={(v) => setForm({ ...form, emailBounced: v })} />
+            <Tick label="Email confirmed" checked={form.emailVerified} onChange={(v) => setForm({ ...form, emailVerified: v })} />
+            <Tick label="Mobile confirmed" hint="Both must be confirmed to book online." checked={form.mobileVerified} onChange={(v) => setForm({ ...form, mobileVerified: v })} />
             {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
             <div className="flex gap-2">
               <Button type="submit" disabled={saving} loading={saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
@@ -216,5 +254,33 @@ export default function MemberDetailPage() {
         {!confirmingDelete && <Button variant="danger" onClick={() => { setConfirmingDelete(true); setError(null); }}>Delete member</Button>}
       </div>
     </div>
+  );
+}
+
+const CONTACT_LABELS: Record<string, string> = {
+  EMAIL_AND_SMS: 'Email and SMS',
+  EMAIL: 'Email',
+  SMS: 'SMS',
+  DO_NOT_CONTACT: 'Do not contact',
+};
+
+function InfoRow({ label, value, warn = false }: { label: string; value: string; warn?: boolean }) {
+  return (
+    <>
+      <dt className="text-ink/50">{label}</dt>
+      <dd className={warn ? 'font-bold text-coral' : 'font-bold text-ink'}>{value}</dd>
+    </>
+  );
+}
+
+function Tick({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="mb-3 flex items-start gap-2 text-sm font-semibold text-ink">
+      <input type="checkbox" className="mt-0.5" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span>
+        {label}
+        {hint && <span className="block text-xs font-normal text-ink/50">{hint}</span>}
+      </span>
+    </label>
   );
 }

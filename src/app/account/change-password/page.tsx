@@ -1,11 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { FormCard, SplitLayout } from '@/components/site/layout';
-import { Button } from '@/components/site/button';
+import { Button, ButtonLink } from '@/components/site/button';
 import { Field, FormError, FormSuccess, TextInput } from '@/components/site/form';
+import { safeNext } from '@/lib/safeNext';
 
-export default function ChangePasswordPage() {
+function ChangePasswordInner() {
+  // Opened from "Finish setting up your account", it goes back there after.
+  const nextParam = useSearchParams().get('next');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'saving' | 'done'>('idle');
@@ -33,7 +37,10 @@ export default function ChangePasswordPage() {
     <SplitLayout title="Change password" back={{ href: '/account', label: 'Back to my account' }}>
       <FormCard>
         {status === 'done' ? (
-          <FormSuccess>Password updated.</FormSuccess>
+          <>
+            <FormSuccess>Password updated.</FormSuccess>
+            {nextParam && <ButtonLink href={safeNext(nextParam, '/account', window.location.origin)} block>Continue</ButtonLink>}
+          </>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <Field label="Current password">
@@ -50,5 +57,14 @@ export default function ChangePasswordPage() {
         )}
       </FormCard>
     </SplitLayout>
+  );
+}
+
+// useSearchParams() needs a Suspense boundary, or `next build` fails prerendering.
+export default function ChangePasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ChangePasswordInner />
+    </Suspense>
   );
 }

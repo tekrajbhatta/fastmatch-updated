@@ -8,6 +8,7 @@ import { calculateAge } from '@/lib/age';
 import { parseDateOfBirth } from '@/lib/friendBooking';
 import { sendMobileVerification } from '@/lib/memberVerification';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { isAustralianMobile, sameMobile, AU_MOBILE_MESSAGE } from '@/lib/mobile';
 
 /**
  * /set-password is where someone lands who was put on FastMatch by another
@@ -102,6 +103,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (!member) return NextResponse.json({ error: 'This link is invalid or has expired.' }, { status: 400 });
   if (!member.awaitingPasswordSetup) return NextResponse.json({ error: ALREADY_SET }, { status: 400 });
 
+  // The number their friend typed is left alone; a new one must be an
+  // Australian mobile (Gil, Q21).
+  if (!sameMobile(data.mobile, member.mobile) && !isAustralianMobile(data.mobile)) {
+    return NextResponse.json({ error: AU_MOBILE_MESSAGE }, { status: 400 });
+  }
   const dob = parseDateOfBirth(data.dateOfBirth);
   if (!dob) return NextResponse.json({ error: 'Please enter a valid date of birth.' }, { status: 400 });
   if (calculateAge(dob) < 18) return NextResponse.json({ error: 'You must be at least 18 years old to join FastMatch.' }, { status: 400 });

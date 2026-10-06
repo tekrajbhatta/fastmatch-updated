@@ -17,12 +17,15 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
   const event = await prisma.event.findUniqueOrThrow({ where: { id: params.id } });
-  const [checkedIn, raters, emailedMatches] = await Promise.all([
+  const [checkedIn, raters, emailedMatches, emailedBookings] = await Promise.all([
     prisma.booking.count({ where: { eventId: event.id, status: 'CONFIRMED', checkedIn: true } }),
     prisma.rating.findMany({ where: { eventId: event.id }, distinct: ['raterId'], select: { raterId: true } }),
     prisma.match.findMany({ where: { eventId: event.id, emailSent: true }, select: { memberAId: true, memberBId: true } }),
+    // Everyone emailed their results, with matches or Gil's "no mutual
+    // matches" email (the matches above cover events done before this).
+    prisma.booking.findMany({ where: { eventId: event.id, resultsEmailedAt: { not: null } }, select: { memberId: true } }),
   ]);
-  const emailed = new Set(emailedMatches.flatMap((m) => [m.memberAId, m.memberBId]));
+  const emailed = new Set([...emailedMatches.flatMap((m) => [m.memberAId, m.memberBId]), ...emailedBookings.map((b) => b.memberId)]);
   return NextResponse.json({
     checkedIn,
     submitted: raters.length,

@@ -24,7 +24,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (!ok) return NextResponse.json({ error: 'Current password is incorrect.' }, { status: 401 });
 
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
-  const updated = await prisma.member.update({ where: { id: member.id }, data: { passwordHash } });
+  // Their own now: no longer "the password FastMatch set" (src/lib/adminMember.ts).
+  const updated = await prisma.member.update({ where: { id: member.id }, data: { passwordHash, passwordSetByAdmin: false } });
 
   // Sessions are tied to the password, so the change signs out every other
   // device. This one gets a fresh session and stays logged in.

@@ -10,11 +10,13 @@ import { tellAFriendEmail } from '@/lib/emails/friendEmail';
 import { setPasswordToken } from '@/lib/memberBooking';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { hitRateLimit, LIMITS, rateKey } from '@/lib/rateLimit';
+import { isAustralianMobile } from '@/lib/mobile';
 
 const bodySchema = z.object({
   email: z.string().trim().email('Please enter your friend’s email address.'),
   name: z.string().trim().min(1, 'Please enter your friend’s first name.').max(100),
-  mobile: z.string().trim().regex(/^\+?[\d\s()-]{8,20}$/, 'Please enter your friend’s mobile number.'),
+  // Australian mobiles only (Gil, Q21).
+  mobile: z.string().trim().refine(isAustralianMobile, 'Please enter your friend’s Australian mobile number, like 0412 345 678.'),
   gender: z.enum(['MALE', 'FEMALE'], { errorMap: () => ({ message: 'Please choose male or female.' }) }),
   age: z.coerce.number().int('Please enter their age in whole years.').min(18, 'FastMatch is for over-18s only.').max(99, 'Please check their age.'),
 });

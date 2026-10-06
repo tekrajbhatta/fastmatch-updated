@@ -109,11 +109,22 @@ describe('friend emails', () => {
 describe('match results', () => {
   it('lists each match exactly as they typed their details, as text', () => {
     const match = (who: string) => ({ name: evil(`${who}-name`), email: evil(`${who}-email`), mobile: evil(`${who}-mobile`) });
-    const opts = { memberName: evil('member'), eventName: evil('event'), eventDate: startsAt, timeZone, dateMatches: [match('date')], friendMatches: [match('friend')] };
+    const opts = { memberName: evil('member'), eventName: evil('event'), eventDate: startsAt, timeZone, dateMatches: [match('date')], friendMatches: [match('friend')], eventsUrl: 'https://fastmatch.test/events' };
     const { html, subject } = matchResultsEmail(opts);
     expectEscaped(html, 'member', 'event', 'date-name', 'date-email', 'date-mobile', 'friend-name', 'friend-email', 'friend-mobile');
     expect(subject).toBe(`Your matches from ${evil('event')}`);
     expect(matchResultsEmail({ ...opts, eventName: HEADER_TRICK }).subject).not.toMatch(/[\r\n]/);
+  });
+
+  it('with no mutual match, Gil\'s "don\'t stop now" email, escaped too', () => {
+    const opts = { memberName: evil('member'), eventName: evil('event'), eventDate: startsAt, timeZone, dateMatches: [], friendMatches: [], eventsUrl: 'https://fastmatch.test/events' };
+    const { html, subject } = matchResultsEmail(opts);
+    expectEscaped(html, 'member', 'event');
+    expect(subject).toBe(`Your results from ${evil('event')}`);
+    expect(html).toContain('Sorry you did not have any mutual matches this time around.');
+    expect(html).toContain("BUT DON'T STOP NOW!");
+    expect(html).toContain('members usually meet someone special after attending about 6 events');
+    expect(html).toContain('href="https://fastmatch.test/events"');
   });
 });
 

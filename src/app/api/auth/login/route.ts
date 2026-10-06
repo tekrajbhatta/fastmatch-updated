@@ -70,8 +70,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const token = signSession(member);
   // Something still to do before they can book (email or mobile unconfirmed,
-  // terms not accepted): the page takes them to "Finish setting up your account".
-  const unfinished = !member.isAdmin && unfinishedSteps(member).length > 0;
+  // terms not accepted), or a password the admin set that they haven't yet
+  // kept or replaced: the page takes them to "Finish setting up your account".
+  const unfinished = !member.isAdmin && (unfinishedSteps(member).length > 0 || member.passwordSetByAdmin);
   const res = NextResponse.json({ id: member.id, name: member.name, isAdmin: member.isAdmin, unfinished });
   res.cookies.set('fm_session', token, SESSION_COOKIE_OPTIONS);
   return res;

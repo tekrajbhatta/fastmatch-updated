@@ -14,6 +14,9 @@ const db = vi.hoisted(() => ({
   eventUpdates: [] as any[],
   send: null as any,
   matches: [] as any[],
+  // Attendees: paid, checked-in bookings (sendMatchEmails emails every one).
+  bookings: [] as any[],
+  bookingUpdates: [] as any[],
 }));
 
 vi.mock('../prisma', () => ({
@@ -35,6 +38,15 @@ vi.mock('../prisma', () => ({
       findMany: vi.fn(async () => db.matches),
       updateMany: vi.fn(async (args: any) => { db.matchUpdates.push(args); return {}; }),
     },
+    booking: {
+      findMany: vi.fn(async () => db.bookings),
+      update: vi.fn(async (args: any) => {
+        db.bookingUpdates.push(args);
+        const b = db.bookings.find((x) => x.id === args.where.id);
+        if (b) Object.assign(b, args.data);
+        return {};
+      }),
+    },
   },
 }));
 
@@ -53,6 +65,9 @@ beforeEach(() => {
   db.sendUpdates.length = 0;
   db.matchUpdates.length = 0;
   db.eventUpdates.length = 0;
+  db.matches = [];
+  db.bookings = [];
+  db.bookingUpdates.length = 0;
   sendEmail.mockReset();
   sendSmsBulk.mockReset();
   process.env.JWT_SECRET = 'test-secret';
@@ -110,5 +125,36 @@ describe('result emails (item 15)', () => {
     expect(outcome.failed).toEqual([{ memberId: 'b2', name: 'Member b2', email: 'b2@example.test' }]);
     expect(db.matchUpdates[0].where.id.in).toEqual(['x2']); // a1 + c3 both emailed; b2 wasn't
     expect(db.eventUpdates[0].data).toEqual({ matchEmailsSent: false });
+  });
+
+  it('everyone checked in gets one: with no match, Gil\'s "no mutual matches" email — and never twice', async () => {
+    for (const m of [member('a1'), member('b2'), member('c3')]) db.members.set(m.id, m);
+    db.matches = [{ id: 'x1', memberAId: 'a1', memberBId: 'b2', result: 'DATE', emailSent: false }];
+    db.bookings = [
+      { id: 'k1', memberId: 'a1', resultsEmailedAt: null },
+      { id: 'k2', memberId: 'b2', resultsEmailedAt: null },
+      { id: 'k3', memberId: 'c3', resultsEmailedAt: null }, // checked in, no match
+    ];
+    sendEmail.mockImplementation(async () => {});
+
+    const { sendMatchEmails } = await import('../sendMatchEmails');
+    const first = await sendMatchEmails('e1');
+    const sent = sendEmail.mock.calls.map((c) => [c[0].to, c[0].subject]).sort();
+    expect(first.sent).toBe(3);
+    expect(sent).toEqual([
+      ['a1@example.test', 'Your matches from 28-40 years'],
+      ['b2@example.test', 'Your matches from 28-40 years'],
+      ['c3@example.test', 'Your results from 28-40 years'],
+    ]);
+    expect(sendEmail.mock.calls.find((c) => c[0].to === 'c3@example.test')?.[0].html).toContain('Sorry you did not have any mutual matches');
+    expect(db.bookings.every((b) => b.resultsEmailedAt instanceof Date)).toBe(true);
+    expect(db.matchUpdates[0].where.id.in).toEqual(['x1']);
+
+    // Run again (a retry, say): nobody is emailed a second time.
+    db.matches = [{ ...db.matches[0], emailSent: true }];
+    sendEmail.mockClear();
+    const second = await sendMatchEmails('e1');
+    expect(second.sent).toBe(0);
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 });

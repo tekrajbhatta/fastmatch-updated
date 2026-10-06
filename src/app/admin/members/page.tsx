@@ -76,8 +76,14 @@ export default function AdminMembersPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-extrabold text-ink">Members</h1>
-      <p className="mb-6 text-sm text-ink/60">{totals ? `${totals.count.toLocaleString()} members currently match this filter.` : 'Loading…'}</p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="mb-1 text-2xl font-extrabold text-ink">Members</h1>
+          <p className="text-sm text-ink/60">{totals ? `${totals.count.toLocaleString()} members currently match this filter.` : 'Loading…'}</p>
+        </div>
+        {/* Registers someone without an event (Gil). */}
+        <Link href="/admin/members/new"><Button>+ Add member</Button></Link>
+      </div>
 
       <Card className="mb-6">
         <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">

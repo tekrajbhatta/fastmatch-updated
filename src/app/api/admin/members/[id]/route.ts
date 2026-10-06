@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { isAustralianMobile, sameMobile, AU_MOBILE_MESSAGE } from '@/lib/mobile';
 
 // GET /api/admin/members/:id — "click a member to view their details" on
 // the real Members screen. Includes their booking and match history.
@@ -36,6 +37,14 @@ const patchSchema = z.object({
   gender: z.enum(['MALE', 'FEMALE']),
   dateOfBirth: z.string(), // ISO date
   cityId: z.string(),
+  // Gil (Q15): how we reach them and where their account stands, all
+  // changeable here — all but admin access, which isn't offered at all.
+  // Optional: left out, each stays as it is.
+  contactMethod: z.enum(['EMAIL_AND_SMS', 'EMAIL', 'SMS', 'DO_NOT_CONTACT']).optional(),
+  marketingOptIn: z.boolean().optional(),
+  emailBounced: z.boolean().optional(),
+  emailVerified: z.boolean().optional(),
+  mobileVerified: z.boolean().optional(),
 });
 
 // PATCH /api/admin/members/:id — admin editing a member's details, e.g.
@@ -71,9 +80,24 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   const city = await prisma.city.findUnique({ where: { id: data.cityId } });
   if (!city) return NextResponse.json({ error: 'Please select a valid city.' }, { status: 400 });
 
+  // A changed number must be an Australian mobile (Gil, Q21); one already
+  // saved is left alone, whatever it is.
+  const current = await prisma.member.findUniqueOrThrow({ where: { id: params.id }, select: { mobile: true } });
+  if (!sameMobile(current.mobile, data.mobile) && !isAustralianMobile(data.mobile)) {
+    return NextResponse.json({ error: AU_MOBILE_MESSAGE }, { status: 400 });
+  }
+
+  const flags = {
+    ...(data.contactMethod ? { contactMethod: data.contactMethod } : {}),
+    ...(data.marketingOptIn !== undefined ? { marketingOptIn: data.marketingOptIn } : {}),
+    // Unticking "Email bounced" starts emailing them again; the old reason goes with it.
+    ...(data.emailBounced !== undefined ? { emailBounced: data.emailBounced, ...(data.emailBounced ? {} : { bounceReason: null }) } : {}),
+    ...(data.emailVerified !== undefined ? { emailVerified: data.emailVerified } : {}),
+    ...(data.mobileVerified !== undefined ? { mobileVerified: data.mobileVerified } : {}),
+  };
   const updated = await prisma.member.update({
     where: { id: params.id },
-    data: { name: data.name, email: data.email, mobile: data.mobile, gender: data.gender, dateOfBirth: dob, cityId: data.cityId },
+    data: { name: data.name, email: data.email, mobile: data.mobile, gender: data.gender, dateOfBirth: dob, cityId: data.cityId, ...flags },
   });
 
   const { passwordHash, mobileVerificationCode, ...safe } = updated;

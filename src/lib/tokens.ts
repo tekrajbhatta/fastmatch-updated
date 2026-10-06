@@ -74,12 +74,16 @@ export function sessionStillValid(claims: SessionClaims, member: { passwordHash:
 
 export const RESET_LINK_MINUTES = 30;
 
-/** "Choose a new password" link: dies after 30 minutes, or as soon as the password changes. */
-export function signPasswordResetToken(member: { id: string; passwordHash: string }): string {
+/**
+ * "Choose a new password" link: dies after 30 minutes, or as soon as the
+ * password changes. The "You've been registered" email gives its link longer
+ * (it may sit in an inbox for days); it still dies once any password is set.
+ */
+export function signPasswordResetToken(member: { id: string; passwordHash: string }, validMinutes: number = RESET_LINK_MINUTES): string {
   return jwt.sign(
     { memberId: member.id, purpose: 'password_reset', pwd: passwordFingerprint(member.passwordHash) },
     secret(),
-    { expiresIn: `${RESET_LINK_MINUTES}m` },
+    { expiresIn: `${validMinutes}m` },
   );
 }
 

@@ -63,3 +63,23 @@ export function finishInvitationEmail(opts: { name: string; setPasswordUrl: stri
   `);
   return { subject: 'Finish setting up your FastMatch account', html };
 }
+
+/** How long the "choose your own password" link in the registered email works. */
+export const REGISTERED_PASSWORD_LINK_DAYS = 7;
+
+/**
+ * The admin added this person from the Members page, with a password they
+ * were given (never sent by email). They can log in with it, or choose their
+ * own here (the user, 6 Oct).
+ */
+export function registeredByAdminEmail(opts: { name: string; loginUrl: string; choosePasswordUrl: string }) {
+  const html = emailLayout(`
+    <h1 style="${EMAIL_HEADING}">You've been registered with FastMatch</h1>
+    <p style="${PARA}">Hi ${escapeHtml(opts.name)}, FastMatch has registered you with this email address. You can log in with it and the password FastMatch gave you.</p>
+    <p style="${PARA_BUTTON}"><a href="${opts.loginUrl}" style="${BUTTON}">Log in</a></p>
+    <p style="${PARA}">If you'd like to choose your own password instead, you can reset it here: <a href="${opts.choosePasswordUrl}" style="${LINK}">choose my own password</a>. This link works for ${REGISTERED_PASSWORD_LINK_DAYS} days. After that, use "Forgot password?" on the log-in page.</p>
+    <p style="${PARA}">The FastMatch Team</p>
+  `);
+  return { subject: "You've been registered with FastMatch", html };
+}
+

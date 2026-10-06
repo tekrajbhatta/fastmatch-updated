@@ -5,6 +5,7 @@
  * member, already booked?) live in src/lib/memberBooking.ts.
  */
 import { calculateAge } from './age';
+import { isAustralianMobile } from './mobile';
 
 export type FriendGender = 'MALE' | 'FEMALE';
 
@@ -53,6 +54,8 @@ export function validateFriends(
   friends.forEach((f, index) => {
     if (!f.name.trim()) errors.push({ index, field: 'name', message: 'Please enter their name' });
     if (!f.mobile.trim()) errors.push({ index, field: 'mobile', message: 'Please enter their mobile' });
+    // Australian mobiles only (Gil, Q21).
+    else if (!isAustralianMobile(f.mobile)) errors.push({ index, field: 'mobile', message: 'Please enter an Australian mobile, like 0412 345 678' });
 
     const email = f.email.trim().toLowerCase();
     if (!email) errors.push({ index, field: 'email', message: 'Please enter their email' });

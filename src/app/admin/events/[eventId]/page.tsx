@@ -129,6 +129,10 @@ export default function AdminEventDetailPage() {
         <p className="mt-0.5 text-sm text-ink/50">Attendee list, payments, check-ins</p>
       </Card>
       <Card className="mb-3">
+        <Link href={`/admin/events/${event.id}/matches`} className="block font-bold text-ink hover:text-plum">Matches and choices</Link>
+        <p className="mt-0.5 text-sm text-ink/50">Who matched with whom, and everyone&apos;s Date, Friend and No choices</p>
+      </Card>
+      <Card className="mb-3">
         <Link href={`/admin/events/${event.id}/edit`} className="block font-bold text-ink hover:text-plum">Edit event</Link>
       </Card>
       <Card className="mb-3">
@@ -163,7 +167,7 @@ export default function AdminEventDetailPage() {
             {closeStatus.matchesCalculatedAt
               ? new Date(closeStatus.matchesCalculatedAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
               : 'an earlier date'}
-            {' '}· {closeStatus.emailed} {closeStatus.emailed === 1 ? 'person' : 'people'} emailed their matches.
+            {' '}· {closeStatus.emailed} {closeStatus.emailed === 1 ? 'person' : 'people'} emailed their results.
           </p>
         ) : confirmingClose && !closeResult ? (
           <div className="rounded-lg bg-amber/15 p-3 text-sm text-ink">

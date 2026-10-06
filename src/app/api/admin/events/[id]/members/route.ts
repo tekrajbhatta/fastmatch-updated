@@ -3,7 +3,6 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
-import { calculateAge } from '@/lib/age';
 import { createAdminBooking, notifyBooked } from '@/lib/adminBooking';
 import { PAYMENT_METHOD_VALUES } from '@/lib/paymentMethod';
 import {
@@ -11,19 +10,12 @@ import {
   sendEmailVerification,
   sendMobileVerification,
 } from '@/lib/memberVerification';
+import { newMemberFields, checkNewMember, newMemberData } from '@/lib/adminMember';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
 const schema = z.object({
-  password: z.string().min(8, 'The password must be at least 8 characters.'),
-  name: z.string().trim().min(1, 'Please enter a name.'),
-  gender: z.enum(['MALE', 'FEMALE']),
-  email: z.string().trim().email('Please enter a valid email address.'),
-  dateOfBirth: z.string().min(1, 'Please enter a date of birth.'),
-  mobile: z.string().trim().min(1, 'Please enter a mobile number.'),
-  cityId: z.string().min(1, 'Please select a location.'),
-  confirmation: z.enum(['CONFIRMED', 'EMAIL', 'PHONE', 'UNCONFIRMED']),
-  contactMethod: z.enum(['EMAIL_AND_SMS', 'EMAIL', 'SMS', 'DO_NOT_CONTACT']),
-  marketingOptIn: z.boolean(),
+  // The member: the same fields and rules as the Members page's "Add member".
+  ...newMemberFields,
   paymentMethod: z.enum(PAYMENT_METHOD_VALUES),
   paidAmount: z.number().nonnegative(),
   checkedIn: z.boolean().default(true),
@@ -44,9 +36,8 @@ class BookingRefused extends Error {}
 // as if they'd signed up themselves — without that, an "Unconfirmed" member
 // would have no way to ever confirm.
 //
-// agreedTerms stays false, as it did for walk-ins: the admin can't accept the
-// T&Cs on someone's behalf, so they'll be asked the first time they book
-// online. This booking itself doesn't need it.
+// The terms are accepted for them (Gil), and the password is the admin's,
+// theirs to keep or change (src/lib/adminMember.ts).
 export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
@@ -58,24 +49,13 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   }
   const data = parsed.data;
 
-  const dob = new Date(data.dateOfBirth);
-  if (Number.isNaN(dob.getTime())) {
-    return NextResponse.json({ error: 'Please enter a valid date of birth.' }, { status: 400 });
-  }
-  if (calculateAge(dob) < 18) {
-    return NextResponse.json({ error: 'Members must be at least 18 years old.' }, { status: 400 });
-  }
-
-  const existing = await prisma.member.findUnique({ where: { email: data.email } });
-  if (existing) {
-    return NextResponse.json(
-      { error: `${data.email} is already registered (${existing.name}). Use "Add a new booking" to add them to this event.` },
-      { status: 409 },
-    );
-  }
-
-  const city = await prisma.city.findUnique({ where: { id: data.cityId } });
-  if (!city) return NextResponse.json({ error: 'Please select a valid location.' }, { status: 400 });
+  // Nothing is saved for an address that's already a member's — the password
+  // typed here included, so say so (Gil logged in with one that was never set).
+  const checked = await checkNewMember(
+    data,
+    (name) => `${data.email} is already registered (${name}). Nothing was saved, so their password hasn't changed. Use "Add a new booking" to add them to this event.`,
+  );
+  if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: checked.status });
 
   const event = await prisma.event.findUniqueOrThrow({ where: { id: params.id } });
   const flags = CONFIRMATION_OPTIONS[data.confirmation];
@@ -84,22 +64,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   let created;
   try {
     created = await prisma.$transaction(async (tx) => {
-      const member = await tx.member.create({
-        data: {
-          name: data.name,
-          gender: data.gender,
-          email: data.email,
-          passwordHash,
-          dateOfBirth: dob,
-          mobile: data.mobile,
-          cityId: data.cityId,
-          emailVerified: flags.emailVerified,
-          mobileVerified: flags.mobileVerified,
-          contactMethod: data.contactMethod,
-          marketingOptIn: data.marketingOptIn,
-          agreedTerms: false,
-        },
-      });
+      const member = await tx.member.create({ data: newMemberData(data, passwordHash, checked.dob) });
       const booking = await createAdminBooking(tx, event, member, { method: data.paymentMethod, paidAmount: data.paidAmount, checkedIn: data.checkedIn });
       if (!booking.ok) throw new BookingRefused(`${member.name} couldn't be booked in: ${booking.reason}. The member was not created.`);
       return { member, booking };
