@@ -43,20 +43,9 @@ export function toPublicEvent(e: EventWithRefs, booked: { men: number; women: nu
     availability: eventAvailability(e),
     // Every place, men's and women's together, taken.
     soldOut: booked.men + booked.women >= e.maxMen + e.maxWomen,
-    // A women-only or men-only night (Gil, 7 Oct: one side's maximum is 0).
-    onlyFor: onlyFor(e),
-    // Every place for the signed-in member's gender taken (false when signed
-    // out). Not on a night for the other gender only: that isn't "sold out"
-    // for them, and the event page says who it's for.
-    fullForYou: viewerGender === 'MALE' ? e.maxMen > 0 && booked.men >= e.maxMen : viewerGender === 'FEMALE' ? e.maxWomen > 0 && booked.women >= e.maxWomen : false,
+    // Every place for the signed-in member's gender taken (false when signed out).
+    fullForYou: viewerGender === 'MALE' ? booked.men >= e.maxMen : viewerGender === 'FEMALE' ? booked.women >= e.maxWomen : false,
   };
 }
 
 export type PublicEvent = ReturnType<typeof toPublicEvent>;
-
-/** 'WOMEN' or 'MEN' for a one-gender night (the other side's maximum is 0), else null. */
-export function onlyFor(e: { maxMen: number; maxWomen: number }): 'WOMEN' | 'MEN' | null {
-  if (e.maxMen === 0 && e.maxWomen > 0) return 'WOMEN';
-  if (e.maxWomen === 0 && e.maxMen > 0) return 'MEN';
-  return null;
-}

@@ -55,27 +55,3 @@ describe('the old address is told when the email changes (item 44)', () => {
     expect(html).toContain('If you didn\'t make this change, please contact');
   });
 });
-
-describe('a women-only or men-only night (Gil, 7 Oct)', () => {
-  it('says who it\'s for, and isn\'t "sold out" for the other gender', async () => {
-    const { toPublicEvent, onlyFor } = await import('@/lib/publicEvent');
-    expect(onlyFor({ maxMen: 0, maxWomen: 12 })).toBe('WOMEN');
-    expect(onlyFor({ maxMen: 12, maxWomen: 0 })).toBe('MEN');
-    expect(onlyFor({ maxMen: 12, maxWomen: 12 })).toBeNull();
-    const e: any = {
-      id: 'e1', name: 'Ladies night', description: null, photoUrl: null, startsAt: new Date(), ageMin: 18, ageMax: 99, cost: 49,
-      fastmatchDiscounts: true, groupDiscounts: true, themeId: 't', cityId: 'c', theme: { id: 't', name: 'T' }, city: { id: 'c', name: 'Sydney' },
-      venue: { id: 'v', name: 'V', address: null, logoUrl: null }, maxMen: 0, maxWomen: 12, status: 'UPCOMING', visibility: 'PUBLIC', draft: false,
-    };
-    const forHim = toPublicEvent(e, { men: 0, women: 3 }, 'MALE');
-    expect(forHim.onlyFor).toBe('WOMEN');
-    expect(forHim.fullForYou).toBe(false);
-    expect(toPublicEvent(e, { men: 0, women: 12 }, 'FEMALE').fullForYou).toBe(true);
-  });
-
-  it('an admin adding a man is told it\'s for women only', async () => {
-    const { capacityProblem } = await import('@/lib/capacity');
-    expect(capacityProblem({ men: 0, women: 2 }, { maxMen: 0, maxWomen: 12 }, { men: 1, women: 0 })).toBe('this event is for women only');
-    expect(capacityProblem({ men: 0, women: 2 }, { maxMen: 0, maxWomen: 12 }, { men: 0, women: 1 })).toBeNull();
-  });
-});

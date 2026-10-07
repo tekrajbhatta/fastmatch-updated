@@ -32,8 +32,6 @@ interface EventDetail {
   soldOut: boolean;
   /** Every place for the signed-in member's gender is taken. */
   fullForYou: boolean;
-  /** A women-only or men-only night (one side's maximum is 0). */
-  onlyFor: 'WOMEN' | 'MEN' | null;
   /** Whether it can be booked, and if not why (src/lib/eventAvailability.ts). */
   availability: 'open' | 'finished' | 'cancelled' | 'not-open';
   alreadyBooked: boolean;
@@ -168,10 +166,7 @@ export default function EventDetailPage() {
   // "Continue to payment" is refused (the server checks it too).
   const myAge = me ? calculateAge(new Date(me.dateOfBirth)) : null;
   const outsideAge = myAge !== null && !event.alreadyBooked && (myAge < event.ageMin || myAge > event.ageMax);
-  // A night for the other gender only (Gil, 7 Oct): said here, as for the age range.
-  const onlyLabel = event.onlyFor === 'WOMEN' ? 'women' : event.onlyFor === 'MEN' ? 'men' : null;
-  const otherGender = !!me && !event.alreadyBooked && ((event.onlyFor === 'WOMEN' && me.gender === 'MALE') || (event.onlyFor === 'MEN' && me.gender === 'FEMALE'));
-  const canBook = !event.alreadyBooked && !soldOut && !closed && !outsideAge && !otherGender;
+  const canBook = !event.alreadyBooked && !soldOut && !closed && !outsideAge;
   const showFriends = !!me && canBook && event.groupDiscounts;
 
   const friends = [
@@ -330,22 +325,17 @@ export default function EventDetailPage() {
                   <p className="mt-1 text-[15px] leading-relaxed text-ink-600">
                     Every friend you bring gives <strong className="text-ink-900">you</strong> a ${GROUP_DISCOUNT_PER_FRIEND} discount. You pay for your friends as part of this booking.
                   </p>
-                  {/* A one-gender night only offers friends of that gender. */}
                   <div className="mt-5 grid grid-cols-2 gap-3">
-                    {event.onlyFor !== 'WOMEN' && (
-                      <Field label="Male friends">
-                        <SelectInput value={males.length} onChange={(e) => setCount('MALE', Number(e.target.value))}>
-                          {Array.from({ length: MAX_FRIENDS_PER_GENDER + 1 }, (_, n) => <option key={n} value={n}>{n}</option>)}
-                        </SelectInput>
-                      </Field>
-                    )}
-                    {event.onlyFor !== 'MEN' && (
-                      <Field label="Female friends">
-                        <SelectInput value={females.length} onChange={(e) => setCount('FEMALE', Number(e.target.value))}>
-                          {Array.from({ length: MAX_FRIENDS_PER_GENDER + 1 }, (_, n) => <option key={n} value={n}>{n}</option>)}
-                        </SelectInput>
-                      </Field>
-                    )}
+                    <Field label="Male friends">
+                      <SelectInput value={males.length} onChange={(e) => setCount('MALE', Number(e.target.value))}>
+                        {Array.from({ length: MAX_FRIENDS_PER_GENDER + 1 }, (_, n) => <option key={n} value={n}>{n}</option>)}
+                      </SelectInput>
+                    </Field>
+                    <Field label="Female friends">
+                      <SelectInput value={females.length} onChange={(e) => setCount('FEMALE', Number(e.target.value))}>
+                        {Array.from({ length: MAX_FRIENDS_PER_GENDER + 1 }, (_, n) => <option key={n} value={n}>{n}</option>)}
+                      </SelectInput>
+                    </Field>
                   </div>
 
                   {([['MALE', males], ['FEMALE', females]] as const).map(([g, list]) =>
@@ -392,10 +382,7 @@ export default function EventDetailPage() {
                 </div>
                 <div className="pt-4">
                   <dt className="text-sm font-semibold text-ink-600">Ages</dt>
-                  <dd className="mt-1 text-lg font-bold leading-[1.4] text-ink-900">
-                    {event.ageMin}–{event.ageMax}
-                    {onlyLabel && <span className="whitespace-nowrap"> · {onlyLabel === 'women' ? 'Women' : 'Men'} only</span>}
-                  </dd>
+                  <dd className="mt-1 text-lg font-bold leading-[1.4] text-ink-900">{event.ageMin}–{event.ageMax}</dd>
                 </div>
               </dl>
 
@@ -470,11 +457,6 @@ export default function EventDetailPage() {
                 </p>
               ) : event.alreadyBooked ? (
                 <FormSuccess>You&apos;re already booked in for this event.</FormSuccess>
-              ) : otherGender ? (
-                <div role="status" className="flex flex-col gap-1.5 rounded-[20px] bg-plum-50 px-5 py-4 text-center">
-                  <p className="text-[19px] font-extrabold text-ink-900">This event is for {onlyLabel} only</p>
-                  <Link href="/events" className={`${linkClass} mt-1`}>See our other events</Link>
-                </div>
               ) : outsideAge ? (
                 // The Book buttons in the events tables lead here (the user,
                 // 7 Oct): said kindly, with the way to the events that suit.

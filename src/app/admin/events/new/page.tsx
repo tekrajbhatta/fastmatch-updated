@@ -10,7 +10,7 @@ import VenueInfoPanel, { venueFillPatch } from '@/components/VenueInfoPanel';
 import { fromDateTimeLocalValue } from '@/lib/datetime';
 import { timeZoneForCity } from '@/lib/timezone';
 import type { RatingAudience } from '@/lib/ratingAudience';
-import { checkNewEvent, eventNumbers, placesTyped, EVENT_NUMBER_FIELDS, CHECK_FIELDS, type EventFieldErrors } from '@/lib/eventInput';
+import { checkNewEvent, eventNumbers, EVENT_NUMBER_FIELDS, CHECK_FIELDS, type EventFieldErrors } from '@/lib/eventInput';
 
 interface City { id: string; name: string; }
 interface Theme { id: string; name: string; }
@@ -34,15 +34,6 @@ export default function NewEventPage() {
   // What's wrong with each box, shown under it (src/lib/eventInput.ts).
   const [fieldErrors, setFieldErrors] = useState<EventFieldErrors>({});
   const [saving, setSaving] = useState(false);
-  // The rating choice from before the form switched it to "Everyone" for a
-  // one-gender night, so it can switch it back (placesTyped).
-  const [audienceBefore, setAudienceBefore] = useState<RatingAudience | null>(null);
-
-  function typePlaces(field: 'maxMen' | 'maxWomen', value: string) {
-    const next = placesTyped(form, field, value, audienceBefore);
-    setForm(next.form);
-    setAudienceBefore(next.switchedFrom);
-  }
 
   useEffect(() => {
     fetch('/api/cities').then((r) => r.json()).then((data) => {
@@ -175,14 +166,12 @@ export default function NewEventPage() {
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Max men" error={err('maxMen')}>
-              <Input type="number" min={0} value={form.maxMen} onChange={(e) => typePlaces('maxMen', e.target.value)} />
+              <Input type="number" value={form.maxMen} onChange={(e) => setForm({ ...form, maxMen: e.target.value })} />
             </Field>
             <Field label="Max women" error={err('maxWomen')}>
-              <Input type="number" min={0} value={form.maxWomen} onChange={(e) => typePlaces('maxWomen', e.target.value)} />
+              <Input type="number" value={form.maxWomen} onChange={(e) => setForm({ ...form, maxWomen: e.target.value })} />
             </Field>
           </div>
-          {/* Gil, 7 Oct: one-gender nights. Setting a side to 0 also switches who members rate to "Everyone" (and back). */}
-          <p className="-mt-2 mb-4 text-xs text-ink/50">For a women-only or men-only night, set the other side to 0.</p>
           <Field label="Expenses ($)" error={err('expenses')}>
             <Input type="number" step="0.01" value={form.expenses} onChange={(e) => setForm({ ...form, expenses: e.target.value })} placeholder="Optional" />
           </Field>
@@ -191,14 +180,7 @@ export default function NewEventPage() {
             <input type="checkbox" checked={form.visibility === 'PUBLIC'} onChange={(e) => setForm({ ...form, visibility: e.target.checked ? 'PUBLIC' : 'NOT_PUBLIC' })} />
             Visible to the public
           </label>
-          <EventFlagFields
-            value={form}
-            onChange={(patch) => {
-              if (patch.ratingAudience) setAudienceBefore(null); // the admin's own choice now
-              setForm((f) => ({ ...f, ...patch }));
-            }}
-            audienceError={err('ratingAudience')}
-          />
+          <EventFlagFields value={form} onChange={(patch) => setForm((f) => ({ ...f, ...patch }))} />
 
           <div className="mb-4 rounded-lg bg-cream/40 p-4">
             <label className="mb-2 flex items-center gap-2 text-sm font-bold text-ink">

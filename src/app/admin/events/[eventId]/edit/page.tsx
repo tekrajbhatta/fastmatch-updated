@@ -9,8 +9,7 @@ import EventFlagFields from '@/components/EventFlagFields';
 import VenueInfoPanel, { venueFillPatch } from '@/components/VenueInfoPanel';
 import { toDateTimeLocalValue, fromDateTimeLocalValue } from '@/lib/datetime';
 import { timeZoneForCity } from '@/lib/timezone';
-import { checkEventFields, eventNumbers, placesTyped, EVENT_NUMBER_FIELDS, CHECK_FIELDS, type EventFieldErrors } from '@/lib/eventInput';
-import type { RatingAudience } from '@/lib/ratingAudience';
+import { checkEventFields, eventNumbers, EVENT_NUMBER_FIELDS, CHECK_FIELDS, type EventFieldErrors } from '@/lib/eventInput';
 
 interface City { id: string; name: string; }
 interface Theme { id: string; name: string; }
@@ -44,18 +43,9 @@ export default function EditEventPage() {
   // admin is asked first. Hiding the event tells nobody (Gil, Q3).
   const [pendingNotice, setPendingNotice] = useState<string | null>(null);
   const [notifiedAbout, setNotifiedAbout] = useState<{ time: boolean; venue: boolean } | null>(null);
-  // The rating choice from before the form switched it to "Everyone" for a
-  // one-gender night, so it can switch it back (placesTyped).
-  const [audienceBefore, setAudienceBefore] = useState<RatingAudience | null>(null);
   useEffect(() => {
     setCopiedFrom(new URLSearchParams(window.location.search).get('copiedFrom'));
   }, []);
-
-  function typePlaces(field: 'maxMen' | 'maxWomen', value: string) {
-    const next = placesTyped(form, field, value, audienceBefore);
-    setForm(next.form);
-    setAudienceBefore(next.switchedFrom);
-  }
 
   useEffect(() => {
     fetch('/api/cities').then((r) => r.json()).then(setCities);
@@ -213,11 +203,9 @@ export default function EditEventPage() {
           </div>
           <Field label="Cost ($)" error={err('cost')}><Input type="number" step="0.01" required value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} /></Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Max men" error={err('maxMen')}><Input type="number" min={0} value={form.maxMen} onChange={(e) => typePlaces('maxMen', e.target.value)} /></Field>
-            <Field label="Max women" error={err('maxWomen')}><Input type="number" min={0} value={form.maxWomen} onChange={(e) => typePlaces('maxWomen', e.target.value)} /></Field>
+            <Field label="Max men" error={err('maxMen')}><Input type="number" value={form.maxMen} onChange={(e) => setForm({ ...form, maxMen: e.target.value })} /></Field>
+            <Field label="Max women" error={err('maxWomen')}><Input type="number" value={form.maxWomen} onChange={(e) => setForm({ ...form, maxWomen: e.target.value })} /></Field>
           </div>
-          {/* Gil, 7 Oct: one-gender nights. Setting a side to 0 also switches who members rate to "Everyone" (and back). */}
-          <p className="-mt-2 mb-4 text-xs text-ink/50">For a women-only or men-only night, set the other side to 0.</p>
           <Field label="Expenses ($)" error={err('expenses')}><Input type="number" step="0.01" value={form.expenses} onChange={(e) => setForm({ ...form, expenses: e.target.value })} /></Field>
 
           <label className="mb-4 flex items-start gap-2 text-sm font-semibold text-ink">
@@ -230,14 +218,7 @@ export default function EditEventPage() {
               </span>
             </span>
           </label>
-          <EventFlagFields
-            value={form}
-            onChange={(patch) => {
-              if (patch.ratingAudience) setAudienceBefore(null); // the admin's own choice now
-              setForm({ ...form, ...patch });
-            }}
-            audienceError={err('ratingAudience')}
-          />
+          <EventFlagFields value={form} onChange={(patch) => setForm({ ...form, ...patch })} />
 
           {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
           {notifyFailures.length > 0 && (

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { isOurCheckoutSession, STRIPE_SITE_TAG } from '@/lib/stripe';
+import { isOurCheckoutSession, checkoutPicture, STRIPE_SITE_TAG } from '@/lib/stripe';
 import { countHeld } from '@/lib/capacity';
 
 describe('isOurCheckoutSession', () => {
@@ -15,6 +15,34 @@ describe('isOurCheckoutSession', () => {
     expect(isOurCheckoutSession({ metadata: { bookingId: 'b1' }, success_url: 'https://live.fastmatch.test/x' }, 'https://fastmatch.test')).toBe(false);
     expect(isOurCheckoutSession({ metadata: { bookingId: 'b1' }, success_url: 'https://fastmatch.test.evil.example/x' }, 'https://fastmatch.test')).toBe(false);
     expect(isOurCheckoutSession({ metadata: { bookingId: 'b1', site: 'other' } }, '')).toBe(false);
+  });
+});
+
+describe('the picture on Stripe’s payment page (Gil, 8 Oct)', () => {
+  const site = 'https://fastmatch.test';
+  const photo = `${site}/api/uploads/${'a'.repeat(32)}.jpg`;
+  const logo = `${site}/api/uploads/${'b'.repeat(32)}.png`;
+  const image = `${site}/api/uploads/${'c'.repeat(32)}.jpg`;
+  const venue = { logoUrl: logo, imageUrl: image };
+
+  it('is the event’s photo, else the venue’s logo, else the venue’s picture, else none', () => {
+    expect(checkoutPicture({ photoUrl: photo }, venue, site)).toBe(photo);
+    expect(checkoutPicture({ photoUrl: null }, venue, site)).toBe(logo);
+    expect(checkoutPicture({ photoUrl: '  ' }, { logoUrl: '', imageUrl: image }, site)).toBe(image);
+    expect(checkoutPicture({ photoUrl: null }, { logoUrl: null, imageUrl: null }, site)).toBeNull();
+  });
+
+  it('a picture on the site itself gets the site’s address', () => {
+    expect(checkoutPicture({ photoUrl: '/photos/night.jpg' }, venue, site)).toBe(`${site}/photos/night.jpg`);
+  });
+
+  it('only a full https address is given to Stripe, which fetches it itself', () => {
+    // On a local copy of the site (http) there's no picture, and nothing breaks.
+    expect(checkoutPicture({ photoUrl: 'http://localhost:3000/api/uploads/x.jpg' }, { logoUrl: null, imageUrl: null }, 'http://localhost:3000')).toBeNull();
+    expect(checkoutPicture({ photoUrl: '/photos/night.jpg' }, { logoUrl: null, imageUrl: null }, undefined)).toBeNull();
+    // A bad first choice falls through to the next.
+    expect(checkoutPicture({ photoUrl: 'http://old.example/p.jpg' }, venue, site)).toBe(logo);
+    expect(checkoutPicture({ photoUrl: `https://fastmatch.test/${'x'.repeat(2100)}.jpg` }, venue, site)).toBe(logo);
   });
 });
 

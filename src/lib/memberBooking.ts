@@ -163,16 +163,6 @@ export async function prepareMemberBooking(
     return { ok: false, status: 400, error: 'Please check your friends’ details.', fieldErrors };
   }
 
-  // ---- a women-only or men-only night (Gil, 7 Oct)
-  const only = event.maxMen === 0 ? 'women' : event.maxWomen === 0 ? 'men' : null;
-  if (only) {
-    const theirs = member.gender === 'MALE' ? event.maxMen : event.maxWomen;
-    if (theirs === 0) return { ok: false, status: 409, error: `This event is for ${only} only.` };
-    if ((men > 0 && event.maxMen === 0) || (women > 0 && event.maxWomen === 0)) {
-      return { ok: false, status: 400, error: `This event is for ${only} only, so you can only bring ${only === 'women' ? 'female' : 'male'} friends.` };
-    }
-  }
-
   // ---- capacity: paid places, and places held by payment pages still open
   // (not this member's own earlier attempt, which this booking replaces).
   const { men: menBooked, women: womenBooked } = await placesTaken(event.id, { excludeMemberId: member.id, excludeEmail: member.email });

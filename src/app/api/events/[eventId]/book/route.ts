@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getStripe, STRIPE_SITE_TAG } from '@/lib/stripe';
+import { getStripe, STRIPE_SITE_TAG, checkoutPicture } from '@/lib/stripe';
+import { eventLabel } from '@/lib/eventLabel';
 import { getSessionMember } from '@/lib/auth';
 import { calculateAge } from '@/lib/age';
 import { venueLine } from '@/lib/venue';
@@ -37,7 +38,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
 
   const event = await prisma.event.findUniqueOrThrow({
     where: { id: params.eventId },
-    include: { venue: true, city: true },
+    include: { venue: true, city: true, theme: true },
   });
   // Including once it has started: members could pay for an event that had
   // already happened (src/lib/eventAvailability.ts).
@@ -120,20 +121,24 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   // The event's local time, noted if the member's own clock reads differently.
   const memberCity = await prisma.city.findUnique({ where: { id: member.cityId } });
   const when = eventTimeFor(event.startsAt, event.city.name, memberCity?.name);
+  const picture = checkoutPicture(event, event.venue);
   let session;
   try {
     session = await getStripe().checkout.sessions.create({
       mode: 'payment',
+      // Filled in on Stripe's page, so the member doesn't type it (Gil, 8 Oct).
+      customer_email: member.email,
       line_items: [
         {
           price_data: {
             currency: 'aud',
-            // Shown under the product name on Stripe's payment page, so the
-            // member sees exactly which event — and for how many people —
-            // they're paying before entering card details. (The logo on that
-            // page is a Stripe Dashboard branding setting, not set from here.)
+            // The event as our emails name it ("Type, Name"), with a picture
+            // (Gil, 8 Oct). The description under it says exactly which event,
+            // and for how many people, before card details are entered. (The
+            // logo and colours on that page are Stripe Dashboard settings.)
             product_data: {
-              name: event.name,
+              name: eventLabel(event),
+              ...(picture ? { images: [picture] } : {}),
               description: [
                 friendCount ? `You + ${friendCount} friend${friendCount === 1 ? '' : 's'}` : null,
                 venueLine(event.venue),

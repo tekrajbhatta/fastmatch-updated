@@ -39,6 +39,32 @@ export function getStripe(): Stripe {
 export const STRIPE_SITE_TAG = 'fastmatch.com.au';
 
 /**
+ * The picture beside the event on Stripe's payment page (Gil, 8 Oct): the
+ * event's photo, else the venue's logo, else the venue's picture, else none.
+ * Stripe fetches it from the site itself, so only a full https address is
+ * given (a site-relative one is completed with APP_URL). Anything else, such
+ * as a local http:// address, is left out rather than risk the payment page.
+ */
+export function checkoutPicture(
+  event: { photoUrl: string | null },
+  venue: { logoUrl: string | null; imageUrl: string | null },
+  appUrl: string | undefined = process.env.APP_URL,
+): string | null {
+  for (const candidate of [event.photoUrl, venue.logoUrl, venue.imageUrl]) {
+    const value = candidate?.trim();
+    if (!value) continue;
+    try {
+      const url = new URL(value, appUrl).toString();
+      // Stripe takes addresses up to 2,048 characters.
+      if (url.startsWith('https://') && url.length <= 2048) return url;
+    } catch {
+      // Not an address: try the next picture.
+    }
+  }
+  return null;
+}
+
+/**
  * Is this Checkout Session one this site opened? Tagged, or (for sessions
  * opened before the tag existed) sending the member back to this site.
  */
