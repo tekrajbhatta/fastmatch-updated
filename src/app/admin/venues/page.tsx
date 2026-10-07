@@ -126,9 +126,22 @@ export default function AdminVenuesPage() {
               <Input required value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="GG Bar" />
             </Field>
             <Field label="City">
-              <Select required value={form.cityId} onChange={(e) => set({ cityId: e.target.value })}>
-                {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </Select>
+              {(() => {
+                // A venue events are at keeps its city (the server refuses too).
+                const used = editingId ? venues.find((v) => v.id === editingId)?._count.events ?? 0 : 0;
+                return (
+                  <>
+                    <Select required value={form.cityId} disabled={used > 0} onChange={(e) => set({ cityId: e.target.value })}>
+                      {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </Select>
+                    {used > 0 && (
+                      <p className="mt-1 text-xs text-ink/50">
+                        {used === 1 ? 'An event is' : `${used} events are`} at this venue, so its city can&apos;t change. For the same venue in another city, use Duplicate.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </Field>
             <Field label="Address">
               <Input value={form.address} onChange={(e) => set({ address: e.target.value })} placeholder="23 Walker St, North Sydney" />

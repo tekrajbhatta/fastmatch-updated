@@ -66,4 +66,15 @@ describe('sortAdminEvents', () => {
     sortAdminEvents(input, now);
     expect(input).toEqual(copy);
   });
+
+  it('a cancelled event, or a copy not saved yet, is grey and after the upcoming ones, not "in the next week" (batch 13)', () => {
+    const cancelled = { ...ev('cancelled', 2 * DAY, true), status: 'CANCELLED' };
+    const draft = { ...ev('draft', 3 * DAY), draft: true };
+    const sorted = sortAdminEvents([cancelled, draft, ev('up', 20 * DAY), ev('nw', 1 * DAY, true), ev('past', -1 * DAY)], now);
+    expect(sorted.map((e) => e.id)).toEqual(['nw', 'up', 'cancelled', 'draft', 'past']);
+    expect(adminEventGroup(new Date(now.getTime() + 2 * DAY), true, now, true)).toBe('inactive');
+    // Once it has happened (or would have), it's simply past.
+    expect(adminEventGroup(new Date(now.getTime() - DAY), true, now, true)).toBe('past');
+  });
 });
+

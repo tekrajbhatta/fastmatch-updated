@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button, Loader } from '@/components/ui';
-import { adminEventGroup, sortAdminEvents, GROUP_ORDER, type AdminEventGroup } from '@/lib/adminEventGroups';
+import { adminEventGroup, sortAdminEvents, isInactive, GROUP_ORDER, type AdminEventGroup } from '@/lib/adminEventGroups';
 import EventWhen from '@/components/EventWhen';
 
 interface AdminEvent {
@@ -53,6 +53,11 @@ const GROUP_STYLE: Record<AdminEventGroup, { row: string; swatch: string; label:
     row: 'bg-[#AED581] hover:bg-[#9CCC65]',
     swatch: 'bg-[#AED581]',
     label: 'Upcoming event',
+  },
+  inactive: {
+    row: 'bg-[#E9E4EC] text-ink/70 hover:bg-[#DDD6E2]',
+    swatch: 'bg-[#E9E4EC]',
+    label: 'Cancelled, or a copy not saved yet',
   },
   past: {
     row: 'bg-white hover:bg-cream/40',
@@ -119,7 +124,7 @@ export default function AdminEventsPage() {
             {visible.map((e) => (
               <tr
                 key={e.id}
-                className={`cursor-pointer border-t border-ink/10 ${GROUP_STYLE[adminEventGroup(new Date(e.startsAt), e.confirmed, now)].row}`}
+                className={`cursor-pointer border-t border-ink/10 ${GROUP_STYLE[adminEventGroup(new Date(e.startsAt), e.confirmed, now, isInactive(e))].row}`}
                 onClick={() => (window.location.href = `/admin/events/${e.id}`)}
               >
                 <td className="px-4 py-3 text-ink/60">#{e.number}</td>
@@ -185,7 +190,7 @@ export default function AdminEventsPage() {
           order the groups appear. */}
       <div className="mt-6 overflow-hidden rounded-xl border border-ink/10 bg-white">
         <div className="bg-cream/50 px-4 py-2 text-xs font-bold uppercase text-ink/50">Legend</div>
-        <div className="grid sm:grid-cols-4">
+        <div className="grid sm:grid-cols-5">
           {GROUP_ORDER.map((g) => (
             <div key={g} className={`border-t border-ink/10 px-4 py-2.5 text-sm font-semibold text-ink sm:border-l sm:first:border-l-0 ${GROUP_STYLE[g].swatch}`}>
               {GROUP_STYLE[g].label}

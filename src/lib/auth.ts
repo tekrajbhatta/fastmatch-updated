@@ -4,13 +4,6 @@ import { cookies } from 'next/headers';
 import { prisma } from './prisma';
 import { readSessionToken, sessionStillValid, signSessionToken, SESSION_DAYS } from './tokens';
 
-const JWT_SECRET = process.env.JWT_SECRET as string;
-
-if (!JWT_SECRET) {
-  // Fail loudly at startup rather than silently signing tokens with `undefined`
-  throw new Error('JWT_SECRET is not set — check your .env file');
-}
-
 // Admin accounts are just Members with isAdmin = true (kept simple; a
 // separate admin table isn't needed for a single-operator business).
 // isAdmin is not exposed on any public API response.

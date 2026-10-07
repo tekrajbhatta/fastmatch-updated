@@ -39,6 +39,17 @@ describe('smsLength', () => {
     expect(smsLength('a'.repeat(71 - optOut - 1) + '😀').unicode).toBe(true);
   });
 
+  it('an emoji takes two of the 70 (batch 13): a text shown as "70, 1 SMS" was really 71, two SMS', () => {
+    // Letters, then the emoji (2), then the opt-out line: exactly 70 in all.
+    const body = 'a'.repeat(70 - optOut - 2) + '😀';
+    const r = smsLength(body);
+    expect(r.characters).toBe(70);
+    expect(r.messages).toBe(1);
+    const over = smsLength(body + 'b');
+    expect(over.characters).toBe(71);
+    expect(over.messages).toBe(2);
+  });
+
   it('€ and brackets cost two characters each', () => {
     expect(smsLength('€').characters).toBe(2 + optOut);
   });

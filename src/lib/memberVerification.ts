@@ -19,11 +19,11 @@ import { newMobileCode } from './mobileCode';
  * Both are best-effort and never throw; each returns whether it was sent.
  */
 
-export async function sendEmailVerification(member: Pick<Member, 'id' | 'name' | 'email'>): Promise<boolean> {
+export async function sendEmailVerification(member: Pick<Member, 'id' | 'name' | 'email' | 'mobileVerified'>): Promise<boolean> {
   try {
     const token = signEmailVerificationToken(member);
     const verifyUrl = `${process.env.APP_URL}/verify-email?token=${token}`;
-    const { subject, html } = welcomeVerificationEmail({ memberName: member.name, verifyUrl });
+    const { subject, html } = welcomeVerificationEmail({ memberName: member.name, verifyUrl, mobileToo: !member.mobileVerified });
     await sendEmail({ to: member.email, subject, html });
     return true;
   } catch (err) {

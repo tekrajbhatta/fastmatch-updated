@@ -17,6 +17,8 @@ export default function EditProfilePage() {
   const router = useRouter();
   const [cities, setCities] = useState<City[]>([]);
   const [form, setForm] = useState({ name: '', email: '', mobile: '', cityId: '', dateOfBirth: '' });
+  // Asked for only when the email is being changed (the server checks it).
+  const [currentPassword, setCurrentPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -47,12 +49,16 @@ export default function EditProfilePage() {
     }).catch(() => setLoadFailed(true));
   }, []);
 
+  // Changing the email address needs the current password.
+  const emailChanging = loaded && form.email.trim().toLowerCase() !== currentEmail.trim().toLowerCase();
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSaving(true);
     const res = await fetch('/api/account/profile', {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...form, ...(emailChanging ? { currentPassword } : {}) }),
     }).catch(() => null);
     setSaving(false);
     if (!res) { setError(NETWORK_ERROR); return; }
@@ -61,6 +67,7 @@ export default function EditProfilePage() {
     // Surface the API's own message rather than a generic one.
     if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Please check your details.'); return; }
     setSaved(true);
+    setCurrentPassword('');
     setEmailChangePending(data.emailChangePending ?? null);
     setMobileChange(data.mobileChangePending ? { smsSent: data.smsSent !== false } : null);
     // The account still has its current address until the link is clicked.
@@ -78,6 +85,11 @@ export default function EditProfilePage() {
         <form onSubmit={handleSave} className="flex flex-col gap-5">
           <Field label="Name"><TextInput required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
           <Field label="Email"><TextInput type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
+          {emailChanging && (
+            <Field label="Current password" hint="To change your email address, please enter your password.">
+              <TextInput type="password" required autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+            </Field>
+          )}
           {/* Side by side when there's room, as on sign up. */}
           <div className="flex flex-wrap gap-x-3.5 gap-y-5">
             <Field label="Mobile" className="flex-[1_1_150px]">

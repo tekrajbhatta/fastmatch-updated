@@ -32,3 +32,13 @@ export function discountDay(at: string | Date): string {
 export function formatDiscountDay(at: string | Date): string {
   return new Date(at).toLocaleDateString('en-AU', { timeZone: EVENT_TIME_ZONE });
 }
+
+/**
+ * Where a code stands today, for the Discount codes list: it used to say
+ * "Active" for a code whose first day hadn't come yet.
+ */
+export function discountStatus(c: { validFrom: string | Date; validTo: string | Date }, now: Date = new Date()): 'active' | 'not-started' | 'expired' {
+  if (new Date(c.validTo) < now) return 'expired';
+  if (new Date(c.validFrom) > now) return 'not-started';
+  return 'active';
+}

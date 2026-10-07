@@ -458,9 +458,14 @@ export default function EventDetailPage() {
               ) : event.alreadyBooked ? (
                 <FormSuccess>You&apos;re already booked in for this event.</FormSuccess>
               ) : outsideAge ? (
-                <div role="status" className="flex flex-col gap-2 rounded-[20px] bg-plum-50 px-5 py-4 text-center">
-                  <p className="text-[17px] font-bold text-ink-900">This event is for ages {event.ageMin}–{event.ageMax}.</p>
-                  <Link href="/events" className={linkClass}>See the events for your age</Link>
+                // The Book buttons in the events tables lead here (the user,
+                // 7 Oct): said kindly, with the way to the events that suit.
+                <div role="status" className="flex flex-col gap-1.5 rounded-[20px] bg-plum-50 px-5 py-4 text-center">
+                  <p className="text-[19px] font-extrabold text-ink-900">Not your age group</p>
+                  <p className="text-[15px] text-ink-600">
+                    This event is for ages {event.ageMin}–{event.ageMax}. Have a look at the events for your age group, there&apos;s sure to be one that suits you.
+                  </p>
+                  <Link href="/events" className={`${linkClass} mt-1`}>See events for your age group</Link>
                 </div>
               ) : (
                 <Button onClick={handleBook} disabled={booking || soldOut || checkingCode} loading={booking} block size="hero">

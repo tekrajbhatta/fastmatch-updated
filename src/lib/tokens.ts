@@ -11,8 +11,14 @@ import jwt from 'jsonwebtoken';
 // route module during `next build`, where a module-scope env check that
 // throws would break the build.
 
+// Read when a token is signed or checked, never when this file is loaded:
+// a check at load time breaks `next build`, which loads every module (it
+// used to sit in auth.ts). Missing, it still fails loudly rather than
+// signing tokens with nothing.
 function secret(): string {
-  return process.env.JWT_SECRET as string;
+  const value = process.env.JWT_SECRET;
+  if (!value) throw new Error('JWT_SECRET is not set — check your .env file');
+  return value;
 }
 
 /**

@@ -6,6 +6,7 @@ import { buildMemberWhere } from '@/lib/memberFilter';
 import { memberFilterFromParams } from '@/lib/memberFilterParams';
 import { recipientFilter } from '@/lib/campaigns/audience';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { withMobileMatches } from '@/lib/memberSearch';
 
 const bodySchema = z.object({
   // The Members screen's query string, e.g. "search=Gil&ageMin=20&ageMax=60".
@@ -30,7 +31,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (!parsed.success) return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
   const { query, ...channels } = parsed.data;
 
-  const filter = memberFilterFromParams(new URLSearchParams(query));
+  const filter = await withMobileMatches(memberFilterFromParams(new URLSearchParams(query)));
   const [matching, recipients] = await Promise.all([
     prisma.member.count({ where: buildMemberWhere(filter) }),
     channels.sendEmail || channels.sendSms
@@ -38,5 +39,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       : Promise.resolve(0),
   ]);
 
-  return NextResponse.json({ matching, recipients, filter });
+  // The filter as the Members screen states it (the mobile matches are worked out, not part of it).
+  const { mobileMatchIds: _matched, ...stated } = filter;
+  return NextResponse.json({ matching, recipients, filter: stated });
 });

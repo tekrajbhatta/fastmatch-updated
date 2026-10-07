@@ -9,6 +9,19 @@ import { venueLine } from '@/lib/venue';
 import { eventTimeFor } from '@/lib/timezone';
 import { eventLabel } from '@/lib/eventLabel';
 import { checkEventEdit, CHECK_FIELDS } from '@/lib/eventInput';
+import { adminEvent } from '@/lib/adminEvents';
+
+// GET /api/admin/events/:id — one event for the admin's screens (its page,
+// Edit event, the add screens, the check-in QR), as the list gives it. They
+// used to load every event to show one.
+export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
+  const params = await ctx.params;
+  const admin = await requireAdmin(req);
+  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const event = await adminEvent(params.id);
+  if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  return NextResponse.json(event);
+});
 
 // PATCH /api/admin/events/:id — edit any field. Attendees are notified by
 // email and SMS ONLY when the date/time or the venue changes. Unticking
@@ -53,6 +66,14 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   // An event that has already started is being corrected for the records
   // (the venue for the reports, say), not moved: nobody is told about it.
   const alreadyStarted = before.startsAt.getTime() <= Date.now();
+
+  // Moved to a later day: the reminder (sent a day or two before the old
+  // date) goes again before the new one. It used to stay "sent", so nobody
+  // was reminded of the new date. A move of a few hours keeps the reminder
+  // already sent: the change notice covers it.
+  if (!alreadyStarted && new Date(event.startsAt).getTime() - before.startsAt.getTime() >= 24 * 60 * 60 * 1000) {
+    await prisma.booking.updateMany({ where: { eventId: event.id, reminderSent: true }, data: { reminderSent: false } });
+  }
 
   if ((timeChanged || venueChanged) && !alreadyStarted) {
     const change = {

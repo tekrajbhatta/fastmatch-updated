@@ -61,8 +61,7 @@ export default function AddBookingPage() {
   }
 
   useEffect(() => {
-    fetch('/api/admin/events').then((r) => r.json()).then((events: EventSummary[]) => {
-      const e = events.find((x) => x.id === eventId) ?? null;
+    fetch(`/api/admin/events/${eventId}`).then((r) => (r.ok ? r.json() : null)).then((e: EventSummary | null) => {
       setEvent(e);
       // Same default as the old admin: the ticket price, before any discount.
       if (e) setPaidAmount(String(Number(e.cost)));

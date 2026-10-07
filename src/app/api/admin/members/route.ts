@@ -10,6 +10,7 @@ import { newMemberSchema, checkNewMember, newMemberData } from '@/lib/adminMembe
 import { sendEmailVerification, sendMobileVerification } from '@/lib/memberVerification';
 import { sendEmail } from '@/lib/emails/send';
 import { registeredByAdminEmail, registeredLinks } from '@/lib/emails/signupEmails';
+import { withMobileMatches } from '@/lib/memberSearch';
 
 const PAGE_SIZE = 50;
 
@@ -26,7 +27,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const params = req.nextUrl.searchParams;
   const page = Math.max(1, Number(params.get('page') ?? 1));
   // Same parsing as the members screen and its blast page — see memberFilterFromParams.
-  const filter: MemberFilter = memberFilterFromParams(params);
+  const filter: MemberFilter = await withMobileMatches(memberFilterFromParams(params));
   const where = buildMemberWhere(filter);
 
   const [members, total, maleCount, femaleCount, totalMatches] = await Promise.all([

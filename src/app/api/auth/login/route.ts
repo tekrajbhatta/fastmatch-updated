@@ -38,24 +38,24 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const ip = clientIp(req);
   const { emailKey, emailIpKey } = loginKeys(parsed.data.email, ip);
   const ipKey = rateKey('login-ip', ip);
-  if (
-    (await isRateLimited(emailIpKey, LIMITS.loginEmailIp.limit)) ||
-    (await isRateLimited(emailKey, LIMITS.loginEmail.limit)) ||
-    (await isRateLimited(ipKey, LIMITS.loginIp.limit))
-  ) {
-    return NextResponse.json(
-      { error: 'Too many attempts. Please wait 15 minutes and try again, or use "Forgot password?".' },
-      { status: 429 },
-    );
-  }
+  const tooMany = () => NextResponse.json(
+    { error: 'Too many attempts. Please wait 15 minutes and try again, or use "Forgot password?".' },
+    { status: 429 },
+  );
+  if (await isRateLimited(ipKey, LIMITS.loginIp.limit)) return tooMany();
+  // Each attempt on the account is counted BEFORE the (slow) password check,
+  // so a burst of guesses sent at once can't all be checked before any is
+  // counted (a successful login clears these counts again).
+  if (!(await hitRateLimit(emailIpKey, LIMITS.loginEmailIp.limit, LIMITS.loginEmailIp.windowMs)).allowed) return tooMany();
+  if (!(await hitRateLimit(emailKey, LIMITS.loginEmail.limit, LIMITS.loginEmail.windowMs)).allowed) return tooMany();
 
   const member = await prisma.member.findUnique({ where: { email: parsed.data.email } });
 
   // Same error message whether the email doesn't exist or the password is
   // wrong — don't reveal which one, so this can't be used to enumerate emails.
+  // (The address counts only failures: a venue's shared wifi sees many
+  // members log in on the night.)
   const invalid = async () => {
-    await hitRateLimit(emailIpKey, LIMITS.loginEmailIp.limit, LIMITS.loginEmailIp.windowMs);
-    await hitRateLimit(emailKey, LIMITS.loginEmail.limit, LIMITS.loginEmail.windowMs);
     await hitRateLimit(ipKey, LIMITS.loginIp.limit, LIMITS.loginIp.windowMs);
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
   };

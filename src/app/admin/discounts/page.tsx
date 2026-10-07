@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Field, Input, Select, Button, Card, Badge, Loader } from '@/components/ui';
-import { discountDay, formatDiscountDay } from '@/lib/discountDates';
+import { discountDay, formatDiscountDay, discountStatus } from '@/lib/discountDates';
 import { timeZoneForCity } from '@/lib/timezone';
 import { formatPrice } from '@/lib/price';
 
@@ -144,7 +144,9 @@ export default function AdminDiscountsPage() {
       {!loaded && <Loader label="Loading discount codes…" />}
       <div className="space-y-2">
         {codes.map((c) => {
-          const expired = new Date(c.validTo) < new Date();
+          const status = discountStatus(c);
+          // Limited to an event that has since been deleted: it works nowhere.
+          const noEvent = !!c.scopeEvent && 'deleted' in c.scopeEvent;
           return (
             <button key={c.id} onClick={() => openEdit(c)} className="flex w-full items-center justify-between rounded-lg border border-ink/10 bg-white p-3 text-left hover:border-plum">
               <div>
@@ -157,7 +159,10 @@ export default function AdminDiscountsPage() {
                   )}
                 </div>
               </div>
-              <Badge tone={expired ? 'muted' : 'green'}>{expired ? 'Expired' : 'Active'}</Badge>
+              {status === 'expired' ? <Badge tone="muted">Expired</Badge>
+                : noEvent ? <Badge tone="muted">No event</Badge>
+                  : status === 'not-started' ? <Badge tone="plum">Starts {formatDiscountDay(c.validFrom)}</Badge>
+                    : <Badge tone="green">Active</Badge>}
             </button>
           );
         })}

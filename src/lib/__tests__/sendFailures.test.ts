@@ -164,6 +164,21 @@ describe('blast batch: claimed one recipient at a time', () => {
     expect(db.send).toMatchObject({ sentCount: 3, failedCount: 0, status: 'SENT' });
   });
 
+  it('two members sharing a mobile: the number is texted once, still both emailed (batch 13)', async () => {
+    db.members.set('m01', member('m01', { mobile: '0412 345 678' }));
+    db.members.set('m02', member('m02', { mobile: '+61412345678' }));
+    db.members.set('m03', member('m03'));
+    db.send = blast(['m01', 'm02', 'm03']);
+    sendEmail.mockImplementation(async () => {});
+    sendSmsBulk.mockImplementation(async ({ to }: { to: string[] }) => ({ sent: to.length, failed: [] }));
+
+    const { processCampaignSendBatch } = await import('../campaigns/runSend');
+    await processCampaignSendBatch('s1');
+
+    expect(sendEmail.mock.calls.map((c) => c[0].to)).toEqual(['m01@example.test', 'm02@example.test', 'm03@example.test']);
+    expect(sendSmsBulk.mock.calls[0][0].to).toEqual(['0412 345 678', '0400000003']);
+  });
+
   it('a pause takes effect straight away, and resuming finishes it', async () => {
     const ids = ['m01', 'm02', 'm03'];
     for (const id of ids) db.members.set(id, member(id));

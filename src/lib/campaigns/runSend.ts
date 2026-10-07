@@ -6,7 +6,9 @@ import { resolveCampaignEmailHtml } from '../emails/campaignEmail';
 import { recipientFilter } from './audience';
 import { isPermanentAddressRejection } from './sendFailure';
 import { oneLine } from '../escapeHtml';
+import { australianMobile } from '../mobile';
 import jwt from 'jsonwebtoken';
+import { withMobileMatches } from '../memberSearch';
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
@@ -38,7 +40,7 @@ export async function startCampaignSend(
 ): Promise<{ ok: true; sendId: string; totalRecipients: number } | { ok: false; error: string }> {
   const campaign = await prisma.campaign.findUniqueOrThrow({ where: { id: campaignId } });
 
-  const where = buildMemberWhere(recipientFilter(campaign.filter as MemberFilter, campaign));
+  const where = buildMemberWhere(recipientFilter(await withMobileMatches(campaign.filter as MemberFilter), campaign));
   const recipients = await prisma.member.findMany({ where, select: { id: true } });
   const recipientIds = recipients.map((r) => r.id);
 
@@ -88,6 +90,8 @@ export async function processCampaignSendBatch(sendId: string) {
   // likely to trip provider rate limits. (Email stays per-recipient: each
   // message carries its own personalised unsubscribe link.)
   const smsRecipients: string[] = [];
+  // Members may share a mobile (Gil, Q21): each number gets the text once.
+  const owners = campaign.sendSms ? await textOwners(recipientIds, campaign.ignorePreference) : null;
   // Which recipients each number belongs to, to put failed texts against them.
   const byMobile = new Map<string, string[]>();
   // Recipients something failed for in this batch (counted once each).
@@ -151,7 +155,7 @@ export async function processCampaignSendBatch(sendId: string) {
         recipient.mobileVerified &&
         (recipient.contactMethod === 'EMAIL_AND_SMS' || recipient.contactMethod === 'SMS' || campaign.ignorePreference)
       ) {
-        if (recipient.mobile) {
+        if (recipient.mobile && (!owners || owners.get(numberKey(recipient.mobile)) === recipient.id)) {
           smsRecipients.push(recipient.mobile);
           byMobile.set(recipient.mobile, [...(byMobile.get(recipient.mobile) ?? []), recipient.id]);
         }
@@ -193,3 +197,30 @@ export async function processCampaignSendBatch(sendId: string) {
   const now = await prisma.campaignSend.findUniqueOrThrow({ where: { id: sendId } });
   return { done: now.status === 'SENT' || now.status === 'CANCELLED', sentCount: now.sentCount, failedCount: now.failedCount, status: now.status };
 }
+
+/** A number however it's written ("0412 345 678", "+61412345678"), for spotting a shared one. */
+const numberKey = (mobile: string) => australianMobile(mobile) ?? mobile.replace(/\D/g, '');
+
+/**
+ * Two members may share a mobile (Gil, Q21), and the number used to get the
+ * blast text once per member, each copy paid for. Now each number belongs to
+ * the first member on the list who can get the text, and only they are
+ * texted. Worked out afresh for each batch, from the whole list.
+ */
+async function textOwners(recipientIds: string[], ignorePreference: boolean): Promise<Map<string, string>> {
+  const members = await prisma.member.findMany({
+    where: { id: { in: recipientIds } },
+    select: { id: true, mobile: true, mobileVerified: true, marketingOptIn: true, contactMethod: true },
+  });
+  const byId = new Map(members.map((m) => [m.id, m]));
+  const owners = new Map<string, string>();
+  for (const id of recipientIds) {
+    const m = byId.get(id);
+    if (!m?.mobile || !m.mobileVerified || !m.marketingOptIn) continue;
+    if (!(m.contactMethod === 'EMAIL_AND_SMS' || m.contactMethod === 'SMS' || ignorePreference)) continue;
+    const key = numberKey(m.mobile);
+    if (!owners.has(key)) owners.set(key, m.id);
+  }
+  return owners;
+}
+

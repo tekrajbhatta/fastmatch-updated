@@ -46,9 +46,8 @@ export default function AdminEventDetailPage() {
   const [cancelError, setCancelError] = useState<string | null>(null);
 
   function loadEvent() {
-    fetch(`/api/admin/events`).then((r) => r.json()).then((events: any[]) => {
-      setEvent(events.find((e) => e.id === eventId) ?? null);
-    });
+    // Just this event (it used to load them all to find it).
+    fetch(`/api/admin/events/${eventId}`).then((r) => (r.ok ? r.json() : null)).then(setEvent);
   }
 
   useEffect(() => {

@@ -10,6 +10,7 @@ import { attendedBooking } from '@/lib/attended';
 import { formatPrice } from '@/lib/price';
 import { AU_MOBILE_MESSAGE } from '@/lib/mobile';
 import { bookingStatusLabel } from '@/lib/paymentMethod';
+import { latestAdultDateOfBirth } from '@/lib/age';
 
 interface Booking {
   id: string; badge: number; status: string; paidAmount: string; checkedIn: boolean;
@@ -158,7 +159,7 @@ export default function MemberDetailPage() {
                 </Select>
               </Field>
               <Field label="Date of birth">
-                <Input type="date" required value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} />
+                <Input type="date" required max={latestAdultDateOfBirth()} value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} />
               </Field>
             </div>
             <Field label="City">

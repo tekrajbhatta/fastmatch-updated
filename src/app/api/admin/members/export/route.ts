@@ -5,6 +5,7 @@ import { buildMemberWhere, MemberFilter } from '@/lib/memberFilter';
 import { memberFilterFromParams } from '@/lib/memberFilterParams';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { csvCell } from '@/lib/csv';
+import { withMobileMatches } from '@/lib/memberSearch';
 
 // GET /api/admin/members/export — CSV of the currently filtered member set,
 // same filter params as GET /api/admin/members (search/gender/cityId/ageMin/
@@ -15,7 +16,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const params = req.nextUrl.searchParams;
   // Same parsing as the members screen and its blast page — see memberFilterFromParams.
-  const filter: MemberFilter = memberFilterFromParams(params);
+  const filter: MemberFilter = await withMobileMatches(memberFilterFromParams(params));
   const where = buildMemberWhere(filter);
 
   const members = await prisma.member.findMany({

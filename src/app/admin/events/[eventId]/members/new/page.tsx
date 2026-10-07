@@ -37,8 +37,7 @@ export default function AddMemberPage() {
 
   useEffect(() => {
     fetch('/api/cities').then((r) => r.json()).then(setCities);
-    fetch('/api/admin/events').then((r) => r.json()).then((events: EventSummary[]) => {
-      const e = events.find((x) => x.id === eventId) ?? null;
+    fetch(`/api/admin/events/${eventId}`).then((r) => (r.ok ? r.json() : null)).then((e: EventSummary | null) => {
       setEvent(e);
       // Default location to the event's city and the amount to the ticket price.
       if (e) setForm((f) => ({ ...f, cityId: e.cityId, paidAmount: String(Number(e.cost)) }));

@@ -25,7 +25,9 @@ export function smsLength(body: string): SmsLength {
   const text = withOptOut(body);
   const chars = [...text];
   const unicode = chars.some((ch) => !GSM_BASIC.includes(ch) && !GSM_EXTENDED.includes(ch));
-  const characters = unicode ? chars.length : chars.reduce((n, ch) => n + (GSM_EXTENDED.includes(ch) ? 2 : 1), 0);
+  // A Unicode text is sent as UTF-16, where an emoji takes two of the 70
+  // (text.length counts those units; counting characters said 1).
+  const characters = unicode ? text.length : chars.reduce((n, ch) => n + (GSM_EXTENDED.includes(ch) ? 2 : 1), 0);
 
   const single = unicode ? 70 : 160;
   const part = unicode ? 67 : 153;

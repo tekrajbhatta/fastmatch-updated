@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import { getSessionMember } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { signEmailChangeToken } from '@/lib/tokens';
@@ -20,6 +21,8 @@ const schema = z.object({
   // YYYY-MM-DD. Optional so an older copy of the page that doesn't send it
   // still saves the rest. Age is always worked out from this, never stored.
   dateOfBirth: z.string().optional(),
+  // Needed only to change the email address (see below).
+  currentPassword: z.string().max(200).optional(),
 });
 
 // GET/PATCH /api/account/profile — a member viewing/editing their own
@@ -60,11 +63,21 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
   const newEmail = data.email.trim();
   const emailChanged = newEmail.toLowerCase() !== member.email.toLowerCase();
 
-  // A few address changes an hour: each one emails an address they typed.
+  // A few address changes an hour: each one emails an address they typed
+  // (and each wrong password below counts too).
   if (emailChanged && !(await hitRateLimit(rateKey('email-change', member.id), LIMITS.emailChange.limit, LIMITS.emailChange.windowMs)).allowed) {
     return NextResponse.json(
       { error: "You've asked to change your email several times in the last hour. Please try again later." },
       { status: 429 },
+    );
+  }
+  // The email address is the way into the account ("Forgot password?"), so
+  // changing it needs the current password, as changing the password does:
+  // someone using a phone left logged in could otherwise take the account.
+  if (emailChanged && !(data.currentPassword && (await bcrypt.compare(data.currentPassword, member.passwordHash)))) {
+    return NextResponse.json(
+      { error: data.currentPassword ? 'That isn’t your current password.' : 'Please enter your current password to change your email address.', field: 'currentPassword' },
+      { status: 400 },
     );
   }
 
@@ -86,7 +99,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
   }
 
   // Everything except the email is saved now.
-  const { email: _email, ...rest } = data;
+  const { email: _email, currentPassword: _password, ...rest } = data;
   const updated = await prisma.member.update({
     where: { id: member.id },
     data: { ...rest, ...(dob ? { dateOfBirth: dob } : {}), ...(mobileChanged ? { mobileVerified: false } : {}) },

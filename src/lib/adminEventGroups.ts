@@ -5,6 +5,7 @@
  *   Confirmed event in the next week    yellow   shown first
  *   Unconfirmed event in the next week  orange
  *   Upcoming event                      green
+ *   Cancelled, or a copy not saved yet  grey     (upcoming ones; past ones are past)
  *   Past event                          white    shown last
  *
  * "The next week" means the next seven days counted from right now — not
@@ -15,22 +16,28 @@
  * the colour inside the seven-day window; further out, everything is simply
  * upcoming, and once an event has started it is past.
  */
-export type AdminEventGroup = 'confirmedNextWeek' | 'unconfirmedNextWeek' | 'upcoming' | 'past';
+export type AdminEventGroup = 'confirmedNextWeek' | 'unconfirmedNextWeek' | 'upcoming' | 'inactive' | 'past';
 
 export const NEXT_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-export const GROUP_ORDER: readonly AdminEventGroup[] = ['confirmedNextWeek', 'unconfirmedNextWeek', 'upcoming', 'past'];
+export const GROUP_ORDER: readonly AdminEventGroup[] = ['confirmedNextWeek', 'unconfirmedNextWeek', 'upcoming', 'inactive', 'past'];
 
-export function adminEventGroup(startsAt: Date, confirmed: boolean, now: Date = new Date()): AdminEventGroup {
+export function adminEventGroup(startsAt: Date, confirmed: boolean, now: Date = new Date(), inactive = false): AdminEventGroup {
   const t = startsAt.getTime();
   const n = now.getTime();
   // Already started counts as past, even later the same day.
   if (t < n) return 'past';
+  // A cancelled event, or a duplicate not saved yet, isn't going ahead: it
+  // used to be coloured as "Confirmed event in the next week" all the same.
+  if (inactive) return 'inactive';
   if (t < n + NEXT_WEEK_MS) return confirmed ? 'confirmedNextWeek' : 'unconfirmedNextWeek';
   return 'upcoming';
 }
 
-type Sortable = { startsAt: string | Date; confirmed: boolean };
+type Sortable = { startsAt: string | Date; confirmed: boolean; status?: string; draft?: boolean };
+
+/** Cancelled, or a duplicate not saved yet. */
+export const isInactive = (e: { status?: string; draft?: boolean }): boolean => e.status === 'CANCELLED' || !!e.draft;
 
 /**
  * Groups in GROUP_ORDER; within a group, soonest first — except past events,
@@ -39,7 +46,7 @@ type Sortable = { startsAt: string | Date; confirmed: boolean };
  */
 export function sortAdminEvents<T extends Sortable>(events: readonly T[], now: Date = new Date()): T[] {
   const time = (e: T) => new Date(e.startsAt).getTime();
-  const group = (e: T) => adminEventGroup(new Date(e.startsAt), e.confirmed, now);
+  const group = (e: T) => adminEventGroup(new Date(e.startsAt), e.confirmed, now, isInactive(e));
   return [...events].sort((a, b) => {
     const ga = group(a);
     const gb = group(b);

@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { Prisma } from '@prisma/client';
 import { readPurposeToken, passwordFingerprint } from '@/lib/tokens';
+import { sendEmail } from '@/lib/emails/send';
+import { emailChangedNoticeEmail } from '@/lib/emails/emailChangeEmails';
 
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const token = req.nextUrl.searchParams.get('token');
@@ -56,10 +58,18 @@ async function applyEmailChange(t: { memberId: string; email?: string; from?: st
   const taken = { error: 'That email address now belongs to another account, so your email hasn’t been changed.' };
   if (await prisma.member.findUnique({ where: { email: t.email }, select: { id: true } })) return NextResponse.json(taken, { status: 409 });
   try {
-    await prisma.member.update({ where: { id: member.id }, data: { email: t.email, emailVerified: true } });
+    // A new address hasn't bounced: one that did stays marked on the old
+    // address only (it used to stay "bounced" for good, and no blasts came).
+    await prisma.member.update({ where: { id: member.id }, data: { email: t.email, emailVerified: true, emailBounced: false, bounceReason: null } });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return NextResponse.json(taken, { status: 409 });
     throw err;
+  }
+  // The old address is told, in case it wasn't them. The change stands either way.
+  try {
+    await sendEmail({ to: member.email, ...emailChangedNoticeEmail({ name: member.name, newEmail: t.email }) });
+  } catch (err) {
+    console.error(`Member ${member.id}: "email changed" notice to the old address failed`, err);
   }
   return NextResponse.json({ ok: true, changedTo: t.email });
 }

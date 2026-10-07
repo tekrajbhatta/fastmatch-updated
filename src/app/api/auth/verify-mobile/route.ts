@@ -20,28 +20,28 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (member.mobileVerificationExpires < new Date()) {
     return NextResponse.json({ error: 'This code has expired. Request a new one.' }, { status: 400 });
   }
-  if (parsed.data.code !== member.mobileVerificationCode) {
+  // Each guess is counted BEFORE it's checked, and the code is checked by the
+  // database in the same step that uses it up: a burst of guesses sent at once
+  // used to be checked against the code as it was when each began, even
+  // after the fifth wrong one had cancelled it.
+  const guesses = await hitRateLimit(rateKey('mobile-code', member.id), LIMITS.mobileCodeGuesses.limit, LIMITS.mobileCodeGuesses.windowMs);
+  const cancelCode = async () => {
+    await prisma.member.update({ where: { id: member.id }, data: { mobileVerificationCode: null, mobileVerificationExpires: null } });
+    await clearRateLimit(rateKey('mobile-code', member.id));
+    return NextResponse.json({ error: 'Too many wrong codes. Tap "Resend code" for a new one.' }, { status: 400 });
+  };
+  if (!guesses.allowed) return cancelCode();
+  const confirmed = await prisma.member.updateMany({
+    where: { id: member.id, mobileVerificationCode: parsed.data.code, mobileVerificationExpires: { gt: new Date() } },
+    data: { mobileVerified: true, mobileVerificationCode: null, mobileVerificationExpires: null },
+  });
+  if (confirmed.count === 0) {
     // Five wrong guesses cancel the code, so it can't be guessed: a new one
     // has to be requested (which starts the count again).
-    const guesses = await hitRateLimit(
-      rateKey('mobile-code', member.id), LIMITS.mobileCodeGuesses.limit, LIMITS.mobileCodeGuesses.windowMs,
-    );
-    if (!guesses.allowed || guesses.count >= LIMITS.mobileCodeGuesses.limit) {
-      await prisma.member.update({
-        where: { id: member.id },
-        data: { mobileVerificationCode: null, mobileVerificationExpires: null },
-      });
-      await clearRateLimit(rateKey('mobile-code', member.id));
-      return NextResponse.json({ error: 'Too many wrong codes. Tap "Resend code" for a new one.' }, { status: 400 });
-    }
+    if (guesses.count >= LIMITS.mobileCodeGuesses.limit) return cancelCode();
     return NextResponse.json({ error: 'Incorrect code.' }, { status: 400 });
   }
   await clearRateLimit(rateKey('mobile-code', member.id));
-
-  await prisma.member.update({
-    where: { id: member.id },
-    data: { mobileVerified: true, mobileVerificationCode: null, mobileVerificationExpires: null },
-  });
 
   return NextResponse.json({ ok: true });
 });

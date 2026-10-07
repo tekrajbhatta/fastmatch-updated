@@ -51,6 +51,12 @@ export const LIMITS = {
    * looking full by booking over and over.
    */
   bookingAttempts: { limit: 10, windowMs: HOUR },
+  /**
+   * Discount codes checked per member (the event page checks as they type):
+   * plenty for typing a code or two, not enough to try codes until one
+   * works, which would turn up codes that were never advertised.
+   */
+  discountChecks: { limit: 30, windowMs: 15 * MINUTE },
 } as const;
 
 /**
@@ -79,33 +85,40 @@ export function clientIp(req: NextRequest): string {
   return forwarded || req.headers.get('x-real-ip')?.trim() || 'unknown';
 }
 
-/** Counts one attempt. `allowed: false` once the limit for this window is reached. */
+/**
+ * Counts one attempt. `allowed: false` once the limit for this window is
+ * reached — the rule in nextBucket, applied by the database itself.
+ *
+ * Each step is one statement on the key's row, so attempts at the same
+ * moment take turns: none can read a count another is about to change. It
+ * used to read the count and then write it, so a burst of requests sent at
+ * once all read the same count and could go past the limit together. (One
+ * statement at a time also means they can't deadlock, as a locked
+ * read-then-write transaction did under a burst.)
+ */
 export async function hitRateLimit(
   key: string,
   limit: number,
   windowMs: number,
 ): Promise<{ allowed: boolean; count: number; retryAfterSeconds: number }> {
   const now = new Date();
-  const result = await prisma.$transaction(async (tx) => {
-    const bucket = await tx.rateLimit.findUnique({ where: { key } });
-    const next = nextBucket(bucket, now, limit, windowMs);
-    if (next.allowed) {
-      await tx.rateLimit.upsert({
-        where: { key },
-        create: { key, count: next.count, resetAt: next.resetAt },
-        update: { count: next.count, resetAt: next.resetAt },
-      });
-    }
-    return next;
-  });
+  const freshReset = new Date(now.getTime() + windowMs);
+  // The key's row, if it hasn't one yet.
+  await prisma.$executeRaw`INSERT IGNORE INTO \`RateLimit\` (\`key\`, \`count\`, \`resetAt\`) VALUES (${key}, 0, ${freshReset})`;
+  // The window has passed: a new one starts.
+  await prisma.$executeRaw`UPDATE \`RateLimit\` SET \`count\` = 0, \`resetAt\` = ${freshReset} WHERE \`key\` = ${key} AND \`resetAt\` <= ${now}`;
+  // Counted only while under the limit: the attempt that would go past it is refused and doesn't count.
+  const counted = await prisma.$executeRaw`UPDATE \`RateLimit\` SET \`count\` = \`count\` + 1 WHERE \`key\` = ${key} AND \`count\` < ${limit}`;
+  const bucket = await prisma.rateLimit.findUnique({ where: { key } });
   // Now and then, clear out windows long gone so the table stays small.
   if (Math.random() < 0.02) {
     prisma.rateLimit.deleteMany({ where: { resetAt: { lt: now } } }).catch(() => {});
   }
+  const resetAt = bucket?.resetAt ?? freshReset;
   return {
-    allowed: result.allowed,
-    count: result.count,
-    retryAfterSeconds: Math.max(1, Math.ceil((result.resetAt.getTime() - now.getTime()) / 1000)),
+    allowed: counted === 1,
+    count: bucket?.count ?? (counted === 1 ? 1 : limit),
+    retryAfterSeconds: Math.max(1, Math.ceil((resetAt.getTime() - now.getTime()) / 1000)),
   };
 }
 

@@ -54,6 +54,18 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   const city = await prisma.city.findUnique({ where: { id: data.cityId } });
   if (!city) return NextResponse.json({ error: 'Please select a valid city.' }, { status: 400 });
 
+  // A venue that events are at keeps its city: moving it would leave those
+  // events in one city at a venue in another (their edit form then can't
+  // even show the venue). A copy, with Duplicate, can go anywhere.
+  const current = await prisma.venue.findUniqueOrThrow({ where: { id: params.id }, include: { city: true, _count: { select: { events: true } } } });
+  if (current.cityId !== data.cityId && current._count.events > 0) {
+    const n = current._count.events;
+    return NextResponse.json(
+      { error: `${current.name} has ${n === 1 ? 'an event' : `${n} events`} in ${current.city.name}, so its city can't be changed. To use the same venue in ${city.name}, press Duplicate and change the copy's city.` },
+      { status: 409 },
+    );
+  }
+
   const clash = await prisma.venue.findFirst({
     where: { name: data.name, cityId: data.cityId, NOT: { id: params.id } },
   });

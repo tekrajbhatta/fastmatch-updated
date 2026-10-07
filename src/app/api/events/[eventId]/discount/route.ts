@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { getSessionMember } from '@/lib/auth';
 import { lookupDiscount } from '@/lib/memberBooking';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { hitRateLimit, rateKey, LIMITS } from '@/lib/rateLimit';
 
 const bodySchema = z.object({ code: z.string().min(1).max(50) });
 
@@ -20,6 +21,11 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: 'Please enter a discount code.' }, { status: 400 });
+
+  const checks = await hitRateLimit(rateKey('discount-check', member.id), LIMITS.discountChecks.limit, LIMITS.discountChecks.windowMs);
+  if (!checks.allowed) {
+    return NextResponse.json({ error: 'You’ve tried a lot of codes just now. Please wait a few minutes and try again.' }, { status: 429 });
+  }
 
   const event = await prisma.event.findUniqueOrThrow({ where: { id: params.eventId } });
   const found = await lookupDiscount(member, event, parsed.data.code);

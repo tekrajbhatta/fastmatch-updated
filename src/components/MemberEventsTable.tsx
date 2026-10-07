@@ -44,9 +44,6 @@ export default function MemberEventsTable({
   events, age, showCity, showProfileMatch = true,
 }: { events: MemberTableEvent[]; age: number | null; showCity: boolean; showProfileMatch?: boolean }) {
   if (events.length === 0) return null;
-  // Logged in and outside its age range: said here instead of a Book button
-  // that would only be refused (visitors not logged in still see Book).
-  const outsideAge = (e: MemberTableEvent) => age !== null && !isProfileMatch(e, age);
   return (
     <>
     {/* Phones: the same rows stacked, so View and Book are never scrolled
@@ -79,8 +76,6 @@ export default function MemberEventsTable({
                 <span className={BOOKED_IN}>Booked in</span>
               ) : soldOut ? (
                 <span className={SOLD_OUT}>Sold out</span>
-              ) : outsideAge(e) ? (
-                <span className={SOLD_OUT}>Not your age range</span>
               ) : (
                 <Link href={`/events/${e.id}#book`} className={BOOK}>Book</Link>
               )}
@@ -128,8 +123,6 @@ export default function MemberEventsTable({
                     <span className={BOOKED_IN}>Booked in</span>
                   ) : soldOut ? (
                     <span className={SOLD_OUT}>Sold out</span>
-                  ) : outsideAge(e) ? (
-                    <span className={SOLD_OUT}>Not your age range</span>
                   ) : (
                     <Link href={`/events/${e.id}#book`} className={BOOK}>Book</Link>
                   )}

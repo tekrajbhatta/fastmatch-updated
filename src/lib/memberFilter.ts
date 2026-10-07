@@ -7,6 +7,10 @@ import { birthDateRange } from './age';
 // instead of duplicating member data in a third-party tool.
 export interface MemberFilter {
   search?: string; // matches name, email, or mobile
+  // Members whose mobile matches the search digit for digit, however it was
+  // typed: filled in by withMobileMatches (src/lib/memberSearch.ts), never
+  // saved with a blast's filter.
+  mobileMatchIds?: string[];
   gender?: 'MALE' | 'FEMALE';
   cityId?: string;
   ageMin?: number;
@@ -39,6 +43,7 @@ export function buildMemberWhere(filter: MemberFilter): Prisma.MemberWhereInput 
       { name: { contains: filter.search } },
       { email: { contains: filter.search } },
       { mobile: { contains: filter.search } },
+      ...(filter.mobileMatchIds?.length ? [{ id: { in: filter.mobileMatchIds } }] : []),
     ];
   }
   if (filter.gender) where.gender = filter.gender;

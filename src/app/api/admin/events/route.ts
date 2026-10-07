@@ -5,30 +5,21 @@ import { withErrorHandling } from '@/lib/withErrorHandling';
 import { buildOccurrenceDates } from '@/lib/eventSeries';
 import { timeZoneForCity } from '@/lib/timezone';
 import { checkNewEvent, CHECK_FIELDS } from '@/lib/eventInput';
+import { ADMIN_EVENT_INCLUDE, placesByEvent } from '@/lib/adminEvents';
 
 // GET /api/admin/events — list, newest first
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
-  const events = await prisma.event.findMany({
-    orderBy: { startsAt: 'asc' },
-    include: { theme: true, city: true, venue: true, _count: { select: { bookings: true } } },
-  });
+  const [events, places] = await Promise.all([
+    prisma.event.findMany({ orderBy: { startsAt: 'asc' }, include: ADMIN_EVENT_INCLUDE }),
+    placesByEvent(),
+  ]);
 
   // Per-gender breakdown for the admin list — "17/24" was showing total
   // bookings only, not the men/women split the screen actually needs.
-  const withGenderSplit = await Promise.all(
-    events.map(async (e) => {
-      const [men, women] = await Promise.all([
-        prisma.booking.count({ where: { eventId: e.id, status: 'CONFIRMED', member: { gender: 'MALE' } } }),
-        prisma.booking.count({ where: { eventId: e.id, status: 'CONFIRMED', member: { gender: 'FEMALE' } } }),
-      ]);
-      return { ...e, menBooked: men, womenBooked: women };
-    })
-  );
-
-  return NextResponse.json(withGenderSplit);
+  return NextResponse.json(events.map((e) => ({ ...e, menBooked: places.get(e.id)?.men ?? 0, womenBooked: places.get(e.id)?.women ?? 0 })));
 });
 
 // POST /api/admin/events — create one event, or a whole repeat series

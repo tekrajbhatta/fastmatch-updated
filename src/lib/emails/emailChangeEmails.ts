@@ -37,3 +37,18 @@ export function emailAlreadyUsedEmail(opts: { name: string }) {
   `);
   return { subject: 'Someone tried to use your email address on FastMatch', html };
 }
+
+/**
+ * To the OLD address, once a change has gone through: if it wasn't them
+ * (someone using their phone while it was logged in, say), they find out and
+ * can get help. Nobody used to be told.
+ */
+export function emailChangedNoticeEmail(opts: { name: string; newEmail: string }) {
+  const html = emailLayout(`
+    <h1 style="${EMAIL_HEADING}">Your email address has been changed</h1>
+    <p style="${PARA}">Hi ${escapeHtml(opts.name)}, the email address on your FastMatch account has just been changed to <strong>${escapeHtml(opts.newEmail)}</strong>. From now on we'll email you there.</p>
+    <p style="${PARA}">If you didn't make this change, please contact <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a> straight away.</p>
+    <p style="${PARA}">The FastMatch Team</p>
+  `);
+  return { subject: 'Your FastMatch email address has been changed', html };
+}

@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth';
 import { buildMemberWhere, MemberFilter } from '@/lib/memberFilter';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { recipientFilter } from '@/lib/campaigns/audience';
+import { withMobileMatches } from '@/lib/memberSearch';
 
 // POST /api/admin/campaigns/:id/preview — the "Filter" button on the Send
 // tab. Accepts the filter currently being edited in the UI (not necessarily
@@ -18,7 +19,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   const body = await req.json().catch(() => ({}));
   const rawFilter = body.filter ?? (campaign.filter as MemberFilter);
 
-  const where = buildMemberWhere(recipientFilter(rawFilter as MemberFilter, campaign));
+  const where = buildMemberWhere(recipientFilter(await withMobileMatches(rawFilter as MemberFilter), campaign));
 
   const [count, members] = await Promise.all([
     prisma.member.count({ where }),

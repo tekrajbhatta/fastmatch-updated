@@ -51,8 +51,7 @@ export default function EditEventPage() {
     fetch('/api/cities').then((r) => r.json()).then(setCities);
     fetch('/api/event-themes').then((r) => r.json()).then(setThemes);
     fetch('/api/admin/venues').then((r) => r.json()).then(setVenues);
-    fetch('/api/admin/events').then((r) => r.json()).then((events: any[]) => {
-      const e = events.find((ev) => ev.id === eventId);
+    fetch(`/api/admin/events/${eventId}`).then((r) => (r.ok ? r.json() : null)).then((e: any) => {
       if (e) {
         setIsDraft(!!e.draft);
         setIsCancelled(e.status === 'CANCELLED');

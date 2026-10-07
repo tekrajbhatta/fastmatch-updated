@@ -14,13 +14,16 @@ const BUTTON =
   `background:${BRAND_COLORS.redCta};color:#fff;padding:12px 24px;border-radius:8px;` +
   'text-decoration:none;display:inline-block;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;';
 
-export function welcomeVerificationEmail(opts: { memberName: string; verifyUrl: string }) {
+export function welcomeVerificationEmail(opts: { memberName: string; verifyUrl: string; mobileToo?: boolean }) {
+  // Their mobile still to confirm as well (an "Unconfirmed" member the admin
+  // added): two steps, both said — it used to promise one.
   const html = emailLayout(`
     <h1 style="${EMAIL_HEADING}">Welcome to FastMatch, ${escapeHtml(opts.memberName)}!</h1>
-    <p style="${PARA}">Thanks for joining. You're one step away from booking your first event.</p>
-    <p style="${PARA_BUTTON}">Please confirm your email address to activate your membership:</p>
+    <p style="${PARA}">Thanks for joining. You're ${opts.mobileToo ? 'two steps' : 'one step'} away from booking your first event.</p>
+    <p style="${PARA_BUTTON}">${opts.mobileToo ? '1. ' : ''}Please confirm your email address to activate your membership:</p>
     <p style="${PARA_BUTTON}"><a href="${opts.verifyUrl}" style="${BUTTON}">Confirm my email</a></p>
-    <p style="${PARA}">Once confirmed, you can browse and book events straight away.</p>
+    ${opts.mobileToo ? `<p style="${PARA}">2. Confirm your mobile: log in, and enter the 6-digit code we've texted you (a new one can be sent from there if it has expired).</p>` : ''}
+    <p style="${PARA}">${opts.mobileToo ? 'Once both are done' : 'Once confirmed'}, you can browse and book events straight away.</p>
     <p style="${PARA}">The FastMatch Team</p>
   `);
 

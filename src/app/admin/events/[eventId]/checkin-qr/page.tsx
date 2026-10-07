@@ -15,8 +15,7 @@ export default function CheckinQrPage() {
     const url = `${window.location.origin}/events/${eventId}/checkin`;
     setCheckinUrl(url);
     QRCode.toDataURL(url, { width: 480, margin: 2, color: { dark: '#3D1E6D', light: '#FFFFFF' } }).then(setQrDataUrl);
-    fetch('/api/admin/events').then((r) => r.json()).then((events: any[]) => {
-      const e = events.find((ev) => ev.id === eventId);
+    fetch(`/api/admin/events/${eventId}`).then((r) => (r.ok ? r.json() : null)).then((e: { name: string } | null) => {
       if (e) setEventName(e.name);
     });
   }, [eventId]);

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { isAustralianMobile, sameMobile, AU_MOBILE_MESSAGE } from '@/lib/mobile';
+import { calculateAge } from '@/lib/age';
 
 // GET /api/admin/members/:id — "click a member to view their details" on
 // the real Members screen. Includes their booking and match history.
@@ -68,6 +69,11 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   const dob = new Date(data.dateOfBirth);
   if (Number.isNaN(dob.getTime())) {
     return NextResponse.json({ error: 'Please enter a valid date of birth.' }, { status: 400 });
+  }
+  // As when adding a member (src/lib/adminMember.ts): a mistyped year (2016)
+  // used to save, and the member dropped out of age-filtered lists and blasts.
+  if (calculateAge(dob) < 18) {
+    return NextResponse.json({ error: 'Members must be at least 18 years old. Please check the date of birth.' }, { status: 400 });
   }
 
   // email is @unique — check first so this surfaces as a clear 409 rather

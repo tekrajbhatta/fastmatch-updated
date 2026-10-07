@@ -159,7 +159,17 @@ export default function ReportsPage() {
                 </Select>
               </Field>
               <Field label="Report type">
-                <Select value={shape.type} onChange={(e) => setShape({ ...shape, type: e.target.value as ReportType })}>
+                <Select
+                  value={shape.type}
+                  onChange={(e) => {
+                    const type = e.target.value as ReportType;
+                    setShape({ ...shape, type });
+                    // Age and gender don't apply to a profit/loss statement and
+                    // their boxes grey out: cleared too, or they'd still block
+                    // "Generate" from boxes that can't be changed.
+                    if (type === 'profitLoss') setFilters((f) => ({ ...f, gender: '', ageMin: '', ageMax: '' }));
+                  }}
+                >
                   {REPORT_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </Select>
               </Field>
