@@ -10,12 +10,12 @@ import { hitRateLimit, rateKey, LIMITS } from './rateLimit';
  * `next` (a page on this site, already checked) is where they carry on to
  * afterwards — the event they were booking, say.
  */
-export function setPasswordPath(memberId: string, next?: string | null): string {
-  return `/set-password?token=${setPasswordToken(memberId)}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
+export function setPasswordPath(member: { id: string; email: string }, next?: string | null): string {
+  return `/set-password?token=${setPasswordToken(member)}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
 }
 
-export function setPasswordUrl(memberId: string, next?: string | null): string {
-  return `${process.env.APP_URL}${setPasswordPath(memberId, next)}`;
+export function setPasswordUrl(member: { id: string; email: string }, next?: string | null): string {
+  return `${process.env.APP_URL}${setPasswordPath(member, next)}`;
 }
 
 /**
@@ -27,7 +27,7 @@ export async function emailWelcomeLinkOnLogin(member: { id: string; name: string
   try {
     const { limit, windowMs } = LIMITS.welcomeLinkOnLogin;
     if (!(await hitRateLimit(rateKey('welcome-link-login', member.email), limit, windowMs)).allowed) return;
-    const { subject, html } = finishInvitationEmail({ name: member.name, setPasswordUrl: setPasswordUrl(member.id), reason: 'login' });
+    const { subject, html } = finishInvitationEmail({ name: member.name, setPasswordUrl: setPasswordUrl(member), reason: 'login' });
     await sendEmail({ to: member.email, subject, html });
   } catch (err) {
     console.error(`Member ${member.id}: set-password link after a login attempt failed`, err);

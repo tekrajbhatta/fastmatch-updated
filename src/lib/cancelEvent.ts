@@ -52,11 +52,45 @@ export interface CancelOutcome {
   paymentsArriving: number;
 }
 
-/** Why an event can't be cancelled, or null. One whose night is over has happened. */
-export function cancelBlocked(event: Pick<Event, 'status' | 'startsAt'> & { city: { name: string } | null }, now: Date = new Date()): string | null {
-  if (event.status === 'CANCELLED') return 'This event has already been cancelled.';
+/**
+ * Why an event can't be cancelled, or null. One whose night is over has
+ * happened. One already cancelled can be again only to finish a cancellation
+ * that stopped part-way (a restart mid-run, say), leaving `unfinished` people
+ * still booked, unrefunded and untold: whenever that's noticed.
+ */
+export function cancelBlocked(
+  event: Pick<Event, 'status' | 'startsAt'> & { city: { name: string } | null },
+  now: Date = new Date(),
+  unfinished = 0,
+): string | null {
+  if (event.status === 'CANCELLED') return unfinished > 0 ? null : 'This event has already been cancelled.';
   if (now >= endOfEventNight(event)) return 'This event has already happened, so it can\'t be cancelled.';
   return null;
+}
+
+/**
+ * Unpaid and still open: a payment page someone may be paying on, rather
+ * than a booking. A booking the admin set back to "Pending" (it was confirmed
+ * before), or one with no payment page, is a booking: it's cancelled, told,
+ * and refunded like the rest (it used to be taken for an open page and left,
+ * or quietly deleted).
+ */
+function isPaymentPage(b: Pick<Booking, 'status' | 'stripePaymentIntentId' | 'confirmedAt'>): boolean {
+  return b.status === 'PENDING' && !!b.stripePaymentIntentId && !b.confirmedAt;
+}
+
+/** Bookings a cancellation still has to deal with (everything but open payment pages). */
+const STILL_BOOKED: Prisma.BookingWhereInput = {
+  OR: [{ status: 'CONFIRMED' }, { status: 'PENDING', OR: [{ stripePaymentIntentId: null }, { confirmedAt: { not: null } }] }],
+};
+
+/** cancelBlocked, counting what an earlier cancellation left unfinished. */
+export async function whyCantCancel(
+  event: Pick<Event, 'id' | 'status' | 'startsAt'> & { city: { name: string } | null },
+  now: Date = new Date(),
+): Promise<string | null> {
+  const unfinished = event.status === 'CANCELLED' ? await prisma.booking.count({ where: { eventId: event.id, ...STILL_BOOKED } }) : 0;
+  return cancelBlocked(event, now, unfinished);
 }
 
 /** Paid on one of this site's payment pages, rather than some other way. */
@@ -73,26 +107,29 @@ function paidByHand(b: Pick<Booking, 'paymentMethod' | 'bookedById' | 'paidAmoun
 export async function cancelPreview(eventId: string) {
   const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId }, include: { city: true } });
   const bookings = await prisma.booking.findMany({ where: { eventId, status: { in: ['CONFIRMED', 'PENDING'] } } });
-  const paid = bookings.filter((b) => b.status === 'CONFIRMED');
+  const paid = bookings.filter((b) => !isPaymentPage(b));
   const online = paid.filter(paidOnline);
   const onlineIds = new Set(online.map((b) => b.id));
   // A group's payment covers the friends they brought: their shares are on their own bookings.
   const onlineTotal = paid.filter((b) => onlineIds.has(b.id) || (b.bookedById && onlineIds.has(b.bookedById))).reduce((sum, b) => sum + Number(b.paidAmount), 0);
   return {
-    blocked: cancelBlocked(event),
+    blocked: cancelBlocked(event, new Date(), paid.length),
+    // Already cancelled, but some bookings weren't dealt with: this finishes it.
+    finishing: event.status === 'CANCELLED',
     attendees: paid.length,
     onlinePayments: online.length,
     onlineTotal: Math.round(onlineTotal * 100) / 100,
     byHand: paid.filter(paidByHand).length,
-    unpaidPages: bookings.length - paid.length,
+    unpaidPages: bookings.filter(isPaymentPage).length,
   };
 }
 
 /**
- * Cancels the event. Each booking is claimed (CONFIRMED -> CANCELLED) before
- * anything is done for it, so running this twice at once (a double click)
- * can't refund or tell anyone twice. Refunds come before the emails, so the
- * email can say what was refunded.
+ * Cancels the event. Each booking is claimed (-> CANCELLED) before anything
+ * is done for it, so running this twice at once (a double click) can't refund
+ * or tell anyone twice — and running it again on a cancelled event finishes
+ * one that stopped part-way, dealing only with who's left. Refunds come
+ * before the emails, so the email can say what was refunded.
  */
 export async function cancelEvent(eventId: string): Promise<CancelOutcome> {
   const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId }, include: { venue: true, theme: true, city: true } });
@@ -109,7 +146,7 @@ export async function cancelEvent(eventId: string): Promise<CancelOutcome> {
 
   // Payment pages still open are closed, so they can't be paid. One being
   // paid this very moment is refunded when its payment arrives (the webhook).
-  for (const b of bookings.filter((x) => x.status === 'PENDING')) {
+  for (const b of bookings.filter(isPaymentPage)) {
     try {
       if ((await closeCheckout(b)) === 'paid') { outcome.paymentsArriving++; continue; }
       await dropUnpaidBooking(b.id);
@@ -120,7 +157,7 @@ export async function cancelEvent(eventId: string): Promise<CancelOutcome> {
     }
   }
 
-  const paid = bookings.filter((x) => x.status === 'CONFIRMED');
+  const paid = bookings.filter((x) => !isPaymentPage(x));
   for (let i = 0; i < paid.length; i += AT_ONCE) {
     await Promise.all(paid.slice(i, i + AT_ONCE).map((b) => cancelBooking(event, b, outcome)));
   }
@@ -128,9 +165,10 @@ export async function cancelEvent(eventId: string): Promise<CancelOutcome> {
 }
 
 async function cancelBooking(event: FullEvent, b: Attendee, outcome: CancelOutcome): Promise<void> {
+  // Claimed in the state it was read in (confirmed, or set back to pending).
   const claimed = await prisma.booking.updateMany({
-    where: { id: b.id, status: 'CONFIRMED' },
-    data: { status: 'CANCELLED', checkedIn: false, checkedInAt: null },
+    where: { id: b.id, status: b.status },
+    data: { status: 'CANCELLED', checkedIn: false, checkedInAt: null, pendingFriends: Prisma.DbNull, reopenedFrom: Prisma.DbNull },
   });
   if (claimed.count === 0) return;
 

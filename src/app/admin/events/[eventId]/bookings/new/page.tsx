@@ -13,7 +13,7 @@ import { Spinner } from '@/components/Spinner';
 interface EventSummary {
   id: string; name: string; startsAt: string; cost: string;
   maxMen: number; maxWomen: number; menBooked: number; womenBooked: number;
-  venue: { name: string; address: string | null }; city: { name: string };
+  venue: { name: string; address: string | null }; city: { name: string }; status: string;
 }
 interface MemberHit {
   id: string; name: string; email: string; mobile: string;
@@ -124,6 +124,16 @@ export default function AddBookingPage() {
   }
 
   if (!event) return <Loader />;
+  // Nobody can be booked into a cancelled event (the server refuses too).
+  if (event.status === 'CANCELLED') {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <BackLink href={`/admin/events/${eventId}`}>Back to event</BackLink>
+        <h1 className="mb-1 text-2xl font-extrabold text-ink">Add a new booking</h1>
+        <Card><p className="text-sm text-ink/70">This event was cancelled, so nobody can be booked into it.</p></Card>
+      </div>
+    );
+  }
 
   // On the event city's clock, as it's advertised.
   const clock = eventClock(event.startsAt, event.city.name);

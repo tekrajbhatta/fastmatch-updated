@@ -185,8 +185,9 @@ export default function CheckinPage() {
     );
   }
 
-  // Not open yet, or closed: say so, rather than a check-in button.
-  if (step === 'confirm' && me && night && night.checkIn !== 'open') {
+  // Not open yet, closed, or the event was cancelled: say so, rather than a
+  // check-in button (a cancelled event's check-in link used to offer one).
+  if (step === 'confirm' && me && night && (night.checkIn !== 'open' || night.event.cancelled)) {
     const opens = eventClock(night.opensAt, night.event.city);
     return (
       <SplitLayout title={`Hi, ${me.name.split(' ')[0]}`} lead={eventLabel({ name: night.event.name, theme: { name: night.event.theme } })}>

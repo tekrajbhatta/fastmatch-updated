@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { signSession, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
-import { clientIp, clearRateLimit, hitRateLimit, isRateLimited, LIMITS, rateKey } from '@/lib/rateLimit';
+import { clientIp, clearLoginLock, hitRateLimit, isRateLimited, LIMITS, loginKeys, rateKey } from '@/lib/rateLimit';
 import { unfinishedSteps } from '@/lib/accountSetup';
 import { emailWelcomeLinkOnLogin } from '@/lib/welcomeLink';
 
@@ -29,12 +29,17 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 400 });
   }
 
-  // Failed attempts are counted per account and per address; past the limit
-  // the account waits out the window (even with the right password), which
-  // stops passwords being guessed. A successful login clears the account's count.
-  const emailKey = rateKey('login-email', parsed.data.email);
-  const ipKey = rateKey('login-ip', clientIp(req));
+  // Failed attempts are counted per account from this address, per account
+  // from anywhere (a higher cap), and per address; past a limit, it waits out
+  // the window (even with the right password), which stops passwords being
+  // guessed. Per account AND address, so a stranger typing wrong passwords
+  // elsewhere doesn't lock the member out. A successful login, or a password
+  // reset, clears the account's counts.
+  const ip = clientIp(req);
+  const { emailKey, emailIpKey } = loginKeys(parsed.data.email, ip);
+  const ipKey = rateKey('login-ip', ip);
   if (
+    (await isRateLimited(emailIpKey, LIMITS.loginEmailIp.limit)) ||
     (await isRateLimited(emailKey, LIMITS.loginEmail.limit)) ||
     (await isRateLimited(ipKey, LIMITS.loginIp.limit))
   ) {
@@ -49,6 +54,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // Same error message whether the email doesn't exist or the password is
   // wrong — don't reveal which one, so this can't be used to enumerate emails.
   const invalid = async () => {
+    await hitRateLimit(emailIpKey, LIMITS.loginEmailIp.limit, LIMITS.loginEmailIp.windowMs);
     await hitRateLimit(emailKey, LIMITS.loginEmail.limit, LIMITS.loginEmail.windowMs);
     await hitRateLimit(ipKey, LIMITS.loginIp.limit, LIMITS.loginIp.windowMs);
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
@@ -66,7 +72,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     if (member.awaitingPasswordSetup) after(() => emailWelcomeLinkOnLogin(member));
     return invalid();
   }
-  await clearRateLimit(emailKey);
+  await clearLoginLock(parsed.data.email, ip);
 
   const token = signSession(member);
   // Something still to do before they can book (email or mobile unconfirmed,

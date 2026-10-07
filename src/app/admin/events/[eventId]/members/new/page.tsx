@@ -11,7 +11,7 @@ import NewMemberFields, { BLANK_NEW_MEMBER } from '@/components/NewMemberFields'
 
 interface EventSummary {
   id: string; name: string; startsAt: string; cost: string; cityId: string;
-  venue: { name: string; address: string | null }; city: { name: string };
+  venue: { name: string; address: string | null }; city: { name: string }; status: string;
 }
 interface City { id: string; name: string; }
 
@@ -75,6 +75,16 @@ export default function AddMemberPage() {
   }
 
   if (!event) return <Loader />;
+  // Nobody can be booked into a cancelled event (the server refuses too).
+  if (event.status === 'CANCELLED') {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <BackLink href={`/admin/events/${eventId}`}>Back to event</BackLink>
+        <h1 className="mb-1 text-2xl font-extrabold text-ink">Add a new member</h1>
+        <Card><p className="text-sm text-ink/70">This event was cancelled, so nobody can be booked into it.</p></Card>
+      </div>
+    );
+  }
   // The event's date on its city's clock, as it's advertised.
   const clock = eventClock(event.startsAt, event.city.name);
 

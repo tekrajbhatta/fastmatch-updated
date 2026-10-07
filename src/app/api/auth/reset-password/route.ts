@@ -3,8 +3,9 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { withErrorHandling } from '@/lib/withErrorHandling';
-import { readPurposeToken, passwordFingerprint } from '@/lib/tokens';
+import { readPurposeToken, passwordFingerprint, sentToCurrentAddress } from '@/lib/tokens';
 import { setPasswordPath } from '@/lib/welcomeLink';
+import { clearLoginLock, clientIp } from '@/lib/rateLimit';
 
 const bodySchema = z.object({
   token: z.string(),
@@ -23,7 +24,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
 
   const member = await prisma.member.findUnique({ where: { id: t.memberId } });
-  if (!member) return NextResponse.json({ error: 'Reset link is invalid or has expired.' }, { status: 400 });
+  // Only for the address it was sent to (an address since corrected doesn't count).
+  if (!member || !sentToCurrentAddress(t, member)) return NextResponse.json({ error: 'Reset link is invalid or has expired.' }, { status: 400 });
   // Single use: the link carries a fingerprint of the password it was issued
   // against, so once any link has set a new password, every earlier one dies.
   // (Links sent before fingerprints existed carry none; they lapse in 30 min.)
@@ -37,7 +39,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // instead; this catches a reset link sent before it did.
   if (member.awaitingPasswordSetup) {
     return NextResponse.json(
-      { error: 'Your account still needs setting up. Taking you to the welcome form…', finishSetupUrl: setPasswordPath(member.id) },
+      { error: 'Your account still needs setting up. Taking you to the welcome form…', finishSetupUrl: setPasswordPath(member) },
       { status: 409 },
     );
   }
@@ -45,6 +47,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
   // Their own now, whoever set the old one.
   await prisma.member.update({ where: { id: member.id }, data: { passwordHash, passwordSetByAdmin: false } });
+  // "Too many attempts… or use Forgot password?": the new password works straight away.
+  await clearLoginLock(member.email, clientIp(req));
 
   return NextResponse.json({ ok: true });
 });

@@ -10,9 +10,11 @@ import type { MemberFilter } from '../memberFilter';
  * Unless "Ignore preference" is ticked, they must also accept at least one of
  * the channels being sent (Email and SMS / Email / SMS — "Do not contact"
  * never matches). "Ignore preference" overrides only that choice.
- * Whatever the settings, email only counts for an address that hasn't
- * bounced; a bounced member can still get the text part of a blast (they
- * used to be dropped from the whole send).
+ * Whatever the settings, email only counts for an address the member has
+ * confirmed and that hasn't bounced, and a text for a mobile they've
+ * confirmed (a mistyped one belongs to a stranger). A bounced member can
+ * still get the text part of a blast (they used to be dropped from the
+ * whole send).
  *
  * With "Exclude booked members", anyone already booked (into the chosen event,
  * or any upcoming one) is left out too.

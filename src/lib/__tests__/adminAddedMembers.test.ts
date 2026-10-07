@@ -84,7 +84,7 @@ describe('"You\'ve been registered with FastMatch"', () => {
   });
 
   it('its choose-your-own-password link lasts a week (a normal reset link, 30 minutes) and still works as a reset link', () => {
-    const member = { id: 'm1', passwordHash: '$2a$12$abcdefghijklmnopqrstuv' };
+    const member = { id: 'm1', email: 'walk@example.test', passwordHash: '$2a$12$abcdefghijklmnopqrstuv' };
     const week = signPasswordResetToken(member, 7 * 24 * 60);
     const normal = signPasswordResetToken(member);
     const life = (t: string) => { const p = jwt.decode(t) as { iat: number; exp: number }; return (p.exp - p.iat) / 60; };

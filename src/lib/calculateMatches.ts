@@ -23,7 +23,16 @@ export async function calculateMatchesForEvent(eventId: string) {
     return { alreadyCalculated: true, matchesCreated: 0 };
   }
 
-  const ratings = await prisma.rating.findMany({ where: { eventId } });
+  // Only between people still on the night: a confirmed, checked-in booking,
+  // the same rule as for choosing (the ratings route). Someone Gil cancelled,
+  // refunded or unticked after they'd made choices (asked to leave, say)
+  // isn't matched, so nobody gets their contact details, nor they anyone's.
+  const present = new Set(
+    (await prisma.booking.findMany({ where: { eventId, status: 'CONFIRMED', checkedIn: true }, select: { memberId: true } }))
+      .map((b) => b.memberId),
+  );
+  const ratings = (await prisma.rating.findMany({ where: { eventId } }))
+    .filter((r) => present.has(r.raterId) && present.has(r.ratedMemberId));
   // On an "Opposite gender only" night (the default), two men or two women
   // never match, whatever was chosen (choices sent before the setting
   // existed, say). src/lib/ratingAudience.ts.

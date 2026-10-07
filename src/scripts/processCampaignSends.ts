@@ -14,8 +14,15 @@ async function run() {
   const inProgress = await prisma.campaignSend.findMany({ where: { status: 'SENDING' } });
 
   for (const send of inProgress) {
-    const result = await processCampaignSendBatch(send.id);
-    console.log(`Send ${send.id}: ${result.sentCount} sent, status ${result.status}`);
+    // One send going wrong mustn't hold up the others. It carries on from
+    // where it got to next run (each recipient is claimed before sending,
+    // so nobody gets it twice).
+    try {
+      const result = await processCampaignSendBatch(send.id);
+      console.log(`Send ${send.id}: ${result.sentCount} sent, status ${result.status}`);
+    } catch (err) {
+      console.error(`Send ${send.id}: this batch failed`, err);
+    }
   }
 
   console.log(`Processed ${inProgress.length} in-progress send(s).`);

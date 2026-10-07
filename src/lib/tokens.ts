@@ -78,10 +78,12 @@ export const RESET_LINK_MINUTES = 30;
  * "Choose a new password" link: dies after 30 minutes, or as soon as the
  * password changes. The "You've been registered" email gives its link longer
  * (it may sit in an inbox for days); it still dies once any password is set.
+ * Tied to the address it was sent to: once Gil corrects a mistyped address,
+ * a link that went to the wrong one stops working.
  */
-export function signPasswordResetToken(member: { id: string; passwordHash: string }, validMinutes: number = RESET_LINK_MINUTES): string {
+export function signPasswordResetToken(member: { id: string; email: string; passwordHash: string }, validMinutes: number = RESET_LINK_MINUTES): string {
   return jwt.sign(
-    { memberId: member.id, purpose: 'password_reset', pwd: passwordFingerprint(member.passwordHash) },
+    { memberId: member.id, purpose: 'password_reset', pwd: passwordFingerprint(member.passwordHash), email: member.email.toLowerCase() },
     secret(),
     { expiresIn: `${validMinutes}m` },
   );
@@ -122,6 +124,11 @@ export function signEmailChangeToken(member: { id: string; email: string; passwo
  * Reads a purpose-bound token (anything but a session). `reason` separates an
  * expired or forged link from one meant for something else.
  */
+/** Was this link sent to the member's current address? (See signPasswordResetToken.) */
+export function sentToCurrentAddress(t: { email?: string }, member: { email: string }): boolean {
+  return !!t.email && t.email === member.email.toLowerCase();
+}
+
 export function readPurposeToken(
   token: string,
   purpose: 'password_reset' | 'verify_email' | 'set_password' | 'unsubscribe' | 'change_email',

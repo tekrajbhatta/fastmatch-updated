@@ -4,6 +4,7 @@ import { prisma } from './prisma';
 import { sendBookingConfirmation } from './sendBookingConfirmation';
 import { closeCheckout, releasePendingBooking } from './pendingBooking';
 import { confirmBookingGroup } from './memberBooking';
+import { refundFriendsAlreadyBooked } from './friendShareRefund';
 import { placesTaken, countHeld, capacityProblem, holdCutoff } from './capacity';
 
 /**
@@ -34,10 +35,13 @@ export type AdminBookingResult =
 
 export async function createAdminBooking(
   db: Db,
-  event: Pick<Event, 'id' | 'maxMen' | 'maxWomen'>,
+  event: Pick<Event, 'id' | 'maxMen' | 'maxWomen' | 'status'>,
   member: Pick<Member, 'id' | 'name' | 'gender' | 'email'>,
   payment: AdminBookingPayment,
 ): Promise<AdminBookingResult> {
+  // Everyone on a cancelled event has been told and refunded: nobody new is
+  // booked in (and told "You're booked in").
+  if (event.status === 'CANCELLED') return { ok: false, reason: 'the event was cancelled' };
   const find = () => db.booking.findUnique({ where: { eventId_memberId: { eventId: event.id, memberId: member.id } } });
   let existing = await find();
   if (existing?.status === 'CONFIRMED') return { ok: false, reason: 'already has a booking for this event' };
@@ -110,6 +114,7 @@ export async function confirmPendingByAdmin(bookingId: string, payment: AdminBoo
   const b = await prisma.booking.findUnique({ where: { id: bookingId }, include: { member: true, event: true } });
   if (!b) return { ok: false, reason: 'the booking no longer exists' };
   if (b.status !== 'PENDING') return { ok: false, reason: "it's no longer waiting for payment" };
+  if (b.event.status === 'CANCELLED') return { ok: false, reason: 'the event was cancelled' };
 
   // Room for everyone on it, not counting the places it holds itself.
   const taken = await placesTaken(b.eventId, { excludeBookingId: b.id, excludeEmail: b.member.email });
@@ -142,6 +147,17 @@ export async function confirmPendingByAdmin(bookingId: string, payment: AdminBoo
       ...(paidOnline ? {} : { paidAmount: payment.paidAmount, paymentMethod: payment.method }),
     },
   });
+  // Friends on it who were booked already weren't added again. Paid online,
+  // their shares go back to the card, as when the payment confirms it.
+  const already = result.friendsAlreadyBooked ?? [];
+  if (paidOnline && already.length && b.stripePaymentIntentId) await refundFriendsAlreadyBooked(b.id, b.stripePaymentIntentId, already);
+  const names = already.map((f) => f.name);
+  const notices = [
+    ...(paidOnline ? [`${b.member.name} had just paid online by card, so it's recorded as an online payment.`] : []),
+    ...(names.length
+      ? [`${names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`} ${names.length === 1 ? 'was' : 'were'} already booked into this event, so ${names.length === 1 ? 'wasn’t' : 'weren’t'} added again${paidOnline ? ' (their share has been refunded to the card)' : ''}.`]
+      : []),
+  ];
   return {
     ok: true,
     bookingId: b.id,
@@ -149,7 +165,7 @@ export async function confirmPendingByAdmin(bookingId: string, payment: AdminBoo
     // Not confirmed here means the card payment's own webhook got there first,
     // and has sent the emails.
     notified: result.confirmed ? !result.notifyFailures.includes(b.id) : true,
-    ...(paidOnline ? { notice: `${b.member.name} had just paid online by card, so it's recorded as an online payment.` } : {}),
+    ...(notices.length ? { notice: notices.join(' ') } : {}),
   };
 }
 

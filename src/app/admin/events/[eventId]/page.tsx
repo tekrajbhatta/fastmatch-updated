@@ -29,7 +29,7 @@ export default function AdminEventDetailPage() {
   const [closeError, setCloseError] = useState<string | null>(null);
   // Where the results stand, and the "are you sure?" step before working them
   // out early: one tap used to lock in incomplete results with no trace.
-  const [closeStatus, setCloseStatus] = useState<{ checkedIn: number; submitted: number; matchesCalculated: boolean; matchesCalculatedAt: string | null; emailed: number } | null>(null);
+  const [closeStatus, setCloseStatus] = useState<{ checkedIn: number; submitted: number; matchesCalculated: boolean; matchesCalculatedAt: string | null; emailed: number; notEmailed: number; closeBlocked: string | null } | null>(null);
   const [confirmingClose, setConfirmingClose] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -37,7 +37,10 @@ export default function AdminEventDetailPage() {
   const [duplicating, setDuplicating] = useState(false);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
   // "Cancel event": what it would do (asked first), then what it did.
-  const [cancelPreview, setCancelPreview] = useState<{ blocked: string | null; attendees: number; onlinePayments: number; onlineTotal: number; byHand: number; unpaidPages: number } | null>(null);
+  const [cancelPreview, setCancelPreview] = useState<{ blocked: string | null; finishing: boolean; attendees: number; onlinePayments: number; onlineTotal: number; byHand: number; unpaidPages: number } | null>(null);
+  // Cancelled, but the cancellation stopped part-way: this many people are
+  // still booked, unrefunded and untold ("Finish cancelling").
+  const [unfinished, setUnfinished] = useState(0);
   const [cancelling, setCancelling] = useState(false);
   const [cancelResult, setCancelResult] = useState<CancelResult | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -52,6 +55,13 @@ export default function AdminEventDetailPage() {
     loadEvent();
     loadCloseStatus();
   }, [eventId]);
+
+  // A cancelled event with people still booked: its cancellation didn't finish.
+  useEffect(() => {
+    if (event?.status !== 'CANCELLED') { setUnfinished(0); return; }
+    fetch(`/api/admin/events/${eventId}/cancel`).then((r) => (r.ok ? r.json() : null))
+      .then((p) => setUnfinished(p && !p.blocked ? p.attendees : 0)).catch(() => {});
+  }, [event?.status, eventId, cancelResult]);
 
   function loadCloseStatus() {
     return fetch(`/api/admin/events/${eventId}/close`).then((r) => (r.ok ? r.json() : null)).then(setCloseStatus).catch(() => {});
@@ -175,28 +185,46 @@ export default function AdminEventDetailPage() {
         <button onClick={createBlastForEvent} className="block text-left font-bold text-ink hover:text-plum">Create blast for this event</button>
         <p className="mt-0.5 text-sm text-ink/50">Auto-fills subject, details, and booking link, so there&apos;s nothing to retype</p>
       </Card>
-      <Card className="mb-3">
-        <Link href={`/admin/events/${event.id}/bookings/new`} className="block font-bold text-ink hover:text-plum">Add a new booking</Link>
-        <p className="mt-0.5 text-sm text-ink/50">Book one or more registered members into this event</p>
-      </Card>
-      <Card className="mb-3">
-        <Link href={`/admin/events/${event.id}/members/new`} className="block font-bold text-ink hover:text-plum">Add a new member</Link>
-        <p className="mt-0.5 text-sm text-ink/50">Register someone new and book them into this event</p>
-      </Card>
+      {/* A cancelled event can't be booked into: everyone on it has been told. */}
+      {event.status !== 'CANCELLED' && (
+        <>
+          <Card className="mb-3">
+            <Link href={`/admin/events/${event.id}/bookings/new`} className="block font-bold text-ink hover:text-plum">Add a new booking</Link>
+            <p className="mt-0.5 text-sm text-ink/50">Book one or more registered members into this event</p>
+          </Card>
+          <Card className="mb-3">
+            <Link href={`/admin/events/${event.id}/members/new`} className="block font-bold text-ink hover:text-plum">Add a new member</Link>
+            <p className="mt-0.5 text-sm text-ink/50">Register someone new and book them into this event</p>
+          </Card>
+        </>
+      )}
 
       <Card className="mb-3">
         <div className="font-bold text-ink">Close event &amp; calculate matches</div>
         <p className="mt-0.5 mb-3 text-sm text-ink/50">
-          Results are worked out automatically after midnight (the event city&apos;s time), when choices close. Use this only to run them early (e.g. testing, or the host wants results before leaving the venue).
+          Results are worked out automatically after midnight (the event city&apos;s time), when choices close. Use this only to run them early, on the night (e.g. the host wants results before leaving the venue).
         </p>
         {closeStatus?.matchesCalculated && !closeResult ? (
-          <p className="text-sm font-bold text-green-dark">
-            Calculated on{' '}
-            {closeStatus.matchesCalculatedAt
-              ? new Date(closeStatus.matchesCalculatedAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
-              : 'an earlier date'}
-            {' '}· {closeStatus.emailed} {closeStatus.emailed === 1 ? 'person' : 'people'} emailed their results.
-          </p>
+          <>
+            <p className="text-sm font-bold text-green-dark">
+              Calculated on{' '}
+              {closeStatus.matchesCalculatedAt
+                ? new Date(closeStatus.matchesCalculatedAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+                : 'an earlier date'}
+              {' '}· {closeStatus.emailed} {closeStatus.emailed === 1 ? 'person' : 'people'} emailed their results.
+            </p>
+            {closeStatus.notEmailed > 0 && (
+              <div className="mt-2 rounded-lg bg-amber/15 p-3 text-sm text-ink">
+                <p className="mb-2">
+                  {closeStatus.notEmailed === 1 ? '1 person hasn’t' : `${closeStatus.notEmailed} people haven’t`} been emailed their results yet.
+                  The site tries again on its next results run, or you can send them now.
+                </p>
+                <Button onClick={handleCloseEventNow} disabled={closing} loading={closing}>{closing ? 'Sending…' : 'Send them now'}</Button>
+              </div>
+            )}
+          </>
+        ) : closeStatus?.closeBlocked && !closeResult ? (
+          <p className="text-sm text-ink/60">{closeStatus.closeBlocked}</p>
         ) : confirmingClose && !closeResult ? (
           <div className="rounded-lg bg-amber/15 p-3 text-sm text-ink">
             <p className="mb-3">
@@ -212,7 +240,7 @@ export default function AdminEventDetailPage() {
           <>
             <p className="text-sm font-bold text-green-dark">
               {closeResult.alreadyCalculated
-                ? 'Matches were already calculated for this event.'
+                ? `Done. ${closeResult.emailsSent ?? 0} more result email${closeResult.emailsSent === 1 ? '' : 's'} sent.`
                 : `Done. ${closeResult.matchesCreated} matches created, ${closeResult.emailsSent ?? 0} result email${closeResult.emailsSent === 1 ? '' : 's'} sent.`}
             </p>
             {!!closeResult.emailFailures?.length && (
@@ -234,23 +262,30 @@ export default function AdminEventDetailPage() {
 
       {/* Cancelling is its own action (Gil, Q3): hiding the event (Edit event,
           "Visible to the public") only hides it. */}
-      {(event.status !== 'CANCELLED' || cancelResult) && (
+      {(event.status !== 'CANCELLED' || cancelResult || unfinished > 0) && (
         <Card className="mb-3">
-          <div className="font-bold text-ink">Cancel event</div>
+          <div className="font-bold text-ink">{event.status === 'CANCELLED' && !cancelResult ? 'Finish cancelling' : 'Cancel event'}</div>
           {cancelResult ? (
             <div className="mt-2"><CancelSummary result={cancelResult} /></div>
           ) : (
             <>
-              <p className="mt-0.5 mb-3 text-sm text-ink/50">
-                Tells everyone booked by email and text, and refunds what they paid online. To only take it off the site, untick
-                &ldquo;Visible to the public&rdquo; in Edit event instead.
-              </p>
+              {event.status === 'CANCELLED' ? (
+                <p className="mt-0.5 mb-3 text-sm font-medium text-coral">
+                  This event was cancelled, but the cancellation stopped part-way: {unfinished === 1 ? '1 person is' : `${unfinished} people are`} still
+                  booked, not yet told or refunded. Finishing it deals with them as it would have.
+                </p>
+              ) : (
+                <p className="mt-0.5 mb-3 text-sm text-ink/50">
+                  Tells everyone booked by email and text, and refunds what they paid online. To only take it off the site, untick
+                  &ldquo;Visible to the public&rdquo; in Edit event instead.
+                </p>
+              )}
               {cancelPreview ? (
                 cancelPreview.blocked ? (
                   <p className="text-sm font-medium text-coral">{cancelPreview.blocked}</p>
                 ) : (
                   <div className="rounded-lg bg-coral/10 p-3 text-sm text-ink">
-                    <p className="mb-2 font-bold">Cancel this event? This can&apos;t be undone.</p>
+                    <p className="mb-2 font-bold">{cancelPreview.finishing ? 'Finish cancelling this event?' : 'Cancel this event? This can\u2019t be undone.'}</p>
                     <ul className="mb-3 list-inside list-disc space-y-1">
                       <li>
                         {cancelPreview.attendees === 0
@@ -266,13 +301,13 @@ export default function AdminEventDetailPage() {
                       {cancelPreview.unpaidPages > 0 && <li>{cancelPreview.unpaidPages} unpaid payment page{cancelPreview.unpaidPages === 1 ? ' is' : 's are'} closed.</li>}
                     </ul>
                     <div className="flex gap-2">
-                      <Button variant="danger" onClick={handleCancel} disabled={cancelling} loading={cancelling}>{cancelling ? 'Cancelling…' : 'Yes, cancel and refund'}</Button>
+                      <Button variant="danger" onClick={handleCancel} disabled={cancelling} loading={cancelling}>{cancelling ? 'Cancelling…' : cancelPreview.finishing ? 'Yes, finish cancelling' : 'Yes, cancel and refund'}</Button>
                       <Button variant="ghost" onClick={() => setCancelPreview(null)} disabled={cancelling}>Keep it</Button>
                     </div>
                   </div>
                 )
               ) : (
-                <Button variant="ghost" onClick={askToCancel}>Cancel event</Button>
+                <Button variant="ghost" onClick={askToCancel}>{event.status === 'CANCELLED' ? 'Finish cancelling' : 'Cancel event'}</Button>
               )}
             </>
           )}

@@ -17,6 +17,11 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   const member = await getSessionMember(req);
   if (!member) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
+  // A cancelled event says so, rather than "no confirmed booking" (every
+  // booking on it was cancelled with it).
+  const cancelled = await prisma.event.findFirst({ where: { id: params.eventId, status: 'CANCELLED' }, select: { id: true } });
+  if (cancelled) return NextResponse.json({ error: 'This event was cancelled.', cancelled: true }, { status: 409 });
+
   const booking = await prisma.booking.findUnique({
     where: { eventId_memberId: { eventId: params.eventId, memberId: member.id } },
   });

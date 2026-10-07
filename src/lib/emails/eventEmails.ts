@@ -218,6 +218,38 @@ export function eventChangeEmail(c: EventChange & { memberName: string; refunded
 }
 
 /**
+ * A member paid for a friend who was already booked into the event (they
+ * booked themselves in the meantime): the friend's share went back to the
+ * member's card. Their own booking, and any other friends', stand.
+ * `refunded` null: Stripe wouldn't refund it, so Gil will.
+ */
+export function friendShareRefundEmail(opts: {
+  memberName: string;
+  friendName: string;
+  /** Type and name: eventLabel(). */
+  eventName: string;
+  startsAt: Date;
+  timeZone: string;
+  refunded: number | null;
+  amount: number;
+}) {
+  const dateStr = opts.startsAt.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: opts.timeZone });
+  const P = 'margin:0 0 16px;';
+  const money = opts.refunded != null
+    ? `So we've refunded <strong>${formatPrice(opts.refunded)}</strong> for their place to your card. Depending on your bank, it can take 5 to 10 business days to show.`
+    : `So the <strong>${formatPrice(opts.amount)}</strong> for their place will be refunded to your card.`;
+  const html = emailLayout(`
+    <h1 style="${EMAIL_HEADING}">A refund for ${escapeHtml(opts.friendName)}'s place</h1>
+    <p style="${P}">Hi ${escapeHtml(opts.memberName)},</p>
+    <p style="${P}">${escapeHtml(opts.friendName)} was already booked into <strong>${escapeHtml(opts.eventName)}</strong> on ${dateStr}, so they didn't need the place you paid for. ${money}</p>
+    <p style="${P}">Your own booking is confirmed, and your booking confirmation email has everything you need for the night.</p>
+    <p style="${P}">If you have any questions, please contact <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>
+    <p style="${P}">The FastMatch Team</p>
+  `);
+  return { subject: oneLine(`A refund for ${opts.friendName}'s place`), html };
+}
+
+/**
  * A payment that came through after the booking's 10-minute hold ran out, by
  * which time someone else had taken the last place (Gil, Q1: "no bookings
  * taken if event is full"): they aren't booked, and the payment is refunded.

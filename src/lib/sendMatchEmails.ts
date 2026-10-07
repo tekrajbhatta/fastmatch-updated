@@ -36,26 +36,24 @@ export async function sendMatchEmails(eventId: string): Promise<MatchEmailOutcom
     }),
   ]);
 
-  // Each member's matches, so they get one email listing them all.
+  // Each member's matches, so they get one email listing them all. Only
+  // between people still on the night (a confirmed, checked-in booking):
+  // someone removed since the results were worked out gets nobody's
+  // details, and nobody gets theirs.
+  const bookingOf = new Map(attendees.map((b) => [b.memberId, b]));
+  const current = matches.filter((m) => bookingOf.has(m.memberAId) && bookingOf.has(m.memberBId));
   const byMember = new Map<string, { dateMatchIds: string[]; friendMatchIds: string[] }>();
   const entry = (id: string) => byMember.get(id) ?? byMember.set(id, { dateMatchIds: [], friendMatchIds: [] }).get(id)!;
-  for (const m of matches) {
+  for (const m of current) {
     for (const [self, other] of [[m.memberAId, m.memberBId], [m.memberBId, m.memberAId]]) {
       if (m.result === 'DATE') entry(self).dateMatchIds.push(other);
       else entry(self).friendMatchIds.push(other);
     }
   }
 
-  // Who still needs theirs: everyone checked in who hasn't had it, and (rarely)
-  // someone with a match but no checked-in booking any more, until each of
-  // their matches is marked emailed.
-  const bookingOf = new Map(attendees.map((b) => [b.memberId, b]));
+  // Who still needs theirs: everyone checked in who hasn't had it.
   const recipients = new Set<string>();
   for (const b of attendees) if (!b.resultsEmailedAt) recipients.add(b.memberId);
-  for (const m of matches) {
-    if (m.emailSent) continue;
-    for (const id of [m.memberAId, m.memberBId]) if (!bookingOf.has(id)) recipients.add(id);
-  }
 
   const eventsUrl = `${(process.env.APP_URL ?? '').replace(/\/+$/, '')}/events`;
   // "Your matches from Speed dating, 28-40 years" (Gil, item 14).
@@ -95,7 +93,7 @@ export async function sendMatchEmails(eventId: string): Promise<MatchEmailOutcom
   // A match counts as emailed once both people have had theirs (now or
   // before), so the ones left are exactly what a resend would need.
   const had = (id: string) => emailed.has(id) || !!bookingOf.get(id)?.resultsEmailedAt;
-  const done = matches.filter((m) => !m.emailSent && had(m.memberAId) && had(m.memberBId)).map((m) => m.id);
+  const done = current.filter((m) => !m.emailSent && had(m.memberAId) && had(m.memberBId)).map((m) => m.id);
   if (done.length) await prisma.match.updateMany({ where: { id: { in: done } }, data: { emailSent: true } });
   await prisma.event.update({ where: { id: eventId }, data: { matchEmailsSent: failed.length === 0 } });
   return { sent: emailed.size, failed };

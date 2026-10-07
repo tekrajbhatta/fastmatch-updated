@@ -18,38 +18,59 @@ const JWT_SECRET = process.env.JWT_SECRET as string;
 // natural checkpoint between every batch, not just within one long loop.
 const BATCH_SIZE = 100;
 
+export const SEND_IN_FLIGHT_ERROR =
+  'This blast is already being sent. Wait for it to finish, or pause or cancel it on the blast’s Send tab, before sending it again.';
+
 /**
  * Starts a new send for a (reusable) campaign: snapshots its current filter
- * into a fresh CampaignSend row, resolves and locks in the recipient list,
- * processes the first batch immediately (for responsiveness), and leaves
- * the rest to the scheduled job. This is what "Send Blast Now" does — a
- * blast can have many of these over its lifetime (its History tab).
+ * into a fresh CampaignSend row and locks in the recipient list. Nothing is
+ * sent here: the caller runs the first batch once it has answered (so "Send
+ * Blast Now" never waits on a hundred emails), and the scheduled job carries
+ * on with the rest. This is what "Send Blast Now" does — a blast can have
+ * many of these over its lifetime (its History tab).
+ *
+ * Refused while the blast already has a send going (or paused): a second
+ * press, or a second tab, used to send the whole list again. Checked with the
+ * blast locked, so two presses at once can't both start one.
  */
-export async function startCampaignSend(campaignId: string) {
+export async function startCampaignSend(
+  campaignId: string,
+): Promise<{ ok: true; sendId: string; totalRecipients: number } | { ok: false; error: string }> {
   const campaign = await prisma.campaign.findUniqueOrThrow({ where: { id: campaignId } });
 
   const where = buildMemberWhere(recipientFilter(campaign.filter as MemberFilter, campaign));
   const recipients = await prisma.member.findMany({ where, select: { id: true } });
   const recipientIds = recipients.map((r) => r.id);
 
-  const send = await prisma.campaignSend.create({
-    data: {
-      campaignId,
-      filterSnapshot: campaign.filter as any,
-      recipientIds,
-      totalRecipients: recipientIds.length,
-      status: 'SENDING',
-    },
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM \`Campaign\` WHERE id = ${campaignId} FOR UPDATE`;
+    const inFlight = await tx.campaignSend.findFirst({ where: { campaignId, status: { in: ['SENDING', 'PAUSED'] } } });
+    if (inFlight) return { ok: false as const, error: SEND_IN_FLIGHT_ERROR };
+    const send = await tx.campaignSend.create({
+      data: {
+        campaignId,
+        filterSnapshot: campaign.filter as any,
+        recipientIds,
+        totalRecipients: recipientIds.length,
+        status: 'SENDING',
+      },
+    });
+    return { ok: true as const, sendId: send.id, totalRecipients: recipientIds.length };
   });
-
-  return processCampaignSendBatch(send.id);
 }
 
 /**
  * Processes up to BATCH_SIZE recipients for one CampaignSend, starting from
  * sentCount, then returns. Safe to call repeatedly (by the scheduled job, or
- * manually via resume) — always picks up where it left off. Checks status
- * before and after the batch so pause/cancel take effect between batches.
+ * manually via resume) — always picks up where it left off.
+ *
+ * Each recipient is claimed (sentCount moved past them, while the send is
+ * still SENDING) before anything goes to them. So two runs at once — the
+ * scheduled job while "Send Blast Now" is still on its first batch, a resume
+ * against the job — can never both send to the same person: whichever claims
+ * a recipient sends to them, and the other stops. It also means pause and
+ * cancel take effect straight away, and a crash mid-batch costs at most the
+ * one recipient being sent to, instead of the batch going out again.
  */
 export async function processCampaignSendBatch(sendId: string) {
   const send = await prisma.campaignSend.findUniqueOrThrow({ where: { id: sendId }, include: { campaign: true } });
@@ -72,13 +93,25 @@ export async function processCampaignSendBatch(sendId: string) {
   // Recipients something failed for in this batch (counted once each).
   const failedIds = new Set<string>();
 
-  for (let i = send.sentCount; i < batchEnd; i++) {
-    const recipient = await prisma.member.findUnique({ where: { id: recipientIds[i] } });
-    if (recipient) {
+  try {
+    for (let i = send.sentCount; i < batchEnd; i++) {
+      // Claim this recipient first (see above). Not claimed: the send was
+      // paused or cancelled, or another run has got here first.
+      const claimed = await prisma.campaignSend.updateMany({
+        where: { id: sendId, status: 'SENDING', sentCount: i },
+        data: { sentCount: i + 1 },
+      });
+      if (claimed.count === 0) break;
+
+      const recipient = await prisma.member.findUnique({ where: { id: recipientIds[i] } });
+      // The list is fixed when the send starts: someone who has unsubscribed
+      // since (a paused send can wait days) gets nothing.
+      if (!recipient || !recipient.marketingOptIn) continue;
       if (
         campaign.sendEmail &&
-        // A bounced address is skipped, not the whole member: they may still
-        // get the text part of the blast.
+        // Only to an address they've confirmed is theirs. A bounced address
+        // is skipped, not the whole member: they may still get the text part.
+        recipient.emailVerified &&
         !recipient.emailBounced &&
         (recipient.contactMethod === 'EMAIL_AND_SMS' || recipient.contactMethod === 'EMAIL' || campaign.ignorePreference)
       ) {
@@ -114,6 +147,8 @@ export async function processCampaignSendBatch(sendId: string) {
       }
       if (
         campaign.sendSms &&
+        // Only to a mobile they've confirmed: a mistyped number belongs to a stranger.
+        recipient.mobileVerified &&
         (recipient.contactMethod === 'EMAIL_AND_SMS' || recipient.contactMethod === 'SMS' || campaign.ignorePreference)
       ) {
         if (recipient.mobile) {
@@ -122,35 +157,39 @@ export async function processCampaignSendBatch(sendId: string) {
         }
       }
     }
-  }
-
-  // One request for the whole batch. sendSmsBulk returns per-recipient
-  // failures rather than throwing, so an invalid or unsubscribed number can't
-  // abort the batch and strand the rest of the send — which is what the old
-  // per-recipient `await sendSms(...)` would have done on the first bad number.
-  if (smsRecipients.length > 0) {
-    const result = await sendSmsBulk({ to: smsRecipients, body: withOptOut(campaign.smsBody ?? '') });
-    if (result.failed.length > 0) {
-      console.error(
-        `Campaign send ${sendId}: ${result.failed.length} of ${smsRecipients.length} SMS recipient(s) rejected.`,
-        result.failed
-      );
-      for (const f of result.failed) for (const id of byMobile.get(f.to) ?? []) failedIds.add(id);
+  } finally {
+    // One request for the batch's texts — also when something went wrong
+    // part-way, as those recipients are already claimed. sendSmsBulk returns
+    // per-recipient failures rather than throwing, so an invalid or
+    // unsubscribed number can't abort the batch and strand the rest of the send.
+    if (smsRecipients.length > 0) {
+      try {
+        const result = await sendSmsBulk({ to: smsRecipients, body: withOptOut(campaign.smsBody ?? '') });
+        if (result.failed.length > 0) {
+          console.error(
+            `Campaign send ${sendId}: ${result.failed.length} of ${smsRecipients.length} SMS recipient(s) rejected.`,
+            result.failed
+          );
+          for (const f of result.failed) for (const id of byMobile.get(f.to) ?? []) failedIds.add(id);
+        }
+      } catch (err) {
+        console.error(`Campaign send ${sendId}: the batch's texts couldn't be sent`, err);
+        for (const ids of byMobile.values()) for (const id of ids) failedIds.add(id);
+      }
+    }
+    // failedCount: how many of those claimed a message didn't reach, so
+    // they're no longer counted as sent.
+    if (failedIds.size > 0) {
+      await prisma.campaignSend.update({ where: { id: sendId }, data: { failedCount: { increment: failedIds.size } } });
     }
   }
 
-  // sentCount is how far through the list the send has got; failedCount how
-  // many of those a message didn't reach, so they're no longer counted as sent.
-  const sentCount = batchEnd;
-  const failedCount = send.failedCount + failedIds.size;
-  const isComplete = sentCount >= recipientIds.length;
-
-  await prisma.campaignSend.update({
-    where: { id: sendId },
-    data: isComplete
-      ? { sentCount, failedCount, status: 'SENT', completedAt: new Date() }
-      : { sentCount, failedCount },
+  // Everyone claimed: the send is finished (unless it was paused or cancelled
+  // just now, in which case resuming finishes it).
+  await prisma.campaignSend.updateMany({
+    where: { id: sendId, status: 'SENDING', sentCount: { gte: recipientIds.length } },
+    data: { status: 'SENT', completedAt: new Date() },
   });
-
-  return { done: isComplete, sentCount, failedCount, status: isComplete ? ('SENT' as const) : ('SENDING' as const) };
+  const now = await prisma.campaignSend.findUniqueOrThrow({ where: { id: sendId } });
+  return { done: now.status === 'SENT' || now.status === 'CANCELLED', sentCount: now.sentCount, failedCount: now.failedCount, status: now.status };
 }

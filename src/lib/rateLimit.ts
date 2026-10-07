@@ -14,8 +14,14 @@ export interface Bucket { count: number; resetAt: Date }
 
 /** Every limit in one place. */
 export const LIMITS = {
-  /** Failed logins for one account: then it waits out the window. */
-  loginEmail: { limit: 10, windowMs: 15 * MINUTE },
+  /**
+   * Failed logins for one account from one address: then that address waits
+   * out the window. Per address, so someone elsewhere who knows a member's
+   * email can't lock them out by typing wrong passwords.
+   */
+  loginEmailIp: { limit: 10, windowMs: 15 * MINUTE },
+  /** Failed logins for one account from anywhere: a cap on guessing from many addresses at once. */
+  loginEmail: { limit: 50, windowMs: 15 * MINUTE },
   /** Failed logins from one address. Generous: a venue's wifi is shared on the night. */
   loginIp: { limit: 50, windowMs: 15 * MINUTE },
   /** Wrong guesses at one mobile code; then the code is cancelled and a new one needed. */
@@ -106,4 +112,19 @@ export async function isRateLimited(key: string, limit: number): Promise<boolean
 /** Starts a key afresh (a successful login, a new mobile code). */
 export async function clearRateLimit(key: string): Promise<void> {
   await prisma.rateLimit.deleteMany({ where: { key } });
+}
+
+/** The failed-login counters for an account, from this address and from anywhere. */
+export function loginKeys(email: string, ip: string): { emailKey: string; emailIpKey: string } {
+  return { emailKey: rateKey('login-email', email), emailIpKey: rateKey('login-email-ip', `${email.trim().toLowerCase()}|${ip}`) };
+}
+
+/**
+ * The account can log in again: after a successful login, or once its
+ * password has been reset (the locked-out message sends people to "Forgot
+ * password?", which used to leave the lock in place).
+ */
+export async function clearLoginLock(email: string, ip: string): Promise<void> {
+  const { emailKey, emailIpKey } = loginKeys(email, ip);
+  await prisma.rateLimit.deleteMany({ where: { key: { in: [emailKey, emailIpKey] } } });
 }

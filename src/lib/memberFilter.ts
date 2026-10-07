@@ -25,8 +25,9 @@ export interface MemberFilter {
   excludeAwaitingPasswordSetup?: boolean;
   // Blasts: only members the blast can actually reach — who accept at least
   // one of the channels being sent (unless respectContactMethod is false, for
-  // "Ignore preference"), where email only counts for an address that hasn't
-  // bounced. A bounced member can still get the text part of a blast.
+  // "Ignore preference"), where email only counts for a confirmed address
+  // that hasn't bounced, and a text for a confirmed mobile. A bounced member
+  // can still get the text part of a blast.
   reachableBy?: { email: boolean; sms: boolean; respectContactMethod: boolean };
 }
 
@@ -48,17 +49,14 @@ export function buildMemberWhere(filter: MemberFilter): Prisma.MemberWhereInput 
   if (filter.excludeAwaitingPasswordSetup) where.awaitingPasswordSetup = false;
   if (filter.reachableBy) {
     const { email, sms, respectContactMethod } = filter.reachableBy;
-    // A text sent whatever people's contact choice ("Ignore preference")
-    // reaches everyone, so there's nothing to narrow. Said by leaving the
-    // condition out: Prisma drops an empty {} that sits beside another
-    // condition in an OR, which left bounced members out of the text too.
-    if (!(sms && !respectContactMethod)) {
-      const ways: Prisma.MemberWhereInput[] = [];
-      if (email) ways.push({ emailBounced: false, ...(respectContactMethod ? { contactMethod: { in: ['EMAIL_AND_SMS', 'EMAIL'] } } : {}) });
-      if (sms) ways.push({ contactMethod: { in: ['EMAIL_AND_SMS', 'SMS'] } });
-      // Its own AND, so it can't clash with the search's OR. No channel: nobody.
-      where.AND = [{ OR: ways.length ? ways : [{ id: { in: [] } }] }];
-    }
+    // Each way needs a confirmed address: a mistyped mobile or email belongs
+    // to a stranger. (Never an empty {} here: Prisma drops one that sits
+    // beside another condition in an OR.)
+    const ways: Prisma.MemberWhereInput[] = [];
+    if (email) ways.push({ emailVerified: true, emailBounced: false, ...(respectContactMethod ? { contactMethod: { in: ['EMAIL_AND_SMS', 'EMAIL'] } } : {}) });
+    if (sms) ways.push({ mobileVerified: true, ...(respectContactMethod ? { contactMethod: { in: ['EMAIL_AND_SMS', 'SMS'] } } : {}) });
+    // Its own AND, so it can't clash with the search's OR. No channel: nobody.
+    where.AND = [{ OR: ways.length ? ways : [{ id: { in: [] } }] }];
   }
   if (filter.excludeBookedIn) {
     // Paid bookings only — an unpaid one isn't a booking (see pendingBooking.ts).

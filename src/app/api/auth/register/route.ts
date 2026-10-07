@@ -92,7 +92,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (existing) {
     // Their own name, not the one typed in.
     email = existing.awaitingPasswordSetup
-      ? finishInvitationEmail({ name: existing.name, setPasswordUrl: setPasswordUrl(existing.id, next) })
+      ? finishInvitationEmail({ name: existing.name, setPasswordUrl: setPasswordUrl(existing, next) })
       : alreadyMemberEmail({
           name: existing.name,
           loginUrl: `${appUrl}/login${next ? `?next=${encodeURIComponent(next)}` : ''}`,

@@ -72,7 +72,7 @@ export const REGISTERED_PASSWORD_LINK_DAYS = 7;
 export interface RegisteredLinks { loginUrl: string; choosePasswordUrl: string }
 
 /** This member's: the log-in page, and a reset link that lasts a week. */
-export function registeredLinks(member: { id: string; passwordHash: string }): RegisteredLinks {
+export function registeredLinks(member: { id: string; email: string; passwordHash: string }): RegisteredLinks {
   const appUrl = (process.env.APP_URL ?? '').replace(/\/+$/, '');
   return {
     loginUrl: `${appUrl}/login`,

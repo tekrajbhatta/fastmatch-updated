@@ -87,6 +87,15 @@ describe('cancelBlocked', () => {
     expect(cancelBlocked({ status: 'UPCOMING', startsAt: new Date('2026-10-09T08:30:00Z'), city: sydney }, now)).toMatch(/already happened/);
     expect(cancelBlocked({ status: 'CANCELLED', startsAt: new Date('2026-10-20T08:30:00Z'), city: sydney }, now)).toMatch(/already been cancelled/);
   });
+
+  it('a cancellation that stopped part-way can be finished, whenever that\'s noticed (batch 11)', async () => {
+    const { cancelBlocked } = await import('../cancelEvent');
+    const now = new Date('2026-10-10T09:00:00Z');
+    const sydney = { name: 'Sydney' };
+    // Two people still booked on a cancelled event: finishing is allowed, even after the night.
+    expect(cancelBlocked({ status: 'CANCELLED', startsAt: new Date('2026-10-20T08:30:00Z'), city: sydney }, now, 2)).toBeNull();
+    expect(cancelBlocked({ status: 'CANCELLED', startsAt: new Date('2026-10-09T08:30:00Z'), city: sydney }, now, 2)).toBeNull();
+  });
 });
 
 describe('the cancellation email and text', () => {

@@ -46,6 +46,10 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
+  // First: nobody is added to a cancelled event, whatever the form says.
+  const event = await prisma.event.findUniqueOrThrow({ where: { id: params.id } });
+  if (event.status === 'CANCELLED') return NextResponse.json({ error: 'This event was cancelled, so nobody can be booked into it. Nothing was saved.' }, { status: 409 });
+
   const parsed = schema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Please check the member details.' }, { status: 400 });
@@ -60,7 +64,6 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   );
   if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: checked.status });
 
-  const event = await prisma.event.findUniqueOrThrow({ where: { id: params.id } });
   const flags = CONFIRMATION_OPTIONS[data.confirmation];
   const passwordHash = await bcrypt.hash(data.password, 12);
 

@@ -153,9 +153,8 @@ function ViewBlastInner() {
     setSendError(null);
     setJustSent(null);
     // From the click until the first progress check comes back, show that
-    // it's sending: a short list goes out entirely inside the send request,
-    // which can take a few seconds. "Send Blast Now" is out of reach
-    // meanwhile, so it can't be clicked twice.
+    // it's sending. "Send Blast Now" is out of reach meanwhile, so it can't
+    // be clicked twice (and the server refuses a second send while one is going).
     setStartingSend(true);
     try {
       const filterToSave = currentFilterPayload();
@@ -175,6 +174,8 @@ function ViewBlastInner() {
       // silently, leaving the admin waiting for progress that never came.
       if (!res.ok) {
         setSendError(typeof data.error === 'string' ? data.error : 'The blast could not be sent.');
+        // A send already going (or paused) shows with its Pause / Cancel buttons.
+        loadHistory();
         return;
       }
       // Poll for progress
@@ -194,9 +195,7 @@ function ViewBlastInner() {
     // Only an in-flight send belongs in `activeSend`. This used to assign
     // `latest[0]` unconditionally, so a FINISHED send stayed there and the
     // progress block — whose label was a two-way ternary with no completion
-    // branch — sat on "N/N sending…" forever. Small sends finish inside the
-    // POST itself, so the very first poll already sees SENT and it never
-    // changed again.
+    // branch — sat on "N/N sending…" forever.
     const inFlight = current && (current.status === 'SENDING' || current.status === 'PAUSED');
     setActiveSend(inFlight ? current : null);
     setJustSent(current && current.status === 'SENT' ? current : null);

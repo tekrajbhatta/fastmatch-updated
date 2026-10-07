@@ -175,4 +175,38 @@ describe('cancelEvent (Gil, Q2-Q4)', () => {
     expect(h.refundCalls).toEqual([]);
     expect(h.emails).toEqual([]);
   });
+
+  it('a booking Gil set back to "Pending" is a booking, not a payment page: refunded if paid online, and told (batch 11)', async () => {
+    h.bookings.push(
+      booking('SetBack', { status: 'PENDING', stripePaymentIntentId: 'cs_setback', confirmedAt: new Date('2026-10-01T00:00:00Z') }),
+      booking('NoPage', { status: 'PENDING', paymentMethod: 'CASH', paidAmount: '45' }),
+    );
+    h.refunds.cs_setback = { outcome: 'refunded', amount: 49 };
+    // Its long-paid page reads as paid: it used to be counted as a payment
+    // still arriving (that never would), and left unrefunded and untold.
+    h.close.SetBack = 'paid';
+    const { cancelEvent } = await import('../cancelEvent');
+    const o = await cancelEvent('e1');
+    const status = (id: string) => h.bookings.find((b) => b.id === id)?.status;
+    expect(status('SetBack')).toBe('REFUNDED');
+    expect(o.refunded).toContainEqual({ member: 'SetBack', amount: 49 });
+    // A pending one with no payment page used to be quietly deleted.
+    expect(status('NoPage')).toBe('CANCELLED');
+    expect(o.byHand).toContainEqual({ member: 'NoPage', amount: 45, method: 'Cash' });
+    expect(h.dropped).not.toContain('NoPage');
+    expect(h.emails.map((m) => m.to)).toEqual(expect.arrayContaining(['setback@example.test', 'nopage@example.test']));
+    expect(o.paymentsArriving).toBe(1); // only the page really being paid
+  });
+
+  it('run again on a cancelled event, it finishes what an interrupted run left (batch 11)', async () => {
+    h.event.status = 'CANCELLED';
+    h.bookings = [booking('Left', { stripePaymentIntentId: 'cs_left' })];
+    h.refunds.cs_left = { outcome: 'refunded', amount: 49 };
+    const { cancelEvent } = await import('../cancelEvent');
+    const o = await cancelEvent('e1');
+    expect(h.bookings[0].status).toBe('REFUNDED');
+    expect(o.refunded).toEqual([{ member: 'Left', amount: 49 }]);
+    expect(h.emails.map((m) => m.to)).toEqual(['left@example.test']);
+  });
 });
+

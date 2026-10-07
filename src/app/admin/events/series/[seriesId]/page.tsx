@@ -24,6 +24,9 @@ export default function SeriesPage() {
   const [askCancel, setAskCancel] = useState<{ id: string; number: number }[] | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelResult, setCancelResult] = useState<CancelResult | null>(null);
+  // "Delete selected" asks first: deleting can't be undone, and the button
+  // sits next to "Make not public".
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   function load() {
     fetch(`/api/admin/events/series/${seriesId}`).then((r) => r.json()).then((d) => { setEvents(d); setLoaded(true); });
@@ -131,8 +134,33 @@ export default function SeriesPage() {
       <div className="flex flex-wrap gap-2">
         <Button variant="ghost" disabled={!checked.size} onClick={() => runAction('SET_NOT_PUBLIC')}>Make not public</Button>
         <Button variant="ghost" disabled={!checked.size} onClick={() => runAction('SET_PUBLIC')}>Make public</Button>
-        <Button variant="danger" disabled={!checked.size} onClick={() => runAction('DELETE')}>Delete selected</Button>
+        <Button variant="danger" disabled={!checked.size} onClick={() => { setResult(null); setConfirmingDelete(true); }}>Delete selected</Button>
       </div>
+
+      {confirmingDelete && checked.size > 0 && (() => {
+        const chosen = events.filter((e) => checked.has(e.id));
+        const unbooked = chosen.filter((e) => e._count.bookings === 0);
+        const booked = chosen.length - unbooked.length;
+        return (
+          <div className="mt-3 rounded-lg bg-coral/10 p-3 text-sm text-ink">
+            <p className="mb-2 font-bold">
+              Delete {chosen.length === 1 ? 'the selected event' : `the ${chosen.length} selected events`} ({chosen.map((e) => `#${e.number}`).join(', ')})?
+            </p>
+            <ul className="mb-3 list-inside list-disc space-y-1">
+              {unbooked.length > 0 && (
+                <li>{unbooked.length === 1 ? '1 event nobody has booked is' : `${unbooked.length} events nobody has booked are`} deleted for good. This can&apos;t be undone.</li>
+              )}
+              {booked > 0 && (
+                <li>{booked === 1 ? '1 event has' : `${booked} events have`} bookings, so {booked === 1 ? 'it isn’t' : 'they aren’t'} deleted: you&apos;ll be asked whether to cancel {booked === 1 ? 'it' : 'them'} instead.</li>
+              )}
+            </ul>
+            <div className="flex gap-2">
+              <Button variant="danger" onClick={() => { setConfirmingDelete(false); runAction('DELETE'); }}>Yes, delete</Button>
+              <Button variant="ghost" onClick={() => setConfirmingDelete(false)}>Keep them</Button>
+            </div>
+          </div>
+        );
+      })()}
 
       {result && <p role="status" className={`mt-4 text-sm font-bold ${result.warn ? 'text-coral' : 'text-green-dark'}`}>{result.text}</p>}
       {askCancel && (

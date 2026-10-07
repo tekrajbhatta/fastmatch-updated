@@ -48,20 +48,24 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const [others, theirBookings] = otherIds.length
     ? await Promise.all([
         prisma.member.findMany({ where: { id: { in: otherIds } }, select: { id: true, name: true, email: true, mobile: true } }),
-        prisma.booking.findMany({ where: { eventId: { in: eventIds }, memberId: { in: otherIds } }, select: { eventId: true, memberId: true, badge: true } }),
+        prisma.booking.findMany({ where: { eventId: { in: eventIds }, memberId: { in: otherIds } }, select: { eventId: true, memberId: true, badge: true, status: true, checkedIn: true } }),
       ])
     : [[], []];
   const person = new Map(others.map((o) => [o.id, o]));
   const badge = new Map(theirBookings.map((b) => [`${b.eventId}:${b.memberId}`, b.badge]));
+  // Matches only between people still on the night (a confirmed, checked-in
+  // booking each), as the results email: someone Gil removed after the
+  // results were worked out isn't shown, and doesn't see anyone.
+  const present = new Set(theirBookings.filter((b) => b.status === 'CONFIRMED' && b.checkedIn).map((b) => `${b.eventId}:${b.memberId}`));
 
   const history = bookings.map((b) => {
-    const mine = matches.filter((m) => m.eventId === b.eventId);
+    const mine = b.checkedIn ? matches.filter((m) => m.eventId === b.eventId) : [];
     const withDetails = (result: 'DATE' | 'FRIEND') =>
       mine
         .filter((m) => m.result === result)
         .map((m) => {
           const otherId = m.memberAId === member.id ? m.memberBId : m.memberAId;
-          const p = person.get(otherId);
+          const p = present.has(`${b.eventId}:${otherId}`) ? person.get(otherId) : undefined;
           return p ? { ...p, badge: badge.get(`${b.eventId}:${otherId}`) ?? null } : null;
         })
         .filter((p): p is NonNullable<typeof p> => p !== null);

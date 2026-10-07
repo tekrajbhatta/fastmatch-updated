@@ -50,8 +50,11 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   // and the comparison below is explicit about what counts as a change.
   const timeChanged = before.startsAt.getTime() !== new Date(event.startsAt).getTime();
   const venueChanged = before.venueId !== event.venueId;
+  // An event that has already started is being corrected for the records
+  // (the venue for the reports, say), not moved: nobody is told about it.
+  const alreadyStarted = before.startsAt.getTime() <= Date.now();
 
-  if (timeChanged || venueChanged) {
+  if ((timeChanged || venueChanged) && !alreadyStarted) {
     const change = {
       eventName: eventLabel(event),
       themeName: event.theme.name,

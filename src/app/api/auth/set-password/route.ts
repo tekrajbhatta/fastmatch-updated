@@ -22,17 +22,26 @@ import { isAustralianMobile, sameMobile, AU_MOBILE_MESSAGE } from '@/lib/mobile'
  * for its first password. Afterwards "Forgot password" is the way back in.
  */
 
-type TokenResult = { ok: true; memberId: string } | { ok: false; error: string };
+type TokenResult = { ok: true; memberId: string; email: string | null } | { ok: false; error: string };
 
 function readToken(token: string): TokenResult {
   try {
     // Read here, not at module scope — see the note in src/lib/emails/send.ts.
-    const payload = jwt.verify(token, process.env.JWT_SECRET as string) as { memberId: string; purpose: string };
-    if (payload.purpose === 'set_password') return { ok: true, memberId: payload.memberId };
+    const payload = jwt.verify(token, process.env.JWT_SECRET as string) as { memberId: string; purpose: string; email?: unknown };
+    if (payload.purpose === 'set_password') return { ok: true, memberId: payload.memberId, email: typeof payload.email === 'string' ? payload.email : null };
   } catch {
     /* fall through */
   }
   return { ok: false, error: 'This link is invalid or has expired.' };
+}
+
+/**
+ * The link only works for the address it was sent to: once Gil corrects a
+ * friend's mistyped email, the link that went to the wrong inbox is dead
+ * (setPasswordToken). "Forgot password?" sends a fresh one.
+ */
+function sentToMember(t: { email: string | null }, member: { email: string }): boolean {
+  return !!t.email && t.email === member.email.toLowerCase();
 }
 
 const ALREADY_SET = 'Your password has already been set. Please log in, or use "Forgot password" if you need a new one.';
@@ -46,7 +55,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     where: { id: t.memberId },
     include: { referredBy: { select: { name: true } }, _count: { select: { bookings: true } } },
   });
-  if (!member) return NextResponse.json({ error: 'This link is invalid or has expired.' }, { status: 400 });
+  if (!member || !sentToMember(t, member)) return NextResponse.json({ error: 'This link is invalid or has expired.' }, { status: 400 });
   if (!member.awaitingPasswordSetup) return NextResponse.json({ error: ALREADY_SET }, { status: 400 });
 
   return NextResponse.json({
@@ -100,7 +109,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (!t.ok) return NextResponse.json({ error: t.error }, { status: 400 });
 
   const member = await prisma.member.findUnique({ where: { id: t.memberId }, include: { _count: { select: { bookings: true } } } });
-  if (!member) return NextResponse.json({ error: 'This link is invalid or has expired.' }, { status: 400 });
+  if (!member || !sentToMember(t, member)) return NextResponse.json({ error: 'This link is invalid or has expired.' }, { status: 400 });
   if (!member.awaitingPasswordSetup) return NextResponse.json({ error: ALREADY_SET }, { status: 400 });
 
   // The number their friend typed is left alone; a new one must be an

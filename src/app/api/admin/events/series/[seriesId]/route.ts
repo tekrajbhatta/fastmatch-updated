@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
-import { cancelBlocked, cancelEvent, type CancelOutcome } from '@/lib/cancelEvent';
+import { whyCantCancel, cancelEvent, type CancelOutcome } from '@/lib/cancelEvent';
 
 const actionSchema = z.object({
   action: z.enum(['DELETE', 'CANCEL', 'SET_NOT_PUBLIC', 'SET_PUBLIC']),
@@ -64,7 +64,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
       cancelled: 0, skipped: [], notified: 0, notifyFailures: [], refunded: [], refundFailed: [], byHand: [], paymentsClosed: 0, paymentsArriving: 0,
     };
     for (const e of events) {
-      const blocked = cancelBlocked(e);
+      const blocked = await whyCantCancel(e);
       if (blocked) { total.skipped.push({ number: e.number, reason: blocked }); continue; }
       const o = await cancelEvent(e.id);
       total.cancelled++;
@@ -86,13 +86,13 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   // leaves it untouched, the user, 4 Oct).
   const toDelete = events.filter((e) => e._count.bookings === 0).map((e) => e.id);
   await prisma.event.deleteMany({ where: { id: { in: toDelete } } });
-  const booked = events.filter((e) => e._count.bookings > 0);
+  const booked = await Promise.all(events.filter((e) => e._count.bookings > 0).map(async (e) => ({ e, blocked: await whyCantCancel(e) })));
   return NextResponse.json({
     ok: true,
     deleted: toDelete.length,
     // Can be cancelled instead, if Gil says yes.
-    withBookings: booked.filter((e) => !cancelBlocked(e)).map((e) => ({ id: e.id, number: e.number })),
+    withBookings: booked.filter((x) => !x.blocked).map((x) => ({ id: x.e.id, number: x.e.number })),
     // Neither deleted nor cancellable: already cancelled, or already happened.
-    leftAlone: booked.filter((e) => cancelBlocked(e)).map((e) => ({ number: e.number, reason: cancelBlocked(e) })),
+    leftAlone: booked.filter((x) => x.blocked).map((x) => ({ number: x.e.number, reason: x.blocked })),
   });
 });

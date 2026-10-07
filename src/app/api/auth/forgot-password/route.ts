@@ -32,7 +32,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // them in without ever confirming their details (their date of birth was
     // only a guess) or accepting the terms, so they still couldn't book.
     const { subject, html } = member.awaitingPasswordSetup
-      ? finishInvitationEmail({ name: member.name, setPasswordUrl: setPasswordUrl(member.id), reason: 'reset' })
+      ? finishInvitationEmail({ name: member.name, setPasswordUrl: setPasswordUrl(member), reason: 'reset' })
       : passwordResetEmail({
           memberName: member.name,
           // Carries a fingerprint of the current password, so the link dies the

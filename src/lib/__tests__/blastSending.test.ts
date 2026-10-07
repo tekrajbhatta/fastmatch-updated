@@ -27,37 +27,32 @@ describe('isPermanentAddressRejection', () => {
 
 /**
  * Who a blast reaches: anyone who accepts one of the channels being sent,
- * where email only counts for an address that hasn't bounced. A bounced
- * member still gets the text part of an email-and-text blast (they used to be
- * dropped from the whole send).
+ * where email only counts for a confirmed address that hasn't bounced, and a
+ * text for a confirmed mobile (batch 11: a mistyped one belongs to a
+ * stranger). A bounced member still gets the text part of an email-and-text
+ * blast (they used to be dropped from the whole send).
  */
 describe('recipientFilter: reach', () => {
   const ways = (blast: { sendEmail: boolean; sendSms: boolean; ignorePreference: boolean }) =>
     ((buildMemberWhere(recipientFilter({}, blast)).AND as any[])[0].OR) as any[];
+  const EMAIL = { emailVerified: true, emailBounced: false, contactMethod: { in: ['EMAIL_AND_SMS', 'EMAIL'] } };
+  const SMS = { mobileVerified: true, contactMethod: { in: ['EMAIL_AND_SMS', 'SMS'] } };
 
-  it('email only: accepts email and hasn’t bounced', () => {
-    expect(ways({ sendEmail: true, sendSms: false, ignorePreference: false })).toEqual([
-      { emailBounced: false, contactMethod: { in: ['EMAIL_AND_SMS', 'EMAIL'] } },
-    ]);
+  it('email only: a confirmed address that accepts email and hasn’t bounced', () => {
+    expect(ways({ sendEmail: true, sendSms: false, ignorePreference: false })).toEqual([EMAIL]);
   });
 
-  it('email and text: a bounced member who takes texts is still included', () => {
+  it('email and text: a bounced member who takes texts (on a confirmed mobile) is still included', () => {
     const w = ways({ sendEmail: true, sendSms: true, ignorePreference: false });
-    expect(w).toContainEqual({ contactMethod: { in: ['EMAIL_AND_SMS', 'SMS'] } });
-    expect(w).toContainEqual({ emailBounced: false, contactMethod: { in: ['EMAIL_AND_SMS', 'EMAIL'] } });
+    expect(w).toEqual([EMAIL, SMS]);
   });
 
-  it('"Ignore preference": contact method is ignored, a dead address still isn’t emailed', () => {
-    expect(ways({ sendEmail: true, sendSms: false, ignorePreference: true })).toEqual([{ emailBounced: false }]);
-  });
-
-  it('"Ignore preference" with a text: everyone can get the text, a bounced address included', () => {
-    // No reach condition at all: Prisma drops an empty {} beside another
-    // condition in an OR, which used to leave bounced members out of the text.
-    // (The send itself still skips the email to a bounced address.)
-    for (const sendEmail of [true, false]) {
-      expect(buildMemberWhere(recipientFilter({}, { sendEmail, sendSms: true, ignorePreference: true })).AND).toBeUndefined();
-    }
+  it('"Ignore preference": contact method is ignored; a dead or unconfirmed address still isn’t used', () => {
+    expect(ways({ sendEmail: true, sendSms: false, ignorePreference: true })).toEqual([{ emailVerified: true, emailBounced: false }]);
+    // Never an empty {}: Prisma drops one beside another condition in an OR,
+    // which once left bounced members out of the text too.
+    expect(ways({ sendEmail: true, sendSms: true, ignorePreference: true })).toEqual([{ emailVerified: true, emailBounced: false }, { mobileVerified: true }]);
+    expect(ways({ sendEmail: false, sendSms: true, ignorePreference: true })).toEqual([{ mobileVerified: true }]);
   });
 
   it('never reaches a member who unsubscribed, "Ignore preference" or not (the user, 7 Oct)', () => {

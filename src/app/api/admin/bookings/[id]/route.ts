@@ -7,6 +7,7 @@ import { PAYMENT_METHOD_VALUES } from '@/lib/paymentMethod';
 import { confirmPendingByAdmin } from '@/lib/adminBooking';
 import { placesTaken, capacityProblem } from '@/lib/capacity';
 import { closeCheckout } from '@/lib/pendingBooking';
+import { BOOKING_MEMBER_SELECT } from '@/lib/memberFields';
 
 const patchSchema = z.object({
   status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'REFUNDED']),
@@ -40,6 +41,11 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
 
   const existing = await prisma.booking.findUniqueOrThrow({ where: { id: params.id }, include: { member: true, event: true } });
 
+  // Marking someone paid on a cancelled event would book them back in.
+  if (data.status === 'CONFIRMED' && existing.status !== 'CONFIRMED' && existing.event.status === 'CANCELLED') {
+    return NextResponse.json({ error: 'This event was cancelled, so nobody can be booked into it.' }, { status: 409 });
+  }
+
   // An unpaid online booking marked Paid by hand goes through the same step
   // a card payment does: its friends are booked in, everyone is emailed, the
   // discount code is counted, and its payment page is closed so it can't be
@@ -52,7 +58,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
       checkedIn: data.checkedIn,
     });
     if (!r.ok) return NextResponse.json({ error: `Couldn't mark it paid: ${r.reason}.` }, { status: 409 });
-    const saved = await prisma.booking.findUniqueOrThrow({ where: { id: existing.id }, include: { member: true } });
+    const saved = await prisma.booking.findUniqueOrThrow({ where: { id: existing.id }, include: { member: { select: BOOKING_MEMBER_SELECT } } });
     return NextResponse.json({ ...saved, ...(r.notice ? { notice: r.notice } : {}) });
   }
 
@@ -100,7 +106,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
       // When it was first confirmed, kept from then on.
       ...(data.status === 'CONFIRMED' ? { confirmedAt: existing.confirmedAt ?? new Date() } : {}),
     },
-    include: { member: true },
+    include: { member: { select: BOOKING_MEMBER_SELECT } },
   });
 
   return NextResponse.json(booking);

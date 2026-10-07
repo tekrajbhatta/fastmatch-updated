@@ -1,14 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
-import { startCampaignSend } from '@/lib/campaigns/runSend';
+import { startCampaignSend, processCampaignSendBatch } from '@/lib/campaigns/runSend';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { blastContentProblem, BLAST_PROBLEM_ON_SEND } from '@/lib/campaigns/fields';
 
 // POST /api/admin/campaigns/:id/send — "Send Blast Now". Starts a new
-// CampaignSend (a reusable blast can have many of these over its lifetime).
-// Processes the first batch immediately; the scheduled job
-// (processCampaignSends.ts) continues it to completion for larger lists.
+// CampaignSend (a reusable blast can have many of these over its lifetime),
+// unless this blast is already being sent (409). Answers straight away, then
+// sends the first batch; the scheduled job (processCampaignSends.ts)
+// continues it to completion for larger lists. It used to send the first
+// hundred inside the request, which could outlast the server's time limit:
+// the page then said it had failed while it was still going out.
 export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
   const admin = await requireAdmin(req);
@@ -27,6 +30,10 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   const problem = blastContentProblem(campaign);
   if (problem) return NextResponse.json({ error: BLAST_PROBLEM_ON_SEND[problem] }, { status: 400 });
 
-  const result = await startCampaignSend(params.id);
-  return NextResponse.json(result);
+  const started = await startCampaignSend(params.id);
+  if (!started.ok) return NextResponse.json({ error: started.error }, { status: 409 });
+  after(() =>
+    processCampaignSendBatch(started.sendId).catch((err) => console.error(`Campaign send ${started.sendId}: first batch failed`, err)),
+  );
+  return NextResponse.json({ sendId: started.sendId, status: 'SENDING', sentCount: 0, totalRecipients: started.totalRecipients });
 });

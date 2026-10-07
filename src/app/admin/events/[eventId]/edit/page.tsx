@@ -100,8 +100,9 @@ export default function EditEventPage() {
     const checked = checkEventFields(body);
     if (!checked.ok) { setFieldErrors(checked.fieldErrors); setError(CHECK_FIELDS); setPendingNotice(null); return; }
 
-    // The same two changes the server notifies about (see its PATCH).
-    if (!confirmed && was && was.attendees > 0) {
+    // The same two changes the server notifies about (see its PATCH) — not
+    // for an event that has already started: that's a correction, nobody is told.
+    if (!confirmed && was && was.attendees > 0 && new Date(was.startsAt).getTime() > Date.now()) {
       const changes = [
         new Date(startsAt).getTime() !== new Date(was.startsAt).getTime() && 'the new date and time',
         form.venueId !== was.venueId && 'the new venue',

@@ -8,7 +8,9 @@ import {
   signPasswordResetToken,
   signEmailVerificationToken,
   readPurposeToken,
+  sentToCurrentAddress,
 } from '@/lib/tokens';
+import { setPasswordToken } from '@/lib/memberBooking';
 
 const SECRET = 'test-secret-for-tokens';
 beforeAll(() => {
@@ -68,6 +70,19 @@ describe('emailed links', () => {
   it('a reset link carries the password fingerprint, so it dies once used', () => {
     const t = readPurposeToken(signPasswordResetToken(member), 'password_reset');
     expect(t.ok && t.pwd).toBe(passwordFingerprint(member.passwordHash));
+  });
+
+  it('a reset link only works for the address it was sent to, so correcting a mistyped address kills it', () => {
+    const t = readPurposeToken(signPasswordResetToken(member), 'password_reset');
+    expect(t.ok && sentToCurrentAddress(t, member)).toBe(true);
+    expect(t.ok && sentToCurrentAddress(t, { email: 'olivia@example.org' })).toBe(false);
+    // Links sent before this carried no address: no longer accepted.
+    expect(sentToCurrentAddress({}, member)).toBe(false);
+  });
+
+  it('a friend\'s welcome (set-password) link carries the address it was sent to', () => {
+    const p = jwt.decode(setPasswordToken(member)) as Record<string, unknown>;
+    expect(p).toMatchObject({ memberId: 'member-1', purpose: 'set_password', email: 'olivia@example.com' });
   });
 
   it('a confirm-email link is tied to the address it was sent to', () => {

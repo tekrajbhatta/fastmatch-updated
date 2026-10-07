@@ -38,6 +38,26 @@ export function eventsDueForResults(now: Date = new Date()): Prisma.EventWhereIn
   };
 }
 
+/**
+ * Events whose results were worked out but didn't all go out (Mailgun down
+ * at midnight, say, or the job stopped between working them out and
+ * emailing): the job tries the rest again each run, within the same
+ * look-back. Nobody already emailed is emailed twice (sendMatchEmails).
+ */
+export function eventsWithResultsToResend(now: Date = new Date()): Prisma.EventWhereInput {
+  const today = dateIn(now, EVENT_TIME_ZONE);
+  return {
+    matchesCalculated: true,
+    matchEmailsSent: false,
+    draft: false,
+    status: { not: 'CANCELLED' },
+    startsAt: {
+      gte: startOfDayIn(addDays(today, -RESULTS_LOOK_BACK_DAYS), EVENT_TIME_ZONE),
+      lt: now,
+    },
+  };
+}
+
 /** Have the event's choices closed (its city's midnight has passed)? */
 export function resultsDue(event: { startsAt: Date; city: { name: string } | null }, now: Date = new Date()): boolean {
   return endOfEventNight(event) <= now;

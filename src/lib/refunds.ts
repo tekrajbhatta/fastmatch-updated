@@ -49,6 +49,36 @@ export async function refundCheckoutSession(sessionId: string, meta: { bookingId
 }
 
 /**
+ * Refunds part of what was paid on one of this site's payment pages: one
+ * friend's share of a group payment, when that friend turned out to be
+ * booked already. `key` makes it safe to call twice for the same share (a
+ * retried webhook); a later full refund (the event cancelled) refunds
+ * whatever is left. Never throws.
+ */
+export async function refundPartOfCheckout(
+  sessionId: string,
+  amount: number,
+  meta: { bookingId: string; reason: string; key: string },
+): Promise<RefundResult> {
+  try {
+    const stripe = getStripe();
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const intentId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
+    if (session.payment_status !== 'paid' || !intentId) return { outcome: 'not-paid' };
+    const refund = await stripe.refunds.create(
+      { payment_intent: intentId, amount: Math.round(amount * 100), metadata: { site: STRIPE_SITE_TAG, bookingId: meta.bookingId, reason: meta.reason } },
+      { idempotencyKey: meta.key },
+    );
+    if (refund.status === 'failed' || refund.status === 'canceled') return { outcome: 'failed', reason: `Stripe marked the refund ${refund.status}` };
+    return { outcome: 'refunded', amount: refund.amount / 100 };
+  } catch (err) {
+    const e = err as { message?: string } | null;
+    console.error(`Part refund of Stripe checkout ${sessionId} (booking ${meta.bookingId}) failed`, err);
+    return { outcome: 'failed', reason: e?.message ?? String(err) };
+  }
+}
+
+/**
  * Has what was paid on this payment page been refunded? Only looks: for
  * telling a repeat of a payment notice from one that still needs dealing
  * with. null when Stripe can't be asked.

@@ -169,7 +169,7 @@ function NewBlastInner() {
             <input type="checkbox" className="mt-0.5" checked={form.ignorePreference} onChange={(e) => setForm({ ...form, ignorePreference: e.target.checked })} />
             <span>
               Ignore preference (overrides each member's contact setting)
-              <span className="block text-xs text-ink/50">Also sends to members who chose not to be contacted this way (email or text). Never to members who unsubscribed from event news and offers, and never by email to an address that bounced.</span>
+              <span className="block text-xs text-ink/50">Also sends to members who chose not to be contacted this way (email or text). Never to members who unsubscribed from event news and offers, and never to an email address or mobile that isn’t confirmed, or an email address that bounced.</span>
             </span>
           </label>
           <ExcludeBookedField excludeBooked={form.excludeBooked} eventId={form.excludeBookedEventId} onChange={(patch) => setForm((f) => ({ ...f, ...patch }))} />

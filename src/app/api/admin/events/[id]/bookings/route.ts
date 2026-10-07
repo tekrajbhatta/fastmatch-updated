@@ -6,6 +6,7 @@ import { createAdminBooking, notifyBooked } from '@/lib/adminBooking';
 import { PAYMENT_METHOD_VALUES } from '@/lib/paymentMethod';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { closeLapsedCheckouts } from '@/lib/pendingBooking';
+import { BOOKING_MEMBER_SELECT } from '@/lib/memberFields';
 
 // NOTE ON THE SLUG NAME: this lives under [id], not [eventId] as in the client
 // delivery. Next.js rejects two different slug names at the same path level,
@@ -23,7 +24,7 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
   const bookings = await prisma.booking.findMany({
     where: { eventId: params.id },
     // bookedBy: for a friend's booking, who brought (and paid for) them.
-    include: { member: true, bookedBy: { select: { member: { select: { name: true } } } } },
+    include: { member: { select: BOOKING_MEMBER_SELECT }, bookedBy: { select: { member: { select: { name: true } } } } },
     orderBy: { badge: 'asc' },
   });
 
@@ -51,13 +52,16 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
+  // First: nobody is added to a cancelled event.
+  const event = await prisma.event.findUniqueOrThrow({ where: { id: params.id } });
+  if (event.status === 'CANCELLED') return NextResponse.json({ error: 'This event was cancelled, so nobody can be booked into it.' }, { status: 409 });
+
   const parsed = addSchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Please check the booking details.' }, { status: 400 });
   }
   const { memberIds, paymentMethod, paidAmount, checkedIn } = parsed.data;
 
-  const event = await prisma.event.findUniqueOrThrow({ where: { id: params.id } });
   const uniqueIds = [...new Set(memberIds)];
   const members = await prisma.member.findMany({ where: { id: { in: uniqueIds } } });
 

@@ -134,8 +134,7 @@ export default function BlastFilteredMembersPage() {
   async function handleConfirmSend() {
     setConfirming(false);
     // Shows "Sending…" from the click until the first progress check comes
-    // back. A short list is sent entirely inside the send request, which can
-    // take a few seconds; without this nothing on screen said it was going.
+    // back; without this nothing on screen said it was going.
     setStarting(true);
     setSend(null);
     try {
@@ -143,7 +142,13 @@ export default function BlastFilteredMembersPage() {
       if (!id) return;
       const res = await fetch(`/api/admin/campaigns/${id}/send`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setMessage({ ok: false, text: typeof data.error === 'string' ? data.error : 'The blast could not be sent.' }); return; }
+      if (!res.ok) {
+        setMessage({ ok: false, text: typeof data.error === 'string' ? data.error : 'The blast could not be sent.' });
+        // A send of this blast already going shows its progress.
+        const [latest] = await fetch(`/api/admin/campaigns/${id}/sends`).then((r) => r.json()).catch(() => []);
+        if (latest && (latest.status === 'SENDING' || latest.status === 'PAUSED')) await pollSend(id);
+        return;
+      }
       await pollSend(id);
     } catch {
       setMessage({ ok: false, text: 'The blast could not be sent. Check your connection and try again.' });
@@ -152,8 +157,8 @@ export default function BlastFilteredMembersPage() {
     }
   }
 
-  // Small lists finish inside the send request; bigger ones are carried on
-  // by the scheduled job, so keep checking until it's done.
+  // The first batch goes out straight after the send starts; bigger lists
+  // are carried on by the scheduled job, so keep checking until it's done.
   async function pollSend(id: string) {
     const [latest] = await fetch(`/api/admin/campaigns/${id}/sends`).then((r) => r.json());
     if (!latest) return;
@@ -240,14 +245,7 @@ export default function BlastFilteredMembersPage() {
                 members will receive this blast.
                 {audience.recipients < audience.matching && (
                   <span className="block text-xs text-ink/50">
-                    {/* Unsubscribed members are always left out, "Ignore preference" or not (the user, 7 Oct). */}
-                    {content.ignorePreference ? (
-                      <>The rest have unsubscribed from event news and offers{content.sendEmail && !content.sendSms ? ', or have an email address that bounced' : ''}</>
-                    ) : (
-                      <>The rest have unsubscribed from event news and offers, don&apos;t want to be contacted by {content.sendEmail && content.sendSms ? 'email or SMS' : content.sendEmail ? 'email' : 'SMS'},
-                      or have an email address that bounced</>
-                    )}
-                    {content.excludeBooked ? ', or have already booked.' : '.'}
+                    {leftOutReasons(content)}
                   </span>
                 )}
               </p>
@@ -298,4 +296,23 @@ export default function BlastFilteredMembersPage() {
       )}
     </div>
   );
+}
+
+/**
+ * Why some of the filtered members won't get this blast, as the send decides
+ * it (src/lib/campaigns/audience.ts). Unsubscribed members are always left
+ * out, "Ignore preference" or not (the user, 7 Oct); so are addresses that
+ * aren't confirmed.
+ */
+function leftOutReasons(c: Pick<BlastContent, 'sendEmail' | 'sendSms' | 'ignorePreference' | 'excludeBooked'>): string {
+  const channels = c.sendEmail && c.sendSms ? 'email or SMS' : c.sendEmail ? 'email' : 'SMS';
+  const confirmed = c.sendEmail && c.sendSms ? 'their email address or mobile' : c.sendEmail ? 'their email address' : 'their mobile';
+  const reasons = [
+    'have unsubscribed from event news and offers',
+    ...(c.ignorePreference ? [] : [`don’t want to be contacted by ${channels}`]),
+    `haven’t confirmed ${confirmed}`,
+    ...(c.sendEmail ? ['have an email address that bounced'] : []),
+    ...(c.excludeBooked ? ['have already booked'] : []),
+  ];
+  return `The rest ${reasons.slice(0, -1).join(', ')}, or ${reasons[reasons.length - 1]}.`;
 }

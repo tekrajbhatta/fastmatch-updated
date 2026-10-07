@@ -81,7 +81,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const { subject, html } = tellAFriendEmail({
     friendName: friend.name,
     inviterName: member.name,
-    setPasswordUrl: `${process.env.APP_URL}/set-password?token=${setPasswordToken(friend.id)}`,
+    setPasswordUrl: `${process.env.APP_URL}/set-password?token=${setPasswordToken(friend)}`,
   });
   try {
     await sendEmail({ to: friend.email, subject, html });

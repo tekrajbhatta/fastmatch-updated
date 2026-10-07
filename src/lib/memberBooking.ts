@@ -12,6 +12,7 @@ import { priceBooking, MAX_FRIENDS_PER_GENDER, type PriceQuote } from './booking
 import { validateFriends, parseDateOfBirth, type FriendInput, type FriendFieldError } from './friendBooking';
 import { releasePendingBooking, closeCheckout, dropUnpaidBooking, closeLapsedCheckouts, type ReopenedFrom } from './pendingBooking';
 import { sendBookingConfirmation } from './sendBookingConfirmation';
+import { refundFriendsAlreadyBooked, type FriendAlreadyBooked } from './friendShareRefund';
 import { sendEmail } from './emails/send';
 import { friendWelcomeEmail } from './emails/friendEmail';
 import { eventTimeFor } from './timezone';
@@ -273,7 +274,7 @@ export async function discardMemberBooking(bookingId: string): Promise<void> {
 export async function confirmBookingGroup(
   bookingId: string,
   opts: { sessionId?: string } = {},
-): Promise<{ confirmed: boolean; notifyFailures: string[]; full?: boolean }> {
+): Promise<{ confirmed: boolean; notifyFailures: string[]; full?: boolean; friendsAlreadyBooked?: FriendAlreadyBooked[] }> {
   const lead = await prisma.booking.findUnique({
     where: { id: bookingId },
     include: { member: true, event: { include: { venue: true } } },
@@ -333,6 +334,8 @@ export async function confirmBookingGroup(
       const highest = await tx.booking.aggregate({ where: { eventId: lead.eventId }, _max: { badge: true } });
       let badge = (highest._max.badge ?? 0) + 1;
       const friendBookingIds: string[] = [];
+      // Friends booked already (by themselves, since): their places weren't used.
+      const alreadyBooked: FriendAlreadyBooked[] = [];
 
       for (const [i, f] of pending.entries()) {
         let friend = await tx.member.findUnique({ where: { email: f.email } });
@@ -350,7 +353,7 @@ export async function confirmBookingGroup(
         }
         const theirs = await tx.booking.findUnique({ where: { eventId_memberId: { eventId: lead.eventId, memberId: friend.id } } });
         if (theirs && theirs.status !== 'PENDING') {
-          console.error(`Booking ${lead.id}: ${lead.member.name} paid for friend ${friend.email}, who already has a ${theirs.status} booking — consider a refund of $${f.paidAmount}.`);
+          alreadyBooked.push({ name: f.name, email: f.email, amount: Number(f.paidAmount ?? 0) });
           continue;
         }
         if (theirs) await tx.booking.delete({ where: { id: theirs.id } });
@@ -363,7 +366,7 @@ export async function confirmBookingGroup(
       if (lead.discountCodeId && firstTime) {
         await tx.discountCode.update({ where: { id: lead.discountCodeId }, data: { usedCount: { increment: 1 } } });
       }
-      return friendBookingIds;
+      return { friendBookingIds, alreadyBooked };
     },
     { timeout: 20_000 },
   );
@@ -381,11 +384,14 @@ export async function confirmBookingGroup(
     try { await send(); } catch (err) { console.error(`Booking ${id}: confirmation email failed`, err); notifyFailures.push(id); }
   };
   if (firstTime) await attempt(lead.id, () => sendBookingConfirmation(lead.id));
-  for (const id of created) await attempt(id, () => notifyFriend(id, lead.member.name));
+  for (const id of created.friendBookingIds) await attempt(id, () => notifyFriend(id, lead.member.name));
+  // Paid online for friends who were booked already: their shares go back.
+  // (Confirmed by the admin instead, the caller deals with it.)
+  if (opts.sessionId) await refundFriendsAlreadyBooked(lead.id, opts.sessionId, created.alreadyBooked);
   // Places just taken: payment pages whose hold ran out, and that no longer
   // fit, are closed.
   await closeLapsedCheckouts(lead.eventId);
-  return { confirmed: true, notifyFailures };
+  return { confirmed: true, notifyFailures, friendsAlreadyBooked: created.alreadyBooked };
 }
 
 /**
@@ -400,7 +406,7 @@ async function notifyFriend(bookingId: string, bookedByName: string): Promise<vo
   });
   if (!b.member.awaitingPasswordSetup) return sendBookingConfirmation(bookingId);
 
-  const setPasswordUrl = `${process.env.APP_URL}/set-password?token=${setPasswordToken(b.member.id)}`;
+  const setPasswordUrl = `${process.env.APP_URL}/set-password?token=${setPasswordToken(b.member)}`;
   const { subject, html } = friendWelcomeEmail({
     friendName: b.member.name,
     bookedByName,
@@ -419,6 +425,8 @@ async function notifyFriend(bookingId: string, bookedByName: string): Promise<vo
  * because it may sit in an inbox until the night; single-use, because
  * /api/auth/set-password only accepts it while awaitingPasswordSetup is true.
  */
-export function setPasswordToken(memberId: string): string {
-  return jwt.sign({ memberId, purpose: 'set_password' }, process.env.JWT_SECRET as string, { expiresIn: '60d' });
+export function setPasswordToken(member: { id: string; email: string }): string {
+  // Tied to the address it was sent to: a friend's mistyped email, corrected
+  // by Gil, mustn't leave a working link in a stranger's inbox.
+  return jwt.sign({ memberId: member.id, purpose: 'set_password', email: member.email.toLowerCase() }, process.env.JWT_SECRET as string, { expiresIn: '60d' });
 }
