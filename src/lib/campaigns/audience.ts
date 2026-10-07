@@ -3,10 +3,13 @@ import type { MemberFilter } from '../memberFilter';
 /**
  * Who a blast actually goes to, out of the members a filter matches.
  *
- * Unless "Ignore preference" is ticked, a blast only reaches members who:
- *   - opted in to offers (marketingOptIn),
- *   - and accept at least one of the channels being sent (Email and SMS /
- *     Email / SMS — "Do not contact" never matches).
+ * A blast only reaches members who opted in to event news and offers
+ * (marketingOptIn), whatever the settings: an unsubscribe is always honoured
+ * (the user, 7 Oct; the Spam Act requires it).
+ *
+ * Unless "Ignore preference" is ticked, they must also accept at least one of
+ * the channels being sent (Email and SMS / Email / SMS — "Do not contact"
+ * never matches). "Ignore preference" overrides only that choice.
  * Whatever the settings, email only counts for an address that hasn't
  * bounced; a bounced member can still get the text part of a blast (they
  * used to be dropped from the whole send).
@@ -28,7 +31,7 @@ export function recipientFilter(
 ): MemberFilter {
   return {
     ...base,
-    marketingOptInOnly: !blast.ignorePreference,
+    marketingOptInOnly: true,
     reachableBy: { email: blast.sendEmail, sms: blast.sendSms, respectContactMethod: !blast.ignorePreference },
     excludeAwaitingPasswordSetup: true,
     // Applies whatever "Ignore preference" says: it's about who's coming, not consent.

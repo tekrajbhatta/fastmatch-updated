@@ -88,7 +88,7 @@ export default function BlastFields({ value, onChange }: { value: BlastContent; 
         <input type="checkbox" className="mt-0.5" checked={value.ignorePreference} onChange={(e) => onChange({ ignorePreference: e.target.checked })} />
         <span>
           Ignore preference
-          <span className="block text-xs text-ink/50">Also sends to members who opted out of offers, chose not to be contacted this way, or whose email bounced.</span>
+          <span className="block text-xs text-ink/50">Also sends to members who chose not to be contacted this way (email or text). Never to members who unsubscribed from event news and offers, and never by email to an address that bounced.</span>
         </span>
       </label>
       <ExcludeBookedField excludeBooked={value.excludeBooked} eventId={value.excludeBookedEventId} onChange={onChange} />

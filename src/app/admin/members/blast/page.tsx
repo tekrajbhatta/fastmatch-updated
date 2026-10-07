@@ -240,11 +240,14 @@ export default function BlastFilteredMembersPage() {
                 members will receive this blast.
                 {audience.recipients < audience.matching && (
                   <span className="block text-xs text-ink/50">
-                    {!content.ignorePreference && (
-                      <>The rest have opted out of offers, don&apos;t want to be contacted by {content.sendEmail && content.sendSms ? 'email or SMS' : content.sendEmail ? 'email' : 'SMS'},
-                      or have an email address that bounced{content.excludeBooked ? '' : '.'}</>
+                    {/* Unsubscribed members are always left out, "Ignore preference" or not (the user, 7 Oct). */}
+                    {content.ignorePreference ? (
+                      <>The rest have unsubscribed from event news and offers{content.sendEmail && !content.sendSms ? ', or have an email address that bounced' : ''}</>
+                    ) : (
+                      <>The rest have unsubscribed from event news and offers, don&apos;t want to be contacted by {content.sendEmail && content.sendSms ? 'email or SMS' : content.sendEmail ? 'email' : 'SMS'},
+                      or have an email address that bounced</>
                     )}
-                    {content.excludeBooked && <>{content.ignorePreference ? 'The rest have' : ', or have'} already booked.</>}
+                    {content.excludeBooked ? ', or have already booked.' : '.'}
                   </span>
                 )}
               </p>

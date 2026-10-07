@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Container, PageHero } from '@/components/site/layout';
 import { linkClass } from '@/components/site/button';
 
@@ -27,6 +28,7 @@ export default function TermsPage() {
           <P>For cancellations with less than 7 days notice, you may only request a transfer to another event, refunds will not be given. All event transfers must be requested by 48 hours prior to the event taking place. For any cancellations after this time, no event transfers will be given and no refunds will be given.</P>
           <P>There are no refunds or transfers given to people who do not show up to an event. There are no refunds for being dissatisfied with the quality or calibre of fellow participants at the event. You take part in a Fast Match event with a clear understanding that you may, or may not meet someone.</P>
           <P>If Fast Match cancels an event, payments made by card on our website for that event are refunded to the card automatically, in full.</P>
+          <P>Payments made any other way, such as cash or a card payment taken by Fast Match, are refunded in full by Fast Match directly.</P>
           <P>If an event fills up while you are paying for your booking, you will not be booked in, and your payment is refunded to your card automatically, in full.</P>
           <P>Depending on your bank, a refund can take 5 to 10 business days to show.</P>
 
@@ -34,7 +36,7 @@ export default function TermsPage() {
           <P>At the conclusion of the event, Fast Match will collate all match choices and exchange mobile numbers and email addresses for only those couples who have both expressed an interest in meeting each other. All other information will remain private and confidential.</P>
           <P>Fast Match takes no responsibility for false information supplied by members. We reserve the right to refuse or accept a reservation at our discretion. We reserve the right to use any photos or video footage taken at one of our events for ongoing advertising and promotional purposes. Should you not wish to be photographed or filmed, please advise the cameraman.</P>
           <P>Every attempt will be made to co-ordinate events which bring together people of similar age groups and locations, however, Fast Match may, at its discretion and without notice, combine or change configurations in order to facilitate an event.</P>
-          <P>Acceptance of these terms and conditions also gives Fast Match permission to contact you from time to time with invitations, discounts, special offers, information and surveys for any products, services or sponsorships which Fast Match has negotiated on behalf of its members. Should you not wish to receive these offers, please contact Fast Match on <a href="mailto:gil@fastmatch.com.au" className={linkClass}>gil@fastmatch.com.au</a></P>
+          <P>If you choose to receive event news and offers (the box when you join, or My account), Fast Match will contact you from time to time with invitations, discounts, special offers, information and surveys for any products, services or sponsorships which Fast Match has negotiated on behalf of its members. You can unsubscribe at any time from the link in our emails and texts, or from <Link href="/account" className={linkClass}>My account</Link>.</P>
         </div>
       </Container>
     </>

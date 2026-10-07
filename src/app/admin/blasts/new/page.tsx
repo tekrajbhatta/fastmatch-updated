@@ -165,9 +165,12 @@ function NewBlastInner() {
             </div>
           )}
 
-          <label className="mb-4 flex items-center gap-2 text-sm text-ink/70">
-            <input type="checkbox" checked={form.ignorePreference} onChange={(e) => setForm({ ...form, ignorePreference: e.target.checked })} />
-            Ignore preference (overrides each member's contact setting)
+          <label className="mb-4 flex items-start gap-2 text-sm text-ink/70">
+            <input type="checkbox" className="mt-0.5" checked={form.ignorePreference} onChange={(e) => setForm({ ...form, ignorePreference: e.target.checked })} />
+            <span>
+              Ignore preference (overrides each member's contact setting)
+              <span className="block text-xs text-ink/50">Also sends to members who chose not to be contacted this way (email or text). Never to members who unsubscribed from event news and offers, and never by email to an address that bounced.</span>
+            </span>
           </label>
           <ExcludeBookedField excludeBooked={form.excludeBooked} eventId={form.excludeBookedEventId} onChange={(patch) => setForm((f) => ({ ...f, ...patch }))} />
 

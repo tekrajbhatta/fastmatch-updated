@@ -48,11 +48,17 @@ export function buildMemberWhere(filter: MemberFilter): Prisma.MemberWhereInput 
   if (filter.excludeAwaitingPasswordSetup) where.awaitingPasswordSetup = false;
   if (filter.reachableBy) {
     const { email, sms, respectContactMethod } = filter.reachableBy;
-    const ways: Prisma.MemberWhereInput[] = [];
-    if (email) ways.push({ emailBounced: false, ...(respectContactMethod ? { contactMethod: { in: ['EMAIL_AND_SMS', 'EMAIL'] } } : {}) });
-    if (sms) ways.push(respectContactMethod ? { contactMethod: { in: ['EMAIL_AND_SMS', 'SMS'] } } : {});
-    // Its own AND, so it can't clash with the search's OR. No channel: nobody.
-    where.AND = [{ OR: ways.length ? ways : [{ id: { in: [] } }] }];
+    // A text sent whatever people's contact choice ("Ignore preference")
+    // reaches everyone, so there's nothing to narrow. Said by leaving the
+    // condition out: Prisma drops an empty {} that sits beside another
+    // condition in an OR, which left bounced members out of the text too.
+    if (!(sms && !respectContactMethod)) {
+      const ways: Prisma.MemberWhereInput[] = [];
+      if (email) ways.push({ emailBounced: false, ...(respectContactMethod ? { contactMethod: { in: ['EMAIL_AND_SMS', 'EMAIL'] } } : {}) });
+      if (sms) ways.push({ contactMethod: { in: ['EMAIL_AND_SMS', 'SMS'] } });
+      // Its own AND, so it can't clash with the search's OR. No channel: nobody.
+      where.AND = [{ OR: ways.length ? ways : [{ id: { in: [] } }] }];
+    }
   }
   if (filter.excludeBookedIn) {
     // Paid bookings only — an unpaid one isn't a booking (see pendingBooking.ts).

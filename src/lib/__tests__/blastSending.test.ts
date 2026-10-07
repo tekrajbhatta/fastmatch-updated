@@ -49,7 +49,21 @@ describe('recipientFilter: reach', () => {
 
   it('"Ignore preference": contact method is ignored, a dead address still isn’t emailed', () => {
     expect(ways({ sendEmail: true, sendSms: false, ignorePreference: true })).toEqual([{ emailBounced: false }]);
-    expect(ways({ sendEmail: true, sendSms: true, ignorePreference: true })).toContainEqual({});
+  });
+
+  it('"Ignore preference" with a text: everyone can get the text, a bounced address included', () => {
+    // No reach condition at all: Prisma drops an empty {} beside another
+    // condition in an OR, which used to leave bounced members out of the text.
+    // (The send itself still skips the email to a bounced address.)
+    for (const sendEmail of [true, false]) {
+      expect(buildMemberWhere(recipientFilter({}, { sendEmail, sendSms: true, ignorePreference: true })).AND).toBeUndefined();
+    }
+  });
+
+  it('never reaches a member who unsubscribed, "Ignore preference" or not (the user, 7 Oct)', () => {
+    for (const ignorePreference of [false, true]) {
+      expect(buildMemberWhere(recipientFilter({}, { sendEmail: true, sendSms: true, ignorePreference })).marketingOptIn).toBe(true);
+    }
   });
 
   it('keeps the Members screen’s own search alongside', () => {
