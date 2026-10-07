@@ -18,6 +18,8 @@ export interface MemberTableEvent {
   soldOut: boolean;
   // Every place for the signed-in member's gender taken: sold out for them too.
   fullForYou: boolean;
+  // A women-only or men-only night (Gil, 7 Oct).
+  onlyFor?: 'WOMEN' | 'MEN' | null;
   theme: { name: string };
   venue: { name: string };
   city: { name: string };
@@ -69,7 +71,7 @@ export default function MemberEventsTable({
             <p className="mt-2 text-[15px] leading-normal text-ink-600">
               {when.shortDate}, {when.time}{when.note ? ` (${when.note})` : ''} · {e.venue.name}{showCity ? `, ${e.city.name}` : ''}
             </p>
-            <p className="text-[15px] leading-normal text-ink-600">Ages {e.ageMin} to {e.ageMax} · {formatPrice(e.cost)}</p>
+            <p className="text-[15px] leading-normal text-ink-600">Ages {e.ageMin} to {e.ageMax}{onlyText(e) ? ` · ${onlyText(e)}` : ''} · {formatPrice(e.cost)}</p>
             <div className="mt-4 flex flex-wrap items-center gap-2.5">
               <Link href={`/events/${e.id}`} className={VIEW}>View</Link>
               {e.bookedByMe ? (
@@ -115,7 +117,10 @@ export default function MemberEventsTable({
                 </td>
                 <td className={`${CELL} text-ink-900`}>{e.venue.name}</td>
                 {showCity && <td className={`${CELL} text-ink-600`}>{e.city.name}</td>}
-                <td className={`${CELL} whitespace-nowrap text-ink-900`}>{e.ageMin} to {e.ageMax}</td>
+                <td className={`${CELL} whitespace-nowrap text-ink-900`}>
+                  {e.ageMin} to {e.ageMax}
+                  {onlyText(e) && <span className="block text-[13px] text-ink-600">{onlyText(e)}</span>}
+                </td>
                 <td className={`${CELL} tabular-nums text-ink-900`}>{formatPrice(e.cost)}</td>
                 <td className={CELL}><Link href={`/events/${e.id}`} className={VIEW}>View</Link></td>
                 <td className={CELL}>
@@ -149,4 +154,9 @@ export default function MemberEventsTable({
     </div>
     </>
   );
+}
+
+/** "Women only" / "Men only" for a one-gender night. */
+function onlyText(e: MemberTableEvent): string | null {
+  return e.onlyFor === 'WOMEN' ? 'Women only' : e.onlyFor === 'MEN' ? 'Men only' : null;
 }

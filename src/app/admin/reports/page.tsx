@@ -21,6 +21,8 @@ interface Breakdown { columns: (keyof Metrics)[]; categories: CategoryRow[]; tot
 interface StatementLine { id: string; badge: number; name: string; method: string; discountCode: string | null; amount: number }
 interface EventReport {
   event: { id: string; number: number; name: string; startsAt: string; venue: string; city: string; theme: string };
+  /** False for an event still to come: every figure is 0 until it has happened. */
+  happened: boolean;
   attended: number; men: number; women: number; matchRate: number | null;
   revenue: number; expenses: number; profit: number;
   dateMatches: number; friendMatches: number;
@@ -232,6 +234,7 @@ export default function ReportsPage() {
                 <StatBox label="Match rate" value={summary.totals.matchRate === null ? '-' : pct(summary.totals.matchRate)} />
               </div>
               <ul className="mb-6 space-y-0.5 text-xs text-ink/50">
+                <li>Only events that have already happened are counted. Upcoming events are in the Per-event tab.</li>
                 <li>Attendees: everyone who paid (online, cash, card, pay at door and friends), as in the table&apos;s Bookings.</li>
                 <li>Match rate: the share of those members with at least one date or friend match, at events whose results are in{summary.totals.matchRate === null ? ' (none yet)' : ''}.</li>
                 {summaryMemberFilters && <li>Expenses and profit aren&apos;t shown when restricted by age or gender: an event&apos;s expenses are for the whole night.</li>}
@@ -286,6 +289,11 @@ export default function ReportsPage() {
           {loadingEventReport && <Loader label="Loading the event report…" />}
           {eventReport && !loadingEventReport && (
             <>
+              {!eventReport.happened && (
+                <p role="status" className="mb-4 rounded-lg bg-ink/5 p-3 text-sm text-ink/70 print:hidden">
+                  This event hasn&apos;t happened yet, so its figures are 0 until it has.
+                </p>
+              )}
               <div className="mb-6 grid grid-cols-3 gap-4 print:hidden">
                 <StatBox label="Attended" value={eventReport.attended} />
                 <StatBox label="Gender split" value={`${eventReport.men}M · ${eventReport.women}F`} />

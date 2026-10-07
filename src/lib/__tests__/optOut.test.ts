@@ -76,3 +76,30 @@ describe('the Unsubscribe link in blast emails', () => {
     expect(h.updates).toEqual([]);
   });
 });
+
+describe('the one-click unsubscribe in blast emails\' headers (RFC 8058; Gil, 7 Oct)', () => {
+  it('a POST from the mail program unsubscribes straight away, from marketing only', async () => {
+    const { POST } = await import('@/app/api/unsubscribe/one-click/route');
+    const token = jwt.sign({ memberId: 'm9', purpose: 'unsubscribe' }, 'test-secret-for-g4');
+    const req = new NextRequest(`https://fastmatch.test/api/unsubscribe/one-click?token=${token}`, { method: 'POST', body: 'List-Unsubscribe=One-Click', headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    expect(h.updates).toEqual([{ where: { id: 'm9' }, data: { marketingOptIn: false } }]);
+  });
+
+  it('opened as a link (or by a mail scanner), it changes nothing and goes to the page that asks', async () => {
+    const { GET } = await import('@/app/api/unsubscribe/one-click/route');
+    const res = await GET(new NextRequest('https://fastmatch.test/api/unsubscribe/one-click?token=abc'));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toMatch(/\/unsubscribe\?token=abc$/);
+    expect(h.updates).toEqual([]);
+  });
+
+  it('refuses a token that isn\'t an unsubscribe link', async () => {
+    const { POST } = await import('@/app/api/unsubscribe/one-click/route');
+    const session = jwt.sign({ memberId: 'm9' }, 'test-secret-for-g4');
+    expect((await POST(new NextRequest(`https://fastmatch.test/api/unsubscribe/one-click?token=${session}`, { method: 'POST' }))).status).toBe(400);
+    expect(h.updates).toEqual([]);
+  });
+});
+

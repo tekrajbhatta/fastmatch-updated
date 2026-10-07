@@ -139,7 +139,7 @@ export default async function HomePage() {
               <Step
                 n={6}
                 title="Receive your matches automatically"
-                body="At the end of the event, get your matches on your phone. If it's mutual, you'll both get each other's contact details."
+                body="Matches are worked out automatically at midnight after the event. You'll get an email, and they'll show on your My Match History page. If it's mutual, you'll both get each other's contact details."
               />
             </ol>
           </div>

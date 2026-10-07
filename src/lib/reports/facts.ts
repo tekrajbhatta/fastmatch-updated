@@ -15,7 +15,8 @@ import { ageGroupOf, AGE_GROUPS, type BookingFact, type EventFact, type SignupFa
  *              friends included: "attended" means everyone who paid, Gil),
  *              for events in the filter, with the member's gender and their
  *              age ON THE NIGHT.
- *   Events   — every event in the filter, for its expenses (once each).
+ *   Events   — every event in the filter that has happened, for its
+ *              expenses (once each).
  *   Signups  — registrations in the date range, by the member's own city.
  * Months and dates are Sydney time, the admin's own. Draft events (unsaved
  * duplicates) are left out: a copy carries its original's expenses.
@@ -52,12 +53,15 @@ export async function loadReportFacts(
   const to = q.dateTo ? startOfDayIn(addDays(q.dateTo, 1), tz) : undefined;
   const range = from || to ? { ...(from ? { gte: from } : {}), ...(to ? { lt: to } : {}) } : undefined;
 
+  // Only events that have already happened (Gil, 7 Oct): next month's
+  // bookings used to count as this report's attendees and revenue.
+  // (The Per-event tab still lists every event, an upcoming one at 0.)
   const eventWhere: Prisma.EventWhereInput = {
     draft: false,
     ...(q.cityId ? { cityId: q.cityId } : {}),
     ...(q.venueId ? { venueId: q.venueId } : {}),
     ...(q.themeId ? { themeId: q.themeId } : {}),
-    ...(range ? { startsAt: range } : {}),
+    startsAt: { ...(range ?? {}), lte: new Date() },
   };
 
   const rows = await prisma.event.findMany({

@@ -107,7 +107,11 @@ export function capacityProblem(
   max: { maxMen: number; maxWomen: number },
   adding: PlacesTaken,
 ): string | null {
-  if (adding.men > 0 && taken.men + adding.men > max.maxMen) return `this event is full for men (${taken.men}/${max.maxMen})`;
-  if (adding.women > 0 && taken.women + adding.women > max.maxWomen) return `this event is full for women (${taken.women}/${max.maxWomen})`;
+  if (adding.men > 0 && taken.men + adding.men > max.maxMen) {
+    return max.maxMen === 0 ? 'this event is for women only' : `this event is full for men (${taken.men}/${max.maxMen})`;
+  }
+  if (adding.women > 0 && taken.women + adding.women > max.maxWomen) {
+    return max.maxWomen === 0 ? 'this event is for men only' : `this event is full for women (${taken.women}/${max.maxWomen})`;
+  }
   return null;
 }

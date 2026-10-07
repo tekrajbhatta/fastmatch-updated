@@ -97,7 +97,9 @@ export type Prepared =
   | { ok: false; status: number; error: string; fieldErrors?: FriendFieldError[] }
   | { ok: true; quote: PriceQuote; discount: DiscountCode | null; friends: FriendInput[] };
 
-const genderWord = (g: 'MALE' | 'FEMALE') => (g === 'MALE' ? 'male' : 'female');
+/** Why a friend who is a member can't be added, without saying which reason it is (Gil, 7 Oct). */
+export const FRIEND_CANT_BE_ADDED =
+  'Sorry, this friend can’t be added to your booking. Please check their details, or ask them to book their own place. If you need a hand, contact gil@fastmatch.com.au.';
 
 export async function prepareMemberBooking(
   member: Pick<Member, 'id' | 'name' | 'email' | 'gender'>,
@@ -131,8 +133,10 @@ export async function prepareMemberBooking(
   const fieldErrors = validateFriends(friends, { ageMin: event.ageMin, ageMax: event.ageMax, memberEmail: member.email });
 
   // A friend who already has an account is booked on that account, and their
-  // real record — not what was typed — decides whether they can come. Each
-  // reason gets its own message (Gil's call).
+  // real record — not what was typed — decides whether they can come. One
+  // general message whatever the reason (Gil, 7 Oct): a message for each
+  // ("already booked", "registered as female", "date of birth on file…")
+  // told any member who is on FastMatch, their gender and roughly their age.
   const emails = friends.map((f) => f.email.trim().toLowerCase()).filter(Boolean);
   const existing = emails.length ? await prisma.member.findMany({ where: { email: { in: emails } } }) : [];
   const byEmail = new Map(existing.map((m) => [m.email.toLowerCase(), m]));
@@ -146,24 +150,27 @@ export async function prepareMemberBooking(
     const b = theirBookings.find((x) => x.memberId === m.id);
     // An unpaid booking of theirs doesn't count — it's released when this
     // one is paid.
-    const message =
-      b?.status === 'CONFIRMED'
-        ? 'This person is already booked into this event.'
-        : b && b.status !== 'PENDING'
-          ? "This person's earlier booking for this event was cancelled. Please contact gil@fastmatch.com.au to rebook them."
-          : m.gender !== f.gender
-            ? `This email belongs to a member registered as ${genderWord(m.gender)}. Please add them as a ${genderWord(m.gender)} friend.`
-            : (() => {
-                const age = calculateAge(m.dateOfBirth);
-                return age < event.ageMin || age > event.ageMax
-                  ? `This member's date of birth on file doesn't fall into this event's age bracket.`
-                  : null;
-              })();
-    if (message) fieldErrors.push({ index, field: 'email', message });
+    const age = calculateAge(m.dateOfBirth);
+    const cantCome =
+      b?.status === 'CONFIRMED' || // already booked
+      (b && b.status !== 'PENDING') || // an earlier booking was cancelled (Gil rebooks those)
+      m.gender !== f.gender || // registered as the other gender
+      age < event.ageMin || age > event.ageMax; // outside the age range, by their date of birth on file
+    if (cantCome) fieldErrors.push({ index, field: 'email', message: FRIEND_CANT_BE_ADDED });
   });
 
   if (fieldErrors.length > 0) {
     return { ok: false, status: 400, error: 'Please check your friends’ details.', fieldErrors };
+  }
+
+  // ---- a women-only or men-only night (Gil, 7 Oct)
+  const only = event.maxMen === 0 ? 'women' : event.maxWomen === 0 ? 'men' : null;
+  if (only) {
+    const theirs = member.gender === 'MALE' ? event.maxMen : event.maxWomen;
+    if (theirs === 0) return { ok: false, status: 409, error: `This event is for ${only} only.` };
+    if ((men > 0 && event.maxMen === 0) || (women > 0 && event.maxWomen === 0)) {
+      return { ok: false, status: 400, error: `This event is for ${only} only, so you can only bring ${only === 'women' ? 'female' : 'male'} friends.` };
+    }
   }
 
   // ---- capacity: paid places, and places held by payment pages still open

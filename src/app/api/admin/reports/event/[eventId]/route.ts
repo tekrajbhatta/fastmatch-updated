@@ -18,6 +18,20 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     where: { id: params.eventId },
     include: { venue: true, city: true, theme: true },
   });
+  const summary = {
+    id: event.id, number: event.number, name: event.name, startsAt: event.startsAt,
+    venue: event.venue.name, city: event.city.name, theme: event.theme.name,
+  };
+
+  // Not happened yet: listed so it can be picked, but every figure is 0
+  // until it has (Gil, 7 Oct). It used to show its bookings as "Attended".
+  if (event.startsAt > new Date()) {
+    return NextResponse.json({
+      event: summary, happened: false,
+      attended: 0, men: 0, women: 0, matchRate: null, revenue: 0, expenses: 0, profit: 0, dateMatches: 0, friendMatches: 0,
+      statement: { lines: [], revenue: 0, commissions: 0, expenses: 0, profit: 0 },
+    });
+  }
 
   const bookings = await prisma.booking.findMany({
     where: { eventId: event.id, status: 'CONFIRMED' },
@@ -48,10 +62,8 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
 
   const round = (n: number) => Math.round(n * 100) / 100;
   return NextResponse.json({
-    event: {
-      id: event.id, number: event.number, name: event.name, startsAt: event.startsAt,
-      venue: event.venue.name, city: event.city.name, theme: event.theme.name,
-    },
+    event: summary,
+    happened: true,
     // Everyone who paid (Gil), no-shows included.
     attended: bookings.length,
     men, women,

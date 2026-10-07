@@ -136,7 +136,11 @@ export async function processCampaignSendBatch(sendId: string) {
             unsubscribeUrl
           );
           // One line even for a blast saved before subjects were kept to one.
-          await sendEmail({ to: recipient.email, subject: oneLine(campaign.subject ?? ''), html });
+          // The one-click unsubscribe (the mail program's own button) uses the same token.
+          await sendEmail({
+            to: recipient.email, subject: oneLine(campaign.subject ?? ''), html,
+            listUnsubscribe: `${process.env.APP_URL}/api/unsubscribe/one-click?token=${unsubscribeToken}`,
+          });
         } catch (err) {
           failedIds.add(recipient.id);
           // Only the mail server refusing the address itself marks it bounced;

@@ -14,7 +14,12 @@ export interface EventFlags {
  * The event's on/off options, shared by the New event and Edit event forms so
  * the two always offer the same choices.
  */
-export default function EventFlagFields({ value, onChange }: { value: EventFlags; onChange: (patch: Partial<EventFlags>) => void }) {
+export default function EventFlagFields({ value, onChange, audienceError }: {
+  value: EventFlags;
+  onChange: (patch: Partial<EventFlags>) => void;
+  /** What's wrong with the rating choice (a one-gender night needs "Everyone"). */
+  audienceError?: string | null;
+}) {
   return (
     <>
       <Option
@@ -47,6 +52,7 @@ export default function EventFlagFields({ value, onChange }: { value: EventFlags
             </span>
           </label>
         ))}
+        {audienceError && <p role="alert" className="mt-1 text-xs font-medium text-coral">{audienceError}</p>}
       </fieldset>
     </>
   );

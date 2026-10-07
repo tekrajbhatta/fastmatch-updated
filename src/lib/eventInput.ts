@@ -24,8 +24,9 @@ export const eventFieldsSchema = z.object({
   ageMin: z.number(say('Please enter the minimum age.')).int('Whole years, please.').positive('Please enter a real age.'),
   ageMax: z.number(say('Please enter the maximum age.')).int('Whole years, please.').positive('Please enter a real age.'),
   cost: z.number(say('Please enter the cost (0 if it’s free).')).min(0, 'The cost can’t be negative.'),
-  maxMen: z.number(say('Please enter how many men can book.')).int('A whole number, please.').min(1, 'At least 1.'),
-  maxWomen: z.number(say('Please enter how many women can book.')).int('A whole number, please.').min(1, 'At least 1.'),
+  // 0 on one side: a women-only or men-only night (Gil, 7 Oct). Not both (crossFieldErrors).
+  maxMen: z.number(say('Please enter how many men can book.')).int('A whole number, please.').min(0, 'Can’t be below 0.'),
+  maxWomen: z.number(say('Please enter how many women can book.')).int('A whole number, please.').min(0, 'Can’t be below 0.'),
   // Empty clears it.
   expenses: z.number(say('Please enter the expenses, or leave the box empty.')).min(0, 'Expenses can’t be negative.').nullable().optional(),
   visibility: z.enum(['PUBLIC', 'NOT_PUBLIC']).default('PUBLIC'),
@@ -69,25 +70,44 @@ function fieldErrors(error: z.ZodError): EventFieldErrors {
   return out;
 }
 
+/** The event's fields that rules between fields look at (missing: not known, not checked). */
+type Comparable = { ageMin?: number; ageMax?: number; maxMen?: number; maxWomen?: number; ratingAudience?: string };
+
 /** Rules between fields, on the event as it will be saved. */
-function crossFieldErrors(e: { ageMin: number; ageMax: number }): EventFieldErrors {
-  return e.ageMin > e.ageMax ? { ageMin: 'The minimum age can’t be higher than the maximum.' } : {};
+function crossFieldErrors(e: Comparable): EventFieldErrors {
+  const out: EventFieldErrors = {};
+  if (e.ageMin !== undefined && e.ageMax !== undefined && e.ageMin > e.ageMax) out.ageMin = 'The minimum age can’t be higher than the maximum.';
+  if (e.maxMen === 0 && e.maxWomen === 0) {
+    out.maxMen = 'At least one side needs places: set Max men or Max women above 0.';
+    out.maxWomen = out.maxMen;
+  } else if ((e.maxMen === 0 || e.maxWomen === 0) && e.ratingAudience === 'OPPOSITE_GENDER') {
+    // A one-gender night with "Opposite gender only" would give everyone
+    // nobody to rate.
+    out.ratingAudience = 'A women-only or men-only night needs “Everyone” here, so members have someone to rate.';
+  }
+  return out;
 }
 
 function check<T>(
   schema: z.ZodType<T, z.ZodTypeDef, unknown>,
   body: unknown,
-  current?: { ageMin: number; ageMax: number },
+  current?: Comparable,
 ): Checked<T> {
   const parsed = schema.safeParse(body);
-  // The ages are compared even when another box is wrong, so every problem
-  // shows at once; a box's own problem comes first.
-  const raw = (body && typeof body === 'object' ? body : {}) as { ageMin?: unknown; ageMax?: unknown };
+  // Compared even when another box is wrong, so every problem shows at once;
+  // a box's own problem comes first. An edit's unchanged fields are the event's own.
+  const raw = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
   const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
-  const ageMin = num(raw.ageMin) ?? current?.ageMin;
-  const ageMax = num(raw.ageMax) ?? current?.ageMax;
+  const audience = raw.ratingAudience === 'OPPOSITE_GENDER' || raw.ratingAudience === 'EVERYONE' ? raw.ratingAudience
+    : raw.ratingAudience === undefined ? (current?.ratingAudience ?? (current ? undefined : 'OPPOSITE_GENDER')) : undefined;
   const errors = {
-    ...(ageMin !== undefined && ageMax !== undefined ? crossFieldErrors({ ageMin, ageMax }) : {}),
+    ...crossFieldErrors({
+      ageMin: num(raw.ageMin) ?? current?.ageMin,
+      ageMax: num(raw.ageMax) ?? current?.ageMax,
+      maxMen: num(raw.maxMen) ?? current?.maxMen,
+      maxWomen: num(raw.maxWomen) ?? current?.maxWomen,
+      ratingAudience: audience,
+    }),
     ...(parsed.success ? {} : fieldErrors(parsed.error)),
   };
   if (Object.keys(errors).length || !parsed.success) return { ok: false, fieldErrors: errors };
@@ -99,7 +119,32 @@ export const checkNewEvent = (body: unknown) => check(newEventSchema, body);
 /** The whole edit form, as the browser checks it before saving. */
 export const checkEventFields = (body: unknown) => check(eventFieldsSchema, body);
 /** An edit, against the event as it stands (for the fields not being changed). */
-export const checkEventEdit = (body: unknown, current: { ageMin: number; ageMax: number }) => check(eventEditSchema, body, current);
+export const checkEventEdit = (body: unknown, current: Comparable) => check(eventEditSchema, body, current);
+
+type Audience = EventFields['ratingAudience'];
+
+/**
+ * Max men or Max women typed on the event forms (Gil, 7 Oct). A side at 0 is
+ * a women-only or men-only night, which needs "Everyone" rating, so the
+ * choice switches to it; places back on both sides switch it back. Only a
+ * switch the form made is undone (`switchedFrom`: what it was before), never
+ * the admin's own choice.
+ */
+export function placesTyped<F extends { maxMen: unknown; maxWomen: unknown; ratingAudience: Audience }>(
+  form: F,
+  field: 'maxMen' | 'maxWomen',
+  value: string,
+  switchedFrom: Audience | null,
+): { form: F; switchedFrom: Audience | null } {
+  const next = { ...form, [field]: value };
+  const isZero = (v: unknown) => String(v ?? '').trim() !== '' && Number(v) === 0;
+  const oneGender = isZero(next.maxMen) || isZero(next.maxWomen);
+  if (oneGender && next.ratingAudience !== 'EVERYONE') {
+    return { form: { ...next, ratingAudience: 'EVERYONE' }, switchedFrom: next.ratingAudience };
+  }
+  if (!oneGender && switchedFrom) return { form: { ...next, ratingAudience: switchedFrom }, switchedFrom: null };
+  return { form: next, switchedFrom };
+}
 
 /** The form's boxes as the API takes them: an empty number box is null, so it's reported (or, for expenses, cleared). */
 export function eventNumbers<K extends string>(form: Record<K, string | number | null | undefined>, keys: K[]): Record<K, number | null> {

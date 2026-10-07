@@ -1,22 +1,36 @@
 import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Container, PageHero } from '@/components/site/layout';
 import { linkClass } from '@/components/site/button';
 
 export const metadata: Metadata = { title: 'Privacy policy' };
+// Read on each visit, so the address below follows APP_URL when the site
+// moves domain (5minutedating.com.au now, fastmatch.com.au soon, Gil).
+export const dynamic = 'force-dynamic';
+
+/** The site's own address, as members see it in their browser ("fastmatch.com.au"). */
+function siteAddress(): string {
+  try {
+    return new URL(process.env.APP_URL ?? '').host.replace(/^www\./, '') || 'fastmatch.com.au';
+  } catch {
+    return 'fastmatch.com.au';
+  }
+}
 
 export default function PrivacyPage() {
+  const site = siteAddress();
   return (
     <>
       <PageHero title="Privacy Policy" />
       <Container className="pb-[clamp(56px,6.7vw,96px)] pt-[clamp(32px,4.4vw,64px)]">
         <div className="max-w-[720px] text-base leading-relaxed text-ink-600 md:text-[17px]">
-          <P>Fast Match conducts events, workshops and seminars for singles, couples and friends and the main vehicle for information distribution and collection is www.fastmatch.com.au</P>
+          <P>Fast Match conducts events, workshops and seminars for singles, couples and friends and the main vehicle for information distribution and collection is {site}</P>
           <P>Fast Match is bound by the Australian Privacy Principles contained in the Privacy Act 1988 (Cth). Fast Match may, from time to time, review and update this privacy policy statement to take account of new laws and technology and changes to Fast Match&apos;s operations. All personal information held by Fast Match will be governed by its most recent policy, posted on Fast Match.</P>
 
           <H2>What we collect</H2>
           <P>Fast Match collects personal information from members of the public, including (but not limited to) name, address, contact details, gender, occupation, age, hobbies, event preferences, and in some cases financial information, including credit card information, banking details and income information.</P>
-          <P>We store the personal information you enter on fastmatch.com.au, obtained mainly through registration, updates to membership details, and bookings. We may also use cookies to assign your computer a &apos;User ID&apos; to help identify your computer to our servers; you can disable cookies via your browser settings.</P>
+          <P>We store the personal information you enter on {site}, obtained mainly through registration, updates to membership details, and bookings. We may also use cookies to assign your computer a &apos;User ID&apos; to help identify your computer to our servers; you can disable cookies via your browser settings.</P>
 
           <H2>How we use it</H2>
           <P>Fast Match generally uses personal information to provide the products or services you&apos;ve requested, personalise your experience, manage and enhance our services, communicate with you and, with your consent, send you information about offers, products or services we believe may interest you.</P>
@@ -31,7 +45,7 @@ export default function PrivacyPage() {
           <P>Fast Match protects the personal information it holds from misuse, loss, unauthorised access, modification or disclosure through firewalls, password access, secure servers and encryption of credit card transactions.</P>
 
           <H2>Updating your information</H2>
-          <P>You can update your Fast Match membership information at any time via the &apos;Update your details&apos; section of the app. Where personal information is no longer required, it will be destroyed or de-identified.</P>
+          <P>You can update your Fast Match membership information at any time from <Link href="/account/edit-profile" className={linkClass}>My account › Edit profile</Link>. Where personal information is no longer required, it will be destroyed or de-identified.</P>
 
           <H2>Accessing your information</H2>
           <P>You have the right to access the personal information Fast Match holds about you and to advise us of any inaccuracy, subject to some exceptions under the Privacy Act. We may ask you to verify your identity and may charge a fee to cover the cost of meeting your request.</P>

@@ -22,6 +22,13 @@ interface SendEmailArgs {
    * is unchanged.
    */
   replyTo?: string;
+  /**
+   * Blasts only: the one-click unsubscribe address (RFC 8058), sent as the
+   * List-Unsubscribe and List-Unsubscribe-Post headers. Gmail and Yahoo
+   * require them from bulk senders, and show their own "Unsubscribe" button
+   * from them. Optional: every other caller is unchanged.
+   */
+  listUnsubscribe?: string;
 }
 
 // Cached transport. Built on first use and reused for the life of the process.
@@ -59,13 +66,14 @@ async function getTransport(): Promise<Transporter> {
   return transporter;
 }
 
-export async function sendEmail({ to, subject, html, replyTo }: SendEmailArgs) {
+export async function sendEmail({ to, subject, html, replyTo, listUnsubscribe }: SendEmailArgs) {
   // An email header: never more than one line.
   const reply = replyTo?.replace(/[\r\n]+/g, '').trim() || undefined;
+  const unsubscribeUrl = listUnsubscribe?.replace(/[\r\n<>]+/g, '').trim() || undefined;
   // Same stub behaviour as before, just keyed on the SMTP credentials rather
   // than an API key. Both must be present to attempt a real send.
   if (!process.env.MAILGUN_SMTP_USER || !process.env.MAILGUN_SMTP_PASS) {
-    console.log(`[stub] Would email ${to}: "${subject}"${reply ? ` (reply-to ${reply})` : ''}`);
+    console.log(`[stub] Would email ${to}: "${subject}"${reply ? ` (reply-to ${reply})` : ''}${unsubscribeUrl ? ' (one-click unsubscribe)' : ''}`);
     return;
   }
 
@@ -77,7 +85,11 @@ export async function sendEmail({ to, subject, html, replyTo }: SendEmailArgs) {
 
   try {
     const transport = await getTransport();
-    await transport.sendMail({ from: fromAddress, to, subject, html, ...(reply ? { replyTo: reply } : {}) });
+    await transport.sendMail({
+      from: fromAddress, to, subject, html,
+      ...(reply ? { replyTo: reply } : {}),
+      ...(unsubscribeUrl ? { headers: { 'List-Unsubscribe': `<${unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } } : {}),
+    });
   } catch (err) {
     // Log it clearly so it's visible in journalctl, then rethrow so the
     // caller's own handling still runs — campaign sends rely on this to mark
