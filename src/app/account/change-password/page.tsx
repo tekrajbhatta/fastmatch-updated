@@ -6,6 +6,8 @@ import { FormCard, SplitLayout } from '@/components/site/layout';
 import { Button, ButtonLink } from '@/components/site/button';
 import { Field, FormError, FormSuccess, TextInput } from '@/components/site/form';
 import { safeNext } from '@/lib/safeNext';
+import { NETWORK_ERROR } from '@/lib/networkError';
+import SessionExpired from '@/components/site/SessionExpired';
 
 function ChangePasswordInner() {
   // Opened from "Finish setting up your account", it goes back there after.
@@ -14,6 +16,7 @@ function ChangePasswordInner() {
   const [newPassword, setNewPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'saving' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [needsLogin, setNeedsLogin] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -23,8 +26,10 @@ function ChangePasswordInner() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ currentPassword, newPassword }),
-    });
-    const data = await res.json();
+    }).catch(() => null);
+    if (!res) { setError(NETWORK_ERROR); setStatus('idle'); return; }
+    if (res.status === 401) { setNeedsLogin(true); setStatus('idle'); return; }
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setError(data.error ?? 'Something went wrong.');
       setStatus('idle');
@@ -36,7 +41,9 @@ function ChangePasswordInner() {
   return (
     <SplitLayout title="Change password" back={{ href: '/account', label: 'Back to my account' }}>
       <FormCard>
-        {status === 'done' ? (
+        {needsLogin ? (
+          <SessionExpired next="/account/change-password" />
+        ) : status === 'done' ? (
           <>
             <FormSuccess>Password updated.</FormSuccess>
             {nextParam && <ButtonLink href={safeNext(nextParam, '/account', window.location.origin)} block>Continue</ButtonLink>}

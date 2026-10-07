@@ -5,6 +5,7 @@ import { FormCard, SplitLayout } from '@/components/site/layout';
 import { Button } from '@/components/site/button';
 import { Field, FormError, FormSuccess, SelectInput, TextArea } from '@/components/site/form';
 import { formatEventForViewer } from '@/lib/timezone';
+import SessionExpired from '@/components/site/SessionExpired';
 
 interface FeedbackEvent { id: string; name: string; startsAt: string; venue: { name: string }; city: { name: string } }
 
@@ -15,6 +16,7 @@ export default function FeedbackPage() {
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [needsLogin, setNeedsLogin] = useState(false);
 
   useEffect(() => {
     fetch('/api/feedback').then((r) => r.json()).then((d) => setEvents(Array.isArray(d) ? d : [])).catch(() => {});
@@ -30,6 +32,8 @@ export default function FeedbackPage() {
       body: JSON.stringify({ eventId: eventId || undefined, message }),
     }).catch(() => null);
     const data = res ? await res.json().catch(() => ({})) : {};
+    // Logged out since the page opened: say so, rather than "Not authenticated".
+    if (res?.status === 401) { setStatus('idle'); setNeedsLogin(true); return; }
     // Only claim it's sent if it was — and on failure keep what they wrote.
     if (!res?.ok) {
       setStatus('idle');
@@ -45,7 +49,9 @@ export default function FeedbackPage() {
       lead={<>At Fast Match we want to give you the best event experience possible, so we&apos;re always keen to hear your feedback.</>}
     >
       <FormCard>
-        {status === 'sent' ? (
+        {needsLogin ? (
+          <SessionExpired next="/feedback" />
+        ) : status === 'sent' ? (
           <>
             <FormSuccess>Thanks, your feedback has been sent to the Fast Match team.</FormSuccess>
             <Button variant="secondary" block onClick={() => { setMessage(''); setEventId(''); setStatus('idle'); }}>Send more feedback</Button>

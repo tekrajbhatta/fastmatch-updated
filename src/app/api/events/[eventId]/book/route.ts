@@ -16,7 +16,8 @@ import {
 import { releasePendingBooking, closeLapsedCheckouts } from '@/lib/pendingBooking';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { eventAvailability, NOT_BOOKABLE } from '@/lib/eventAvailability';
-import { CHECKOUT_MINUTES } from '@/lib/capacity';
+import { CHECKOUT_MINUTES, holdCutoff } from '@/lib/capacity';
+import { hitRateLimit, rateKey, LIMITS } from '@/lib/rateLimit';
 import { unfinishedSteps, bookingRefusal } from '@/lib/accountSetup';
 
 // POST /api/events/:eventId/book — a member books themselves, plus any
@@ -76,6 +77,16 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
     return NextResponse.json({ error: prepared.error, fieldErrors: prepared.fieldErrors }, { status: prepared.status });
   }
 
+  // Each attempt that gets this far holds places: a few an hour is plenty
+  // (changing friends, a card that failed), but not booking over and over.
+  const attempts = await hitRateLimit(rateKey('book', `${member.id}|${params.eventId}`), LIMITS.bookingAttempts.limit, LIMITS.bookingAttempts.windowMs);
+  if (!attempts.allowed) {
+    return NextResponse.json(
+      { error: 'You’ve tried to book this event many times in the last hour. Please try again later, or contact gil@fastmatch.com.au.' },
+      { status: 429 },
+    );
+  }
+
   if (existing?.status === 'PENDING') {
     // Closes the old payment page too, so it can't be paid afterwards.
     const released = await releasePendingBooking(existing);
@@ -87,7 +98,12 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
     }
   }
 
-  const bookingId = await createMemberBooking(member, event, prepared);
+  // Booking again while the last attempt still holds its places (changing
+  // friends, say) carries on that hold rather than starting a new one: the
+  // places were already counted from then, and booking over and over could
+  // otherwise keep an event looking full indefinitely.
+  const holdSince = existing?.status === 'PENDING' && existing.createdAt >= holdCutoff() ? existing.createdAt : undefined;
+  const bookingId = await createMemberBooking(member, event, prepared, { holdSince });
 
   // Nothing to pay (e.g. a free code, booking alone): confirm straight away.
   if (prepared.quote.total === 0) {

@@ -25,7 +25,7 @@ export interface PriceInput {
   friends: { name: string; gender: 'MALE' | 'FEMALE' }[];
   /** A code that is valid for this event, or null for none. */
   coupon: { code: string; type: CouponType; amount: number | null } | null;
-  /** Valid, but this member has already used it on a confirmed booking. */
+  /** Valid, but this member has already used it: on a confirmed booking, or on another event's payment page right now. */
   couponAlreadyUsed: boolean;
 }
 

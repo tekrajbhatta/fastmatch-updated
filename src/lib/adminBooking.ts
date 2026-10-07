@@ -42,8 +42,7 @@ export async function createAdminBooking(
   // Everyone on a cancelled event has been told and refunded: nobody new is
   // booked in (and told "You're booked in").
   if (event.status === 'CANCELLED') return { ok: false, reason: 'the event was cancelled' };
-  const find = () => db.booking.findUnique({ where: { eventId_memberId: { eventId: event.id, memberId: member.id } } });
-  let existing = await find();
+  const existing = await db.booking.findUnique({ where: { eventId_memberId: { eventId: event.id, memberId: member.id } } });
   if (existing?.status === 'CONFIRMED') return { ok: false, reason: 'already has a booking for this event' };
   if (existing?.status === 'PENDING') {
     // They're paying online right now (the payment page is still open): the
@@ -52,46 +51,58 @@ export async function createAdminBooking(
     // instead, as it always was: the friends on it may not be coming at all.
     if (existing.createdAt >= holdCutoff()) return confirmPendingByAdmin(existing.id, payment);
     if ((await releasePendingBooking(existing)) === 'paid') return { ok: false, reason: 'has just paid for this event online' };
-    existing = await find(); // a booking they'd reopened is back to what it was
   }
 
-  const taken = await placesTaken(event.id, { db, excludeMemberId: member.id, excludeEmail: member.email });
-  const problem = capacityProblem(taken, event, { men: member.gender === 'MALE' ? 1 : 0, women: member.gender === 'FEMALE' ? 1 : 0 });
-  if (problem) return { ok: false, reason: problem };
+  // The check and the booking happen with the event locked, one at a time,
+  // as card payments are confirmed (confirmBookingGroup): an admin add and a
+  // payment for the last place at the same moment can't both take it.
+  const write = async (tx: Prisma.TransactionClient): Promise<AdminBookingResult> => {
+    await tx.$queryRaw`SELECT id FROM \`Event\` WHERE id = ${event.id} FOR UPDATE`;
+    const current = await tx.booking.findUnique({ where: { eventId_memberId: { eventId: event.id, memberId: member.id } } });
+    if (current?.status === 'CONFIRMED') return { ok: false, reason: 'already has a booking for this event' };
+    if (current?.status === 'PENDING') return { ok: false, reason: 'has just started booking online; try again in a moment' };
 
-  const paid = {
-    status: 'CONFIRMED' as const,
-    paidAmount: payment.paidAmount,
-    paymentMethod: payment.method,
-    checkedIn: payment.checkedIn,
-    checkedInAt: payment.checkedIn ? new Date() : null,
-    confirmedAt: new Date(),
-  };
+    const taken = await placesTaken(event.id, { db: tx, excludeMemberId: member.id, excludeEmail: member.email });
+    const problem = capacityProblem(taken, event, { men: member.gender === 'MALE' ? 1 : 0, women: member.gender === 'FEMALE' ? 1 : 0 });
+    if (problem) return { ok: false, reason: problem };
 
-  if (existing) {
-    // A cancelled or refunded booking is reopened (one row per member per
-    // event), keeping its badge. Nothing of the old booking carries over: not
-    // its discount code (this booking didn't use one), its payment page or
-    // who brought them.
-    await db.booking.update({
-      where: { id: existing.id },
-      data: {
-        ...paid,
-        discountCodeId: null, stripePaymentIntentId: null, bookedById: null, reminderSent: false,
-        pendingFriends: Prisma.DbNull, reopenedFrom: Prisma.DbNull,
-      },
+    const paid = {
+      status: 'CONFIRMED' as const,
+      paidAmount: payment.paidAmount,
+      paymentMethod: payment.method,
+      checkedIn: payment.checkedIn,
+      checkedInAt: payment.checkedIn ? new Date() : null,
+      confirmedAt: new Date(),
+    };
+
+    if (current) {
+      // A cancelled or refunded booking is reopened (one row per member per
+      // event), keeping its badge. Nothing of the old booking carries over: not
+      // its discount code (this booking didn't use one), its payment page or
+      // who brought them.
+      await tx.booking.update({
+        where: { id: current.id },
+        data: {
+          ...paid,
+          discountCodeId: null, stripePaymentIntentId: null, bookedById: null, reminderSent: false,
+          pendingFriends: Prisma.DbNull, reopenedFrom: Prisma.DbNull,
+        },
+      });
+      return { ok: true, bookingId: current.id, badge: current.badge };
+    }
+
+    // Same numbering as the member route: next badge across both genders.
+    const highest = await tx.booking.aggregate({ where: { eventId: event.id }, _max: { badge: true } });
+    const badge = (highest._max.badge ?? 0) + 1;
+
+    const booking = await tx.booking.create({
+      data: { eventId: event.id, memberId: member.id, badge, ...paid },
     });
-    return { ok: true, bookingId: existing.id, badge: existing.badge };
-  }
-
-  // Same numbering as the member route: next badge across both genders.
-  const highest = await db.booking.aggregate({ where: { eventId: event.id }, _max: { badge: true } });
-  const badge = (highest._max.badge ?? 0) + 1;
-
-  const booking = await db.booking.create({
-    data: { eventId: event.id, memberId: member.id, badge, ...paid },
-  });
-  return { ok: true, bookingId: booking.id, badge };
+    return { ok: true, bookingId: booking.id, badge };
+  };
+  // Already inside a transaction (Add a new member creates the member in the
+  // same one): lock there. Otherwise, in one of its own.
+  return '$transaction' in db ? (db as PrismaClient).$transaction(write) : write(db as Prisma.TransactionClient);
 }
 
 /**

@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
-import { PAYMENT_METHOD_VALUES } from '@/lib/paymentMethod';
+import { PAYMENT_METHOD_VALUES, bookingStatusLabel } from '@/lib/paymentMethod';
+import { formatPrice } from '@/lib/price';
 import { confirmPendingByAdmin } from '@/lib/adminBooking';
 import { placesTaken, capacityProblem } from '@/lib/capacity';
 import { closeCheckout } from '@/lib/pendingBooking';
@@ -15,6 +16,8 @@ const patchSchema = z.object({
   checkedIn: z.boolean(),
   // Optional so older callers keep working; null = booked online.
   paymentMethod: z.enum(PAYMENT_METHOD_VALUES).nullable().optional(),
+  // The status the editor was opened with (see below).
+  expectedStatus: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'REFUNDED']).nullable().optional(),
 });
 
 // PATCH /api/admin/bookings/:id — corrections the host needs to make from the
@@ -40,6 +43,16 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   const data = parsed.data;
 
   const existing = await prisma.booking.findUniqueOrThrow({ where: { id: params.id }, include: { member: true, event: true } });
+
+  // Changed since the editor was opened: a card payment came through, say.
+  // Saving would put back the old status ("Pending" over a payment), or
+  // record the card payment as cash as well.
+  if (data.expectedStatus && existing.status !== data.expectedStatus) {
+    return NextResponse.json(
+      { error: `This booking has changed since you opened it: it's now ${bookingStatusLabel(existing.status, formatPrice(Number(existing.paidAmount)))}. Please check it and try again.`, changed: true },
+      { status: 409 },
+    );
+  }
 
   // Marking someone paid on a cancelled event would book them back in.
   if (data.status === 'CONFIRMED' && existing.status !== 'CONFIRMED' && existing.event.status === 'CANCELLED') {

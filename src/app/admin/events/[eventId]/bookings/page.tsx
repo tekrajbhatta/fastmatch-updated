@@ -25,6 +25,9 @@ export default function EventBookingsPage() {
   // not filling in a form, so this opens in place rather than on another page.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [edit, setEdit] = useState({ status: 'PENDING', paidAmount: '', checkedIn: false, paymentMethod: '' });
+  // The status the booking had when the editor opened: the save is refused
+  // if it has changed since (a card payment coming through, say).
+  const [editFrom, setEditFrom] = useState<string | null>(null);
   const [savingBooking, setSavingBooking] = useState(false);
   // Something to know about a save that worked (e.g. they'd just paid online).
   const [notice, setNotice] = useState<string | null>(null);
@@ -41,6 +44,7 @@ export default function EventBookingsPage() {
     setError(null);
     setEditingId(b.id);
     setEdit({ status: b.status, paidAmount: String(b.paidAmount), checkedIn: b.checkedIn, paymentMethod: b.paymentMethod ?? '' });
+    setEditFrom(b.status);
   }
 
   async function saveBooking(id: string) {
@@ -50,12 +54,14 @@ export default function EventBookingsPage() {
     const res = await fetch(`/api/admin/bookings/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...edit, paidAmount: Number(edit.paidAmount || 0), paymentMethod: edit.paymentMethod || null }),
+      body: JSON.stringify({ ...edit, paidAmount: Number(edit.paidAmount || 0), paymentMethod: edit.paymentMethod || null, expectedStatus: editFrom }),
     });
     const data = await res.json().catch(() => ({}));
     setSavingBooking(false);
     if (!res.ok) {
       setError(typeof data.error === 'string' ? data.error : 'Could not save that booking.');
+      // Changed since it was opened: show it as it is now.
+      if (data.changed) { setEditingId(null); loadBookings(); }
       return;
     }
     setEditingId(null);

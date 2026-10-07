@@ -69,6 +69,9 @@ export function holdCutoff(now: Date = new Date()): Date {
  * Places taken at an event, by gender: every paid booking, plus everyone on
  * an unpaid booking whose payment page is still open.
  *
+ * `heldBefore` counts only holds made before then: for a payment confirmed
+ * within its own hold, which comes before holds made after it.
+ *
  * `excludeMemberId` leaves out that member's own unpaid booking — someone
  * trying again, or looking at the event they're paying for, mustn't be
  * blocked by their own earlier attempt — and `excludeEmail` the same person
@@ -77,7 +80,7 @@ export function holdCutoff(now: Date = new Date()): Date {
  */
 export async function placesTaken(
   eventId: string,
-  opts: { db?: Db; now?: Date; excludeMemberId?: string; excludeEmail?: string; excludeBookingId?: string } = {},
+  opts: { db?: Db; now?: Date; excludeMemberId?: string; excludeEmail?: string; excludeBookingId?: string; heldBefore?: Date } = {},
 ): Promise<PlacesTaken> {
   const db = opts.db ?? prisma;
   const [men, women, held] = await Promise.all([
@@ -87,7 +90,7 @@ export async function placesTaken(
       where: {
         eventId,
         status: 'PENDING',
-        createdAt: { gte: holdCutoff(opts.now) },
+        createdAt: { gte: holdCutoff(opts.now), ...(opts.heldBefore ? { lt: opts.heldBefore } : {}) },
         ...(opts.excludeMemberId ? { memberId: { not: opts.excludeMemberId } } : {}),
         ...(opts.excludeBookingId ? { id: { not: opts.excludeBookingId } } : {}),
       },

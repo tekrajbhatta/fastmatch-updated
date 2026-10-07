@@ -15,6 +15,8 @@ import SetupSteps from '@/components/site/SetupSteps';
 import CheckInAction from '@/components/site/CheckInAction';
 import { checkInState, checkInWindow } from '@/lib/eventNight';
 import { formatPrice } from '@/lib/price';
+import { calculateAge } from '@/lib/age';
+import { NETWORK_ERROR } from '@/lib/networkError';
 
 interface EventDetail {
   id: string;
@@ -56,6 +58,11 @@ export default function EventDetailPage() {
   const router = useRouter();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  // "Book" in the members' events table links to #book: scrolled to once
+  // the event has loaded (on arrival only the loader exists, so the
+  // browser's own jump to it lands nowhere, at the top on a phone).
+  const scrolledToBook = useRef(false);
   // undefined until /api/auth/me answers; null when logged out.
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +88,7 @@ export default function EventDetailPage() {
     fetch(`/api/events/${eventId}`).then(async (r) => {
       if (!r.ok) { setNotFound(true); return; }
       setEvent(await r.json());
-    });
+    }).catch(() => setLoadFailed(true));
     // Public endpoint — { member: null } when logged out.
     fetch('/api/auth/me').then((r) => r.json()).then((d) => setMe(d?.member ?? null)).catch(() => setMe(null));
     // A code typed in before logging in or signing up comes back in the
@@ -97,6 +104,12 @@ export default function EventDetailPage() {
     window.addEventListener('pageshow', onShow);
     return () => window.removeEventListener('pageshow', onShow);
   }, []);
+
+  useEffect(() => {
+    if (!event || scrolledToBook.current || window.location.hash !== '#book') return;
+    scrolledToBook.current = true;
+    document.getElementById('book')?.scrollIntoView({ block: 'start' });
+  }, [event]);
 
   // Check the discount code shortly after the member stops typing, so the
   // summary shows the discount — or "promotion already used" — before they pay.
@@ -128,6 +141,14 @@ export default function EventDetailPage() {
       </Container>
     );
   }
+  if (!event && loadFailed) {
+    return (
+      <Container className="py-16">
+        <BackLink href="/events" label="Back to upcoming events" className="mb-3" />
+        <FormError>{NETWORK_ERROR}</FormError>
+      </Container>
+    );
+  }
   if (!event) return <Container><PageLoader>Loading event…</PageLoader></Container>;
 
   // The event's own local time, with "(Perth time)" if the viewer's differs.
@@ -141,7 +162,11 @@ export default function EventDetailPage() {
   const closed = event.availability !== 'open';
   // Where check-in stands for this event tonight (src/lib/eventNight.ts).
   const nightState = checkInState(event);
-  const canBook = !event.alreadyBooked && !soldOut && !closed;
+  // Outside the event's age range: said here, rather than only when
+  // "Continue to payment" is refused (the server checks it too).
+  const myAge = me ? calculateAge(new Date(me.dateOfBirth)) : null;
+  const outsideAge = myAge !== null && !event.alreadyBooked && (myAge < event.ageMin || myAge > event.ageMax);
+  const canBook = !event.alreadyBooked && !soldOut && !closed && !outsideAge;
   const showFriends = !!me && canBook && event.groupDiscounts;
 
   const friends = [
@@ -192,7 +217,8 @@ export default function EventDetailPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ discountCode: discountCode.trim() || undefined, friends }),
-    });
+    }).catch(() => null);
+    if (!res) { setBooking(false); setError(NETWORK_ERROR); return; }
     const data = await res.json().catch(() => ({}));
     // The button stays busy ("Booking…" with a spinner) while the browser
     // moves on to payment, login or the booked page — those can take a
@@ -431,6 +457,11 @@ export default function EventDetailPage() {
                 </p>
               ) : event.alreadyBooked ? (
                 <FormSuccess>You&apos;re already booked in for this event.</FormSuccess>
+              ) : outsideAge ? (
+                <div role="status" className="flex flex-col gap-2 rounded-[20px] bg-plum-50 px-5 py-4 text-center">
+                  <p className="text-[17px] font-bold text-ink-900">This event is for ages {event.ageMin}–{event.ageMax}.</p>
+                  <Link href="/events" className={linkClass}>See the events for your age</Link>
+                </div>
               ) : (
                 <Button onClick={handleBook} disabled={booking || soldOut || checkingCode} loading={booking} block size="hero">
                   {soldOut

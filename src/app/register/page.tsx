@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { SplitLayout, FormCard } from '@/components/site/layout';
 import { Field, TextInput, SelectInput, Checkbox, RadioCards, FormError, FormSuccess } from '@/components/site/form';
 import { Button, linkClass } from '@/components/site/button';
+import { NETWORK_ERROR } from '@/lib/networkError';
 
 interface City { id: string; name: string; }
 
@@ -42,9 +43,10 @@ export default function RegisterPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...form, agreedTerms, marketingOptIn, ...(next ? { next } : {}) }),
-    });
-    const data = await res.json();
+    }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
     setLoading(false);
+    if (!res) { setError(NETWORK_ERROR); return; }
     if (!res.ok) {
       setError(typeof data.error === 'string' ? data.error : 'Please check your details and try again.');
       return;

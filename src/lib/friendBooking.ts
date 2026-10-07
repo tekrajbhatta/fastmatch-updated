@@ -24,9 +24,12 @@ export interface FriendFieldError {
   message: string;
 }
 
-// Deliberately loose — the same standard the rest of the app applies to
-// member emails (zod's .email()).
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// The same rule as every other email field (zod's .email(), which the
+// server uses; copied here so this file stays free of zod for the event
+// page). It used to be looser: an address like anna@exämple.com passed
+// here, then the database, which ignores accents when comparing, matched it
+// to a different member's anna@example.com.
+export const EMAIL_RE = /^(?!\.)(?!.*\.\.)([A-Z0-9_'+\-\.]*)[A-Z0-9_+-]@([A-Z0-9][A-Z0-9\-]*\.)+[A-Z]{2,}$/i;
 
 export const AGE_BRACKET_MESSAGE = "Friend does not fall into this event's age bracket";
 

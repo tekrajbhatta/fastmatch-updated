@@ -17,7 +17,7 @@ import { sendEmail } from './emails/send';
 import { friendWelcomeEmail } from './emails/friendEmail';
 import { eventTimeFor } from './timezone';
 import { eventLabel } from './eventLabel';
-import { placesTaken, countHeld, capacityProblem } from './capacity';
+import { placesTaken, countHeld, capacityProblem, holdCutoff } from './capacity';
 import { eventAvailability, NOT_BOOKABLE } from './eventAvailability';
 
 /**
@@ -77,10 +77,19 @@ export async function lookupDiscount(
   if (!discount || !discountAppliesTo(discount, event, new Date())) {
     return { ok: false, error: 'This discount code is not valid for this event.' };
   }
-  // One use per member. Only a CONFIRMED booking counts — an abandoned
-  // checkout mustn't burn someone's code.
+  // One use per member. A CONFIRMED booking counts — an abandoned checkout
+  // mustn't burn someone's code — and so does one being paid for right now
+  // on another event's payment page (still within its hold): two pages open
+  // at once used to get the discount twice. This event's own earlier attempt
+  // doesn't, as this booking replaces it.
   const alreadyUsed =
-    (await prisma.booking.count({ where: { memberId: member.id, discountCodeId: discount.id, status: 'CONFIRMED' } })) > 0;
+    (await prisma.booking.count({
+      where: {
+        memberId: member.id,
+        discountCodeId: discount.id,
+        OR: [{ status: 'CONFIRMED' }, { status: 'PENDING', createdAt: { gte: holdCutoff() }, eventId: { not: event.id } }],
+      },
+    })) > 0;
   return { ok: true, discount, alreadyUsed };
 }
 
@@ -162,9 +171,13 @@ export async function prepareMemberBooking(
   const { men: menBooked, women: womenBooked } = await placesTaken(event.id, { excludeMemberId: member.id, excludeEmail: member.email });
   const wantMen = men + (member.gender === 'MALE' ? 1 : 0);
   const wantWomen = women + (member.gender === 'FEMALE' ? 1 : 0);
-  if (menBooked + wantMen > event.maxMen || womenBooked + wantWomen > event.maxWomen) {
+  // Only the side(s) this booking adds to: the women's side being over its
+  // maximum (lowered by the admin, say) doesn't stop a man booking alone.
+  const menShort = wantMen > 0 && menBooked + wantMen > event.maxMen;
+  const womenShort = wantWomen > 0 && womenBooked + wantWomen > event.maxWomen;
+  if (menShort || womenShort) {
     if (friends.length === 0) return { ok: false, status: 409, error: 'This event is full for your gender.' };
-    const short = menBooked + wantMen > event.maxMen ? 'men' : 'women';
+    const short = menShort ? 'men' : 'women';
     return { ok: false, status: 409, error: `Sorry, there aren't enough places left for ${short} at this event for everyone in your booking.` };
   }
 
@@ -190,6 +203,7 @@ export async function createMemberBooking(
   member: Pick<Member, 'id'>,
   event: Pick<Event, 'id'>,
   prepared: Extract<Prepared, { ok: true }>,
+  opts: { holdSince?: Date } = {},
 ): Promise<string> {
   const pending: PendingFriend[] = prepared.friends.map((f) => ({
     gender: f.gender,
@@ -228,7 +242,7 @@ export async function createMemberBooking(
       data: {
         ...fresh,
         // A new booking in all but its badge number.
-        createdAt: new Date(), // so it holds places for its new payment page
+        createdAt: opts.holdSince ?? new Date(), // so it holds places for its new payment page
         stripePaymentIntentId: null, paymentMethod: null, bookedById: null,
         checkedIn: false, checkedInAt: null, reminderSent: false, confirmedAt: null,
         reopenedFrom: was as unknown as Prisma.InputJsonValue,
@@ -238,7 +252,7 @@ export async function createMemberBooking(
   }
   const highest = await prisma.booking.aggregate({ where: { eventId: event.id }, _max: { badge: true } });
   const booking = await prisma.booking.create({
-    data: { eventId: event.id, memberId: member.id, badge: (highest._max.badge ?? 0) + 1, ...fresh },
+    data: { eventId: event.id, memberId: member.id, badge: (highest._max.badge ?? 0) + 1, ...fresh, ...(opts.holdSince ? { createdAt: opts.holdSince } : {}) },
   });
   return booking.id;
 }
@@ -312,7 +326,13 @@ export async function confirmBookingGroup(
       // own, and not the member again as a friend on someone else's. A friend
       // who has booked themselves since isn't booked again below, so needs no
       // second place.
-      const taken = await placesTaken(lead.eventId, { db: tx, excludeBookingId: lead.id, excludeEmail: lead.member.email });
+      // Paid while its own hold still runs: holds made after it don't count
+      // (they were made in the moment the places looked free, two people
+      // booking the last place at once), so it isn't refunded for them.
+      const ownHoldRunning = lead.createdAt >= holdCutoff();
+      const taken = await placesTaken(lead.eventId, {
+        db: tx, excludeBookingId: lead.id, excludeEmail: lead.member.email, ...(ownHoldRunning ? { heldBefore: lead.createdAt } : {}),
+      });
       const bookedAlready = pending.length
         ? await tx.booking.findMany({
             where: { eventId: lead.eventId, status: 'CONFIRMED', member: { email: { in: pending.map((f) => f.email) } } },

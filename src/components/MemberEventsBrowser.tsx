@@ -12,6 +12,7 @@ import { venueLine } from '@/lib/venue';
 import { formatEventForViewer } from '@/lib/timezone';
 import CheckInAction from '@/components/site/CheckInAction';
 import type { CheckInState } from '@/lib/eventNight';
+import LoadFailed from '@/components/site/LoadFailed';
 
 interface City { id: string; name: string }
 type ApiEvent = MemberTableEvent & { venue: { name: string; address: string | null } };
@@ -40,6 +41,7 @@ export default function MemberEventsBrowser({ showBookedList, splitByAge = false
   keepProfileMatch?: boolean;
 }) {
   const [events, setEvents] = useState<ApiEvent[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [cities, setCities] = useState<City[]>([]);
   const [age, setAge] = useState<number | null>(null);
   const [homeCityId, setHomeCityId] = useState<string | null>(null);
@@ -68,9 +70,11 @@ export default function MemberEventsBrowser({ showBookedList, splitByAge = false
       } else {
         setCityId('');
       }
-    });
+    }).catch(() => setLoadFailed(true));
   }, [showBookedList]);
 
+  // The site couldn't be reached: said, with Try again, not "Loading…" for good.
+  if (loadFailed) return <div className="mx-auto max-w-md"><LoadFailed /></div>;
   if (!events || cityId === null) return <PageLoader>Loading events…</PageLoader>;
 
   const cityName = (id: string | null) => cities.find((c) => c.id === id)?.name;

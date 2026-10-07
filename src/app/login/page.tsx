@@ -8,6 +8,7 @@ import { Field, TextInput, FormError } from '@/components/site/form';
 import { Button, linkClass } from '@/components/site/button';
 import { safeNext } from '@/lib/safeNext';
 import { finishSetupHref, isAdminPath } from '@/lib/accountSetup';
+import { NETWORK_ERROR } from '@/lib/networkError';
 
 function LoginInner() {
   const router = useRouter();
@@ -32,9 +33,10 @@ function LoginInner() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
+    }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
     setLoading(false);
+    if (!res) { setError(NETWORK_ERROR); return; }
     if (!res.ok) {
       setError(data.error ?? 'Login failed.');
       setWrongDetails(res.status === 401 || res.status === 400);

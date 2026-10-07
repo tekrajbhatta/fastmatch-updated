@@ -8,6 +8,7 @@ import { Field, TextInput, SelectInput, Checkbox, FormError, FormSuccess } from 
 import { Button, linkClass } from '@/components/site/button';
 import { latestAdultDateOfBirth } from '@/lib/age';
 import { safeNext } from '@/lib/safeNext';
+import { NETWORK_ERROR } from '@/lib/networkError';
 
 interface Prefill {
   name: string; email: string; mobile: string; gender: 'MALE' | 'FEMALE'; cityId: string;
@@ -44,7 +45,7 @@ function SetPasswordInner() {
       if (!r.ok) { setLinkError(typeof d.error === 'string' ? d.error : 'This link is invalid or has expired.'); return; }
       setPrefill(d);
       setForm((f) => ({ ...f, name: d.name, mobile: d.mobile, dateOfBirth: d.dateOfBirth ?? '', cityId: d.cityId, gender: d.gender }));
-    });
+    }).catch(() => setLinkError(NETWORK_ERROR));
   }, [token]);
 
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
@@ -59,7 +60,8 @@ function SetPasswordInner() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, ...rest, ...(prefill?.canChangeGender ? { gender } : {}) }),
-    });
+    }).catch(() => null);
+    if (!res) { setError(NETWORK_ERROR); setStatus('idle'); return; }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setError(typeof data.error === 'string' ? data.error : 'This link may have expired.');

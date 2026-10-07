@@ -112,6 +112,9 @@ export async function cancelPreview(eventId: string) {
   const onlineIds = new Set(online.map((b) => b.id));
   // A group's payment covers the friends they brought: their shares are on their own bookings.
   const onlineTotal = paid.filter((b) => onlineIds.has(b.id) || (b.bookedById && onlineIds.has(b.bookedById))).reduce((sum, b) => sum + Number(b.paidAmount), 0);
+  // Paid some other way: the people who paid, and the friends they paid for.
+  const byHandIds = new Set(paid.filter(paidByHand).map((b) => b.id));
+  const byHand = paid.filter((b) => byHandIds.has(b.id) || (b.bookedById && byHandIds.has(b.bookedById) && Number(b.paidAmount) > 0)).length;
   return {
     blocked: cancelBlocked(event, new Date(), paid.length),
     // Already cancelled, but some bookings weren't dealt with: this finishes it.
@@ -119,7 +122,7 @@ export async function cancelPreview(eventId: string) {
     attendees: paid.length,
     onlinePayments: online.length,
     onlineTotal: Math.round(onlineTotal * 100) / 100,
-    byHand: paid.filter(paidByHand).length,
+    byHand,
     unpaidPages: bookings.filter(isPaymentPage).length,
   };
 }
@@ -158,13 +161,28 @@ export async function cancelEvent(eventId: string): Promise<CancelOutcome> {
   }
 
   const paid = bookings.filter((x) => !isPaymentPage(x));
+  // Who brought each friend (and how they paid), also when an earlier,
+  // interrupted run has already dealt with them.
+  const leadIds = [...new Set(paid.map((b) => b.bookedById).filter((id): id is string => !!id))];
+  const leads = new Map(
+    (leadIds.length ? await prisma.booking.findMany({ where: { id: { in: leadIds } }, include: { member: true } }) : []).map((l) => [l.id, l]),
+  );
   for (let i = 0; i < paid.length; i += AT_ONCE) {
-    await Promise.all(paid.slice(i, i + AT_ONCE).map((b) => cancelBooking(event, b, outcome)));
+    await Promise.all(paid.slice(i, i + AT_ONCE).map((b) => cancelBooking(event, b, outcome, b.bookedById ? leads.get(b.bookedById) : undefined)));
   }
+  // A group paid online: the refund of the lead's payment covered their
+  // friends' places too, so those read "Cancelled – refunded" as well (they
+  // used to read plain "Cancelled", which means nothing went back).
+  await prisma.booking.updateMany({ where: { eventId, status: 'CANCELLED', bookedBy: { status: 'REFUNDED' } }, data: { status: 'REFUNDED' } });
   return outcome;
 }
 
-async function cancelBooking(event: FullEvent, b: Attendee, outcome: CancelOutcome): Promise<void> {
+async function cancelBooking(
+  event: FullEvent,
+  b: Attendee,
+  outcome: CancelOutcome,
+  lead?: Pick<Booking, 'paymentMethod' | 'bookedById' | 'paidAmount'> & { member: Pick<Member, 'name'> },
+): Promise<void> {
   // Claimed in the state it was read in (confirmed, or set back to pending).
   const claimed = await prisma.booking.updateMany({
     where: { id: b.id, status: b.status },
@@ -191,6 +209,10 @@ async function cancelBooking(event: FullEvent, b: Attendee, outcome: CancelOutco
     }
   } else if (paidByHand(b)) {
     outcome.byHand.push({ member: b.member.name, amount: Number(b.paidAmount), method: paymentMethodLabel(b.paymentMethod) });
+  } else if (lead && paidByHand(lead) && Number(b.paidAmount) > 0) {
+    // A friend whose place was paid for with the lead's cash or card: their
+    // share is for Gil to refund too (only the lead's used to be listed).
+    outcome.byHand.push({ member: `${b.member.name} (brought by ${lead.member.name})`, amount: Number(b.paidAmount), method: paymentMethodLabel(lead.paymentMethod) });
   }
 
   await tellCancelled(event, b, refunded, outcome);

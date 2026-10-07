@@ -45,6 +45,12 @@ export const LIMITS = {
   tellAFriend: { limit: 5, windowMs: HOUR },
   /** Opt-outs by mobile number (the link in blast texts) per visitor address. */
   optOutIp: { limit: 10, windowMs: HOUR },
+  /**
+   * Booking attempts per member per event (each one holds places): plenty
+   * for changing friends or a failed card, not enough to keep an event
+   * looking full by booking over and over.
+   */
+  bookingAttempts: { limit: 10, windowMs: HOUR },
 } as const;
 
 /**

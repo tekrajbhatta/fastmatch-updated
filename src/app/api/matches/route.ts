@@ -11,7 +11,8 @@ const HISTORY_MONTHS = 6;
  * Offered on My Match History to members who haven't been to an event
  * recently — the old site's "$10.00 OFF your first event with FMDC10".
  * Only shown while a discount code with this name exists and is current, so
- * the page can never advertise a code that doesn't work.
+ * the page can never advertise a code that doesn't work — and only to
+ * members who haven't used it.
  */
 const WELCOME_OFFER_CODE = 'FMDC10';
 
@@ -83,7 +84,10 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   let welcomeOffer: { code: string; description: string } | null = null;
   if (history.length === 0) {
     const d = await prisma.discountCode.findUnique({ where: { code: WELCOME_OFFER_CODE } });
-    if (d && d.validFrom <= now && d.validTo >= now) {
+    // Not to someone who has used it already (it's once per member), nor
+    // while it only works for one event or event type ("your first event").
+    const used = d ? await prisma.booking.count({ where: { memberId: member.id, discountCodeId: d.id, status: 'CONFIRMED' } }) : 0;
+    if (d && d.validFrom <= now && d.validTo >= now && used === 0 && !d.scopeEventId && !d.scopeThemeId) {
       const amount = Number(d.amount ?? 0);
       const description =
         d.type === 'FIXED_REDUCTION' ? `${formatPrice(amount)} OFF` : d.type === 'PERCENT_OFF' ? `${amount}% OFF` : 'a FREE place at';

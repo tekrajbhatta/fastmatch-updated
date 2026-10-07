@@ -57,6 +57,28 @@ export default function CheckinPage() {
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [ratings, setRatings] = useState<Record<string, Choice>>({});
   const [activePerson, setActivePerson] = useState<RosterEntry | null>(null);
+  // The rating pop-up is a dialog: focus moves into it, Tab stays inside,
+  // Escape or Cancel closes it, and focus goes back to the name tapped.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const openedFrom = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!activePerson) return;
+    const panel = dialogRef.current;
+    panel?.querySelector<HTMLButtonElement>('button')?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); setActivePerson(null); return; }
+      if (e.key !== 'Tab' || !panel) return;
+      const buttons = [...panel.querySelectorAll<HTMLButtonElement>('button')];
+      const first = buttons[0]; const last = buttons[buttons.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      openedFrom.current?.focus();
+    };
+  }, [activePerson]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [closedMessage, setClosedMessage] = useState<string | null>(null);
@@ -272,7 +294,7 @@ export default function CheckinPage() {
             {roster.filter((r) => r.memberId !== me?.id).map((person) => (
               <button
                 key={person.memberId}
-                onClick={() => setActivePerson(person)}
+                onClick={(e) => { openedFrom.current = e.currentTarget; setActivePerson(person); }}
                 className={`flex w-full items-center gap-3 rounded-[20px] border-[1.5px] p-3 text-left transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-plum-700 ${ratings[person.memberId] ? 'border-plum-700 bg-plum-50' : 'border-line bg-white hover:border-plum-700'}`}
               >
                 <span className="flex h-10 w-10 flex-none items-center justify-center rounded-[20px_20px_20px_5px] bg-plum-100 font-display font-extrabold text-plum-700">{String(person.badge).padStart(2, '0')}</span>
@@ -289,8 +311,15 @@ export default function CheckinPage() {
 
           {activePerson && (
             <div className="fixed inset-0 z-50 flex items-end justify-center bg-plum-950/60 sm:items-center" onClick={() => setActivePerson(null)}>
-              <div className="w-full max-w-sm rounded-t-[28px] bg-white p-6 pb-8 sm:rounded-[28px] sm:pb-6" onClick={(e) => e.stopPropagation()}>
-                <h2 className="font-display text-2xl font-extrabold tracking-[-0.02em] text-ink-900">{activePerson.name}</h2>
+              <div
+                ref={dialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="rate-person-name"
+                className="w-full max-w-sm rounded-t-[28px] bg-white p-6 pb-8 sm:rounded-[28px] sm:pb-6"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 id="rate-person-name" className="font-display text-2xl font-extrabold tracking-[-0.02em] text-ink-900">{activePerson.name}</h2>
                 {/* What each choice means, in Gil's words. */}
                 <div className="mb-4 mt-2 text-[15px] leading-snug text-ink-600">
                   <p>Now you get to decide if you&apos;d like to meet with this person again.</p>
@@ -303,12 +332,18 @@ export default function CheckinPage() {
                 {(['DATE', 'FRIEND', 'NO'] as Choice[]).map((choice) => (
                   <button
                     key={choice}
+                    type="button"
+                    aria-pressed={ratings[activePerson.memberId] === choice}
                     onClick={() => { selectRating(activePerson.memberId, choice); setActivePerson(null); }}
                     className="mb-2.5 w-full rounded-field border-[1.5px] border-field p-4 text-left text-[17px] font-bold text-ink-900 transition-colors hover:border-plum-700 hover:bg-plum-50 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-plum-700"
                   >
                     {choice === 'DATE' ? 'Date' : choice === 'FRIEND' ? 'Friend' : 'No'}
                   </button>
                 ))}
+                {/* Tapped the wrong name: back out without choosing. */}
+                <button type="button" onClick={() => setActivePerson(null)} className={`${linkClass} mt-1 w-full text-center text-[15px]`}>
+                  Cancel
+                </button>
               </div>
             </div>
           )}

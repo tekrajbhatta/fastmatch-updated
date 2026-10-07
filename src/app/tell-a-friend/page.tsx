@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { FormCard, SplitLayout } from '@/components/site/layout';
 import { Button } from '@/components/site/button';
 import { Field, FormError, FormSuccess, RadioCards, TextInput } from '@/components/site/form';
+import SessionExpired from '@/components/site/SessionExpired';
 
 const EMPTY = { email: '', name: '', mobile: '', gender: '', age: '' };
 
@@ -18,6 +19,7 @@ export default function TellAFriendPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<{ name: string; email: string } | null>(null);
+  const [needsLogin, setNeedsLogin] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,6 +32,8 @@ export default function TellAFriendPage() {
     }).catch(() => null);
     const data = res ? await res.json().catch(() => ({})) : {};
     setSending(false);
+    // Logged out since the page opened: say so, rather than "Not authenticated".
+    if (res?.status === 401) { setNeedsLogin(true); return; }
     if (!res?.ok) { setError(typeof data.error === 'string' ? data.error : 'Sorry, something went wrong. Please try again.'); return; }
     setSent({ name: data.name, email: data.email });
     setForm(EMPTY);
@@ -54,6 +58,7 @@ export default function TellAFriendPage() {
           </FormSuccess>
         )}
 
+        {needsLogin ? <FormCard><SessionExpired next="/tell-a-friend" /></FormCard> : (
         <FormCard>
           <h2 className="font-display text-2xl font-extrabold leading-tight tracking-[-0.02em] text-ink-900">Friend&apos;s information</h2>
           {/* autoComplete off: otherwise the browser offers the MEMBER's own details. */}
@@ -75,6 +80,7 @@ export default function TellAFriendPage() {
             <Button type="submit" disabled={sending} loading={sending} block className="mt-1">{sending ? 'Registering…' : 'Register friend'}</Button>
           </form>
         </FormCard>
+        )}
       </div>
     </SplitLayout>
   );

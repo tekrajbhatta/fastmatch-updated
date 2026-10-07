@@ -8,6 +8,8 @@ import { Field, TextInput, FormError, FormSuccess } from '@/components/site/form
 import { Button, ButtonLink, linkClass } from '@/components/site/button';
 import { Spinner } from '@/components/Spinner';
 import { safeNext } from '@/lib/safeNext';
+import { NETWORK_ERROR } from '@/lib/networkError';
+import LoadFailed from '@/components/site/LoadFailed';
 
 // SMS verification — enter the 6-digit code sent at registration. The API
 // routes (verify-mobile, resend-mobile-code) existed but no screen ever
@@ -36,12 +38,13 @@ function VerifyMobileInner() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [resending, setResending] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/me').then((r) => r.json()).then((data) => {
       setMe(data.member);
       setLoaded(true);
-    });
+    }).catch(() => setLoadFailed(true));
   }, []);
 
   async function handleVerify(e: React.FormEvent) {
@@ -52,9 +55,10 @@ function VerifyMobileInner() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),
-    });
-    const data = await res.json();
+    }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
     setBusy(false);
+    if (!res) { setError(NETWORK_ERROR); return; }
     if (!res.ok) {
       setError(data.error ?? 'Verification failed. Try again.');
       return;
@@ -68,8 +72,9 @@ function VerifyMobileInner() {
     // One code per press: the link is disabled (with a spinner) until the
     // text has gone, so an impatient second tap doesn't send another.
     setResending(true);
-    const res = await fetch('/api/auth/resend-mobile-code', { method: 'POST' }).finally(() => setResending(false));
-    const data = await res.json();
+    const res = await fetch('/api/auth/resend-mobile-code', { method: 'POST' }).catch(() => null).finally(() => setResending(false));
+    if (!res) { setError(NETWORK_ERROR); return; }
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) setError(data.error ?? 'Could not resend the code.');
     else {
       setSmsFailed(false);
@@ -83,7 +88,7 @@ function VerifyMobileInner() {
   if (!loaded) {
     return (
       <SplitLayout title="Verify your mobile">
-        <FormCard><LoadingNote>Loading…</LoadingNote></FormCard>
+        <FormCard>{loadFailed ? <LoadFailed /> : <LoadingNote>Loading…</LoadingNote>}</FormCard>
       </SplitLayout>
     );
   }

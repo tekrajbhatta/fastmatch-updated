@@ -25,13 +25,22 @@ vi.mock('../prisma', () => ({
       update: vi.fn(async ({ data }: any) => { Object.assign(h.event, data); return h.event; }),
     },
     booking: {
-      findMany: vi.fn(async ({ where }: any) => h.bookings.filter((b) => where.status.in.includes(b.status)).map((b) => ({ ...b }))),
+      findMany: vi.fn(async ({ where }: any) => (where.id?.in
+        ? h.bookings.filter((b) => where.id.in.includes(b.id)) // who brought each friend
+        : h.bookings.filter((b) => where.status.in.includes(b.status))).map((b) => ({ ...b }))),
       findUnique: vi.fn(async ({ where }: any) => {
         const b = h.bookings.find((x) => x.id === where.id);
         return b ? { ...b, event: h.event } : null;
       }),
       // The claim: only while it still has the status asked for.
       updateMany: vi.fn(async ({ where, data }: any) => {
+        if (where.bookedBy) {
+          // Friends of a lead whose payment was refunded.
+          const lead = (b: any) => h.bookings.find((x) => x.id === b.bookedById);
+          const hit = h.bookings.filter((b) => b.status === where.status && lead(b)?.status === where.bookedBy.status);
+          hit.forEach((b) => Object.assign(b, data));
+          return { count: hit.length };
+        }
         h.updates.push({ where, data });
         const b = h.bookings.find((x) => x.id === where.id && x.status === where.status && (!where.stripePaymentIntentId || x.stripePaymentIntentId === where.stripePaymentIntentId));
         if (!b) return { count: 0 };
@@ -96,8 +105,9 @@ describe('cancelEvent (Gil, Q2-Q4)', () => {
     // Online card payment: refunded, "Cancelled – refunded".
     expect(o.refunded).toEqual([{ member: 'Lead', amount: 88 }]);
     expect(status('Lead')).toBe('REFUNDED');
-    // A friend's place is part of the lead's payment: cancelled, not refunded separately.
-    expect(status('Friend')).toBe('CANCELLED');
+    // A friend's place is part of the lead's payment: not refunded separately,
+    // but the lead's refund covered it, so "Cancelled – refunded" (batch 12).
+    expect(status('Friend')).toBe('REFUNDED');
     expect(h.refundCalls).toEqual(['cs_lead', 'cs_fail']);
     // Cash: cancelled, for Gil to refund; pay at the door with nothing paid: just cancelled.
     expect(o.byHand).toEqual([{ member: 'Cash', amount: 45, method: 'Cash' }]);
@@ -208,5 +218,23 @@ describe('cancelEvent (Gil, Q2-Q4)', () => {
     expect(o.refunded).toEqual([{ member: 'Left', amount: 49 }]);
     expect(h.emails.map((m) => m.to)).toEqual(['left@example.test']);
   });
-});
 
+  it('friends paid for in cash are listed for Gil with their share; online ones read refunded with their lead (batch 12)', async () => {
+    h.bookings = [
+      booking('CashLead', { paymentMethod: 'CASH', paidAmount: '49' }),
+      booking('CashPal', { paidAmount: '39', bookedById: 'CashLead' }),
+      booking('CardLead', { stripePaymentIntentId: 'cs_card' }),
+      booking('CardPal', { paidAmount: '39', bookedById: 'CardLead' }),
+    ];
+    h.refunds.cs_card = { outcome: 'refunded', amount: 88 };
+    const { cancelEvent, cancelPreview } = await import('../cancelEvent');
+    expect((await cancelPreview('e1')).byHand).toBe(2);
+    const o = await cancelEvent('e1');
+    expect(o.byHand).toEqual([
+      { member: 'CashLead', amount: 49, method: 'Cash' },
+      { member: 'CashPal (brought by CashLead)', amount: 39, method: 'Cash' },
+    ]);
+    const status = (id: string) => h.bookings.find((b) => b.id === id)?.status;
+    expect([status('CashLead'), status('CashPal'), status('CardLead'), status('CardPal')]).toEqual(['CANCELLED', 'CANCELLED', 'REFUNDED', 'REFUNDED']);
+  });
+});

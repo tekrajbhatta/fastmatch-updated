@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Container, FormCard, PageLoader, SplitLayout } from '@/components/site/layout';
 import { Button, ButtonLink } from '@/components/site/button';
-import { Notice } from '@/components/site/form';
+import { FormError, Notice } from '@/components/site/form';
+import { NETWORK_ERROR } from '@/lib/networkError';
 import ResendConfirmation from '@/components/ResendConfirmation';
 import { verifyMobileHref } from '@/lib/accountSetup';
 
@@ -30,6 +31,7 @@ export default function AccountPage() {
   // through the redirect to /login, which itself takes a moment.
   const [loggingOut, setLoggingOut] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const [termsError, setTermsError] = useState<string | null>(null);
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -40,7 +42,13 @@ export default function AccountPage() {
 
   async function acceptTerms() {
     setAccepting(true);
-    await fetch('/api/account/accept-terms', { method: 'POST' }).finally(() => setAccepting(false));
+    setTermsError(null);
+    const res = await fetch('/api/account/accept-terms', { method: 'POST' }).catch(() => null).finally(() => setAccepting(false));
+    // Only once it's saved: the notice used to go whatever the answer, and
+    // the next booking was then refused for terms not accepted.
+    if (!res) { setTermsError(NETWORK_ERROR); return; }
+    if (res.status === 401) { setTermsError('Your session has expired. Please log in again.'); return; }
+    if (!res.ok) { setTermsError('Sorry, that didn’t save. Please try again.'); return; }
     setMe((m) => (m ? { ...m, agreedTerms: true } : m));
   }
 
@@ -82,6 +90,7 @@ export default function AccountPage() {
             <Button onClick={acceptTerms} disabled={accepting} loading={accepting} block className="!h-auto min-h-[54px] !whitespace-normal py-3 leading-snug">
               I agree to the Terms &amp; Privacy Policy
             </Button>
+            {termsError && <FormError>{termsError}</FormError>}
           </Notice>
         )}
 

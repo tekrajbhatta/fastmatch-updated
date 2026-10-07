@@ -7,6 +7,9 @@ import { FormCard, LoadingNote, SplitLayout } from '@/components/site/layout';
 import { Button, linkClass } from '@/components/site/button';
 import { Field, FormError, FormSuccess, SelectInput, TextInput } from '@/components/site/form';
 import { latestAdultDateOfBirth } from '@/lib/age';
+import { NETWORK_ERROR } from '@/lib/networkError';
+import SessionExpired from '@/components/site/SessionExpired';
+import LoadFailed from '@/components/site/LoadFailed';
 
 interface City { id: string; name: string; }
 
@@ -26,15 +29,22 @@ export default function EditProfilePage() {
   // The form waits for the member's current details: shown empty, anything
   // typed before they arrived was overwritten when they did.
   const [loaded, setLoaded] = useState(false);
+  // Not logged in any more, or the site couldn't be reached: said, rather
+  // than the form shown with every field empty.
+  const [needsLogin, setNeedsLogin] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
-    fetch('/api/cities').then((r) => r.json()).then(setCities);
-    fetch('/api/account/profile').then((r) => r.json()).then((m) => {
+    fetch('/api/cities').then((r) => r.json()).then(setCities).catch(() => {});
+    fetch('/api/account/profile').then(async (r) => {
+      if (r.status === 401) { setNeedsLogin(true); return; }
+      if (!r.ok) { setLoadFailed(true); return; }
+      const m = await r.json();
       // Stored as UTC midnight, so the first 10 characters are the date itself.
       setForm({ name: m.name, email: m.email, mobile: m.mobile, cityId: m.cityId, dateOfBirth: m.dateOfBirth ? String(m.dateOfBirth).slice(0, 10) : '' });
       setCurrentEmail(m.email);
       setLoaded(true);
-    });
+    }).catch(() => setLoadFailed(true));
   }, []);
 
   async function handleSave(e: React.FormEvent) {
@@ -43,9 +53,11 @@ export default function EditProfilePage() {
     setSaving(true);
     const res = await fetch('/api/account/profile', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
-    });
-    const data = await res.json();
+    }).catch(() => null);
     setSaving(false);
+    if (!res) { setError(NETWORK_ERROR); return; }
+    if (res.status === 401) { setNeedsLogin(true); return; }
+    const data = await res.json().catch(() => ({}));
     // Surface the API's own message rather than a generic one.
     if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Please check your details.'); return; }
     setSaved(true);
@@ -62,7 +74,7 @@ export default function EditProfilePage() {
   return (
     <SplitLayout title="Edit profile" back={{ href: '/account', label: 'Back to my account' }}>
       <FormCard>
-        {!loaded ? <LoadingNote>Loading your details…</LoadingNote> : (
+        {needsLogin ? <SessionExpired next="/account/edit-profile" /> : loadFailed ? <LoadFailed /> : !loaded ? <LoadingNote>Loading your details…</LoadingNote> : (
         <form onSubmit={handleSave} className="flex flex-col gap-5">
           <Field label="Name"><TextInput required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
           <Field label="Email"><TextInput type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>

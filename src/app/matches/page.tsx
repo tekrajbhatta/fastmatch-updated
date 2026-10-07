@@ -6,6 +6,7 @@ import { Card, Container, PageHero, PageLoader } from '@/components/site/layout'
 import { ButtonLink } from '@/components/site/button';
 import { formatEventForViewer } from '@/lib/timezone';
 import { eventLabel } from '@/lib/eventLabel';
+import LoadFailed from '@/components/site/LoadFailed';
 
 interface Person { id: string; name: string; email: string; mobile: string; badge: number | null }
 interface HistoryItem {
@@ -28,12 +29,16 @@ const BODY = 'pb-[clamp(56px,6.7vw,96px)] pt-[clamp(24px,3.9vw,56px)]';
 export default function MatchHistoryPage() {
   const [data, setData] = useState<MatchHistory | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
+  // Couldn't be loaded (no connection, or the server failed): said, rather
+  // than "Loading…" for good, or the page breaking on half an answer.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     fetch('/api/matches').then(async (r) => {
       if (r.status === 401) { setNeedsLogin(true); return; }
+      if (!r.ok) { setLoadFailed(true); return; }
       setData(await r.json());
-    });
+    }).catch(() => setLoadFailed(true));
   }, []);
 
   // Middleware keeps logged-out visitors off this page, so a 401 here means a
@@ -48,6 +53,19 @@ export default function MatchHistoryPage() {
               <p className="mb-5 text-base leading-relaxed text-ink-600">Your session has expired. Please log in again.</p>
               <ButtonLink href="/login?next=%2Fmatches" block>Log in</ButtonLink>
             </Card>
+          </Container>
+        </section>
+      </>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <>
+        <PageHero title="My Match History" />
+        <section className={BODY}>
+          <Container>
+            <Card className="mx-auto max-w-sm"><LoadFailed /></Card>
           </Container>
         </section>
       </>

@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { SplitLayout, FormCard } from '@/components/site/layout';
 import { Field, TextInput, FormError, FormSuccess } from '@/components/site/form';
 import { Button } from '@/components/site/button';
+import { NETWORK_ERROR } from '@/lib/networkError';
 
 function ResetPasswordInner() {
   const params = useSearchParams();
@@ -22,8 +23,9 @@ function ResetPasswordInner() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, newPassword }),
-    });
-    const data = await res.json();
+    }).catch(() => null);
+    if (!res) { setError(NETWORK_ERROR); setStatus('idle'); return; }
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setError(data.error ?? 'This link may have expired.');
       setStatus('idle');

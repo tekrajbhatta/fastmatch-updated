@@ -59,3 +59,29 @@ describe('parseDateOfBirth', () => {
     }
   });
 });
+
+/**
+ * Batch 12 (review item 47): a friend's email is checked by the same rule as
+ * every other email field (zod's .email() on the server), so the page and the
+ * server agree. It used to accept anna@exämple.com, which the database (it
+ * ignores accents when comparing) then matched to a different member.
+ */
+describe('a friend\'s email: the same rule as the server\'s', () => {
+  it('accepts and refuses exactly what zod does', async () => {
+    const { z } = await import('zod');
+    const { EMAIL_RE } = await import('@/lib/friendBooking');
+    const zodEmail = z.string().email();
+    for (const a of ['anna@example.com', 'a.b+c@x.co', 'O\'Brien@example.com.au', 'anna@exämple.com', 'a@b', 'a..b@x.com', '.a@x.com', 'a@-x.com', 'a b@x.com']) {
+      expect(EMAIL_RE.test(a), a).toBe(zodEmail.safeParse(a).success);
+    }
+  });
+
+  it('a lookalike address with an accent is refused as typed', async () => {
+    const { validateFriends } = await import('@/lib/friendBooking');
+    const errors = validateFriends(
+      [{ gender: 'FEMALE', name: 'Anna', mobile: '0412 345 678', email: 'anna@exämple.com', dateOfBirth: '1992-03-03' }],
+      { ageMin: 18, ageMax: 99, memberEmail: 'me@example.com' },
+    );
+    expect(errors).toContainEqual(expect.objectContaining({ field: 'email', message: 'Please enter a valid email' }));
+  });
+});
