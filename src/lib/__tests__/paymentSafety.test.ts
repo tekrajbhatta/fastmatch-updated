@@ -39,7 +39,8 @@ describe('the picture on Stripe’s payment page (Gil, 8 Oct)', () => {
   it('only a full https address is given to Stripe, which fetches it itself', () => {
     // On a local copy of the site (http) there's no picture, and nothing breaks.
     expect(checkoutPicture({ photoUrl: 'http://localhost:3000/api/uploads/x.jpg' }, { logoUrl: null, imageUrl: null }, 'http://localhost:3000')).toBeNull();
-    expect(checkoutPicture({ photoUrl: '/photos/night.jpg' }, { logoUrl: null, imageUrl: null }, undefined)).toBeNull();
+    // No site address to complete it with ('': undefined would fall back to APP_URL, as on the server).
+    expect(checkoutPicture({ photoUrl: '/photos/night.jpg' }, { logoUrl: null, imageUrl: null }, '')).toBeNull();
     // A bad first choice falls through to the next.
     expect(checkoutPicture({ photoUrl: 'http://old.example/p.jpg' }, venue, site)).toBe(logo);
     expect(checkoutPicture({ photoUrl: `https://fastmatch.test/${'x'.repeat(2100)}.jpg` }, venue, site)).toBe(logo);
