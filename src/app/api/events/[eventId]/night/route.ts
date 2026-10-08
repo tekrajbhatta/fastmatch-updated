@@ -18,7 +18,7 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
 
   const booking = await prisma.booking.findUnique({
     where: { eventId_memberId: { eventId: event.id, memberId: member.id } },
-    select: { status: true, checkedIn: true, badge: true },
+    select: { status: true, checkedIn: true, checkedInAt: true, badge: true },
   });
   const { opens, closes } = checkInWindow(event);
   const checkedIn = booking?.status === 'CONFIRMED' && booking.checkedIn;
@@ -40,6 +40,10 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     booking: booking?.status === 'CONFIRMED' ? { checkedIn: booking.checkedIn, badge: booking.badge } : null,
     choicesOpen: choicesOpen(event),
     matchesCalculated: event.matchesCalculated,
+    // Checked in only after the results were worked out (the admin worked
+    // them out early): there are no results for them, and they can't choose.
+    checkedInAfterResults: !!(checkedIn && event.matchesCalculated && event.matchesCalculatedAt && booking?.checkedInAt
+      && booking.checkedInAt.getTime() > event.matchesCalculatedAt.getTime()),
     myChoices: Object.fromEntries(saved.map((r) => [r.ratedMemberId, r.choice])),
   });
 });

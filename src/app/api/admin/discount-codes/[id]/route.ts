@@ -39,6 +39,11 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
     && !(await prisma.event.findUnique({ where: { id: data.scopeEventId }, select: { id: true } }))) {
     return NextResponse.json({ error: 'Please choose a valid event.' }, { status: 400 });
   }
+  // "Event type": the same, for a newly chosen type.
+  if (data.scopeThemeId && data.scopeThemeId !== current.scopeThemeId
+    && !(await prisma.eventTheme.findUnique({ where: { id: data.scopeThemeId }, select: { id: true } }))) {
+    return NextResponse.json({ error: 'Please choose a valid event type.' }, { status: 400 });
+  }
   // Renamed to a code that's already taken.
   if (data.code !== current.code && (await prisma.discountCode.findUnique({ where: { code: data.code }, select: { id: true } }))) {
     return NextResponse.json({ error: DUPLICATE_CODE }, { status: 409 });
@@ -47,7 +52,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   try {
     const updated = await prisma.discountCode.update({
       where: { id: params.id },
-      data: { ...data, scopeThemeId: parsed.data.scopeThemeId ?? null },
+      data,
     });
     return NextResponse.json(updated);
   } catch (err) {

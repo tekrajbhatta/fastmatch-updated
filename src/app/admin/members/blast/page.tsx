@@ -9,6 +9,7 @@ import { resolveCampaignEmailHtml } from '@/lib/emails/campaignEmail';
 import { memberFilterFromParams, memberFilterToParams, describeMemberFilter } from '@/lib/memberFilterParams';
 import BlastSendProgress from '@/components/BlastSendProgress';
 import EmailPreview from '@/components/EmailPreview';
+import { countOf } from '@/lib/plural';
 
 interface BlastOption { id: string; title: string; blastStatus: string; reusable: boolean; hasBeenSent: boolean }
 interface City { id: string; name: string }
@@ -241,8 +242,7 @@ export default function BlastFilteredMembersPage() {
           <Card className="mb-4">
             {audience && (
               <p className="mb-3 text-sm text-ink">
-                <strong className="text-plum">{audience.recipients.toLocaleString()}</strong> of the {audience.matching.toLocaleString()} filtered
-                members will receive this blast.
+                <strong className="text-plum">{audience.recipients.toLocaleString()}</strong> of the {countOf(audience.matching, 'filtered member', 'filtered members')} will receive this blast.
                 {audience.recipients < audience.matching && (
                   <span className="block text-xs text-ink/50">
                     {leftOutReasons(content)}
@@ -270,7 +270,7 @@ export default function BlastFilteredMembersPage() {
                 {saving ? 'Saving…' : dirty ? 'Save blast' : 'Saved'}
               </Button>
               <Button onClick={() => setConfirming(true)} disabled={!canSend || starting || send?.status === 'SENDING'} loading={starting} className="flex-1">
-                Send to {(audience?.recipients ?? 0).toLocaleString()} members
+                Send to {countOf(audience?.recipients ?? 0, 'member', 'members')}
               </Button>
             </div>
           </Card>
@@ -284,7 +284,7 @@ export default function BlastFilteredMembersPage() {
             <h2 className="mb-1 text-lg font-extrabold text-ink">Confirm and send</h2>
             <p className="mb-3 text-sm text-ink/60">
               &ldquo;{title}&rdquo; will be {content.sendEmail && content.sendSms ? 'emailed and texted' : content.sendEmail ? 'emailed' : 'texted'} to{' '}
-              <b>{audience.recipients.toLocaleString()} members</b> right now.{dirty ? ' Your changes are saved to the blast first.' : ''}
+              <b>{countOf(audience.recipients, 'member', 'members')}</b> right now.{dirty ? ' Your changes are saved to the blast first.' : ''}
             </p>
             {previewHtml && <EmailPreview html={previewHtml} className="mb-4 h-72 w-full rounded-lg border border-ink/10" title="Final preview" />}
             <div className="flex gap-2">

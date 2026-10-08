@@ -12,7 +12,8 @@ export const discountInputSchema = z.object({
   code: z.string().trim().min(1, 'Please enter the code.').max(50, 'Please use a shorter code.').transform((s) => s.toUpperCase()),
   type: z.enum(['PERCENT_OFF', 'FIXED_REDUCTION', 'FREE']),
   amount: z.number().nullable().optional(),
-  scopeThemeId: z.string().nullable().optional(),
+  // "Event type": null or empty = All types; otherwise the one type it works for.
+  scopeThemeId: z.string().nullable().optional().transform((v) => v || null),
   // "Event": null or empty = All events; otherwise the one event it works for.
   scopeEventId: z.string().nullable().optional().transform((v) => v || null),
   // "YYYY-MM-DD": whole days in Sydney (src/lib/discountDates.ts).
@@ -38,10 +39,12 @@ export function discountAmountProblem(type: DiscountInput['type'], amount: numbe
 
 /**
  * The checked fields ready for the database, or the first problem with them.
- * A Free code stores no amount.
+ * A Free code stores no amount. A code for one event needs no event type (that
+ * event has one already), so choosing an event clears it: a type left set as
+ * well could only ever disagree with the event.
  */
 export function checkDiscountInput(input: DiscountInput):
-  | { ok: true; data: { code: string; type: DiscountInput['type']; amount: number | null; scopeEventId: string | null; validFrom: Date; validTo: Date } }
+  | { ok: true; data: { code: string; type: DiscountInput['type']; amount: number | null; scopeThemeId: string | null; scopeEventId: string | null; validFrom: Date; validTo: Date } }
   | { ok: false; error: string } {
   const amountProblem = discountAmountProblem(input.type, input.amount);
   if (amountProblem) return { ok: false, error: amountProblem };
@@ -54,6 +57,7 @@ export function checkDiscountInput(input: DiscountInput):
       code: input.code,
       type: input.type,
       amount: input.type === 'FREE' ? null : (input.amount as number),
+      scopeThemeId: input.scopeEventId ? null : input.scopeThemeId ?? null,
       scopeEventId: input.scopeEventId,
       ...validity,
     },

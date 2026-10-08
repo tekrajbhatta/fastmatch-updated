@@ -17,7 +17,15 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     where: { id: params.id },
     include: {
       city: true,
-      bookings: { include: { event: { include: { venue: true, city: { select: { name: true } } } } }, orderBy: { createdAt: 'desc' } },
+      // bookedBy: for a friend's place, how the member who brought them paid
+      // (the Stripe payment link shows only for a card payment on the site).
+      bookings: {
+        include: {
+          event: { include: { venue: true, city: { select: { name: true } } } },
+          bookedBy: { select: { paymentMethod: true, stripePaymentIntentId: true, confirmedAt: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      },
     },
   });
 

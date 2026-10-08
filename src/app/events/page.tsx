@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { venueLineWithCity } from '@/lib/venue';
 import MemberEventsBrowser from '@/components/MemberEventsBrowser';
 import EventCard from '@/components/site/EventCard';
-import { Container, PageHero, PageLoader } from '@/components/site/layout';
+import { Card, Container, PageHero, PageLoader } from '@/components/site/layout';
+import LoadFailed from '@/components/site/LoadFailed';
 import { formatEventForViewer } from '@/lib/timezone';
 
 interface EventListItem {
@@ -26,16 +27,21 @@ export default function EventsPage() {
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
+  // The list couldn't be loaded (no connection, or the server failed): said,
+  // with Try again. It used to read "No upcoming events right now", as if
+  // the calendar were empty.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/events').then((r) => r.json()),
+      fetch('/api/events').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       // Public endpoint — returns { member: null } when logged out rather than
       // failing, so this is safe for anonymous visitors.
       fetch('/api/auth/me').then((r) => r.json()).catch(() => ({ member: null })),
     ])
       .then(([eventData, meData]) => {
-        setEvents(Array.isArray(eventData) ? eventData : []);
+        if (Array.isArray(eventData)) setEvents(eventData);
+        else setLoadFailed(true);
         if (meData?.member) setLoggedIn(true);
       })
       .finally(() => setLoading(false));
@@ -51,7 +57,12 @@ export default function EventsPage() {
             <PageLoader>Loading events…</PageLoader>
           </Container>
         )}
-        {!loading && !loggedIn && events.length === 0 && (
+        {!loading && !loggedIn && loadFailed && (
+          <Container>
+            <Card className="mx-auto max-w-sm"><LoadFailed /></Card>
+          </Container>
+        )}
+        {!loading && !loggedIn && !loadFailed && events.length === 0 && (
           <Container>
             <p className="text-base leading-relaxed text-ink-600">No upcoming events right now. Check back soon.</p>
           </Container>

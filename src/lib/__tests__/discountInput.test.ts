@@ -38,4 +38,13 @@ describe('discount code checks (create and edit alike)', () => {
   it('a code must be given', () => {
     expect(discountInputSchema.safeParse({ ...base, code: '  ' }).success).toBe(false);
   });
+
+  it('"Event type": empty is All, and choosing one event clears it (the event has its own type)', () => {
+    const all = check({ scopeThemeId: '' });
+    expect(all.ok && all.data.scopeThemeId).toBeNull();
+    const typed = check({ scopeThemeId: 'theme-1' });
+    expect(typed.ok && typed.data).toMatchObject({ scopeThemeId: 'theme-1', scopeEventId: null });
+    const oneEvent = check({ scopeThemeId: 'theme-1', scopeEventId: 'event-1' });
+    expect(oneEvent.ok && oneEvent.data).toMatchObject({ scopeThemeId: null, scopeEventId: 'event-1' });
+  });
 });

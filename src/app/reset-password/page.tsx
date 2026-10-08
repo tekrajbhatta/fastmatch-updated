@@ -1,10 +1,11 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { SplitLayout, FormCard } from '@/components/site/layout';
+import { SplitLayout, FormCard, LoadingNote } from '@/components/site/layout';
 import { Field, TextInput, FormError, FormSuccess } from '@/components/site/form';
-import { Button } from '@/components/site/button';
+import { Button, ButtonLink } from '@/components/site/button';
+import LoadFailed from '@/components/site/LoadFailed';
 import { NETWORK_ERROR } from '@/lib/networkError';
 
 function ResetPasswordInner() {
@@ -13,7 +14,26 @@ function ResetPasswordInner() {
   const token = params.get('token') ?? '';
   const [newPassword, setNewPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<'idle' | 'saving' | 'done'>('idle');
+  // The link is checked before the form is shown: a missing, expired or used
+  // link used to show the form, and only said so after a password was typed.
+  const [status, setStatus] = useState<'checking' | 'unreachable' | 'bad-link' | 'idle' | 'saving' | 'done'>(token ? 'checking' : 'bad-link');
+  const [linkProblem, setLinkProblem] = useState<string>(token ? '' : 'This link is incomplete. Please open the link in your email again, or ask for a new one.');
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`/api/auth/reset-password?token=${encodeURIComponent(token)}`)
+      .then(async (r) => {
+        if (r.ok) { setStatus('idle'); return; }
+        const data = await r.json().catch(() => ({}));
+        setLinkProblem(typeof data.error === 'string' ? data.error : 'This link may have expired.');
+        setStatus('bad-link');
+        // An account a friend set up finishes on the welcome form instead.
+        if (typeof data.finishSetupUrl === 'string' && data.finishSetupUrl.startsWith('/set-password?')) {
+          setTimeout(() => router.push(data.finishSetupUrl), 1500);
+        }
+      })
+      .catch(() => setStatus('unreachable'));
+  }, [token, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -42,7 +62,19 @@ function ResetPasswordInner() {
   return (
     <SplitLayout title="Set a new password" back={{ href: '/login', label: 'Back to log in' }}>
       <FormCard>
-        {status === 'done' ? (
+        {status === 'checking' ? (
+          <LoadingNote>Checking your link…</LoadingNote>
+        ) : status === 'unreachable' ? (
+          <LoadFailed />
+        ) : status === 'bad-link' ? (
+          <>
+            <FormError>{linkProblem}</FormError>
+            {/* Not for an account still to be set up: that one is on its way to the welcome form. */}
+            {!linkProblem.startsWith('Your account still needs setting up') && (
+              <ButtonLink href="/forgot-password" block>Get a new link</ButtonLink>
+            )}
+          </>
+        ) : status === 'done' ? (
           <FormSuccess>Password set. Redirecting to login…</FormSuccess>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">

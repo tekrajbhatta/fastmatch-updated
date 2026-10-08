@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { Field, Input, Select, Button, Card, Loader } from '@/components/ui';
 import { timeZoneForCity } from '@/lib/timezone';
+import { countOf } from '@/lib/plural';
 import {
   CATEGORY_OPTIONS, GROUP_OPTIONS, REPORT_TYPES, reportProblem,
   type Dimension, type ReportType, type Metrics, type CategoryRow, type Overview, type OverviewRow,
@@ -23,6 +24,8 @@ interface EventReport {
   event: { id: string; number: number; name: string; startsAt: string; venue: string; city: string; theme: string };
   /** False for an event still to come: every figure is 0 until it has happened. */
   happened: boolean;
+  /** A cancelled event: every figure is 0, and it isn't in the Summary. */
+  cancelled?: boolean;
   attended: number; men: number; women: number; matchRate: number | null;
   revenue: number; expenses: number; profit: number;
   dateMatches: number; friendMatches: number;
@@ -234,7 +237,7 @@ export default function ReportsPage() {
                 <StatBox label="Match rate" value={summary.totals.matchRate === null ? '-' : pct(summary.totals.matchRate)} />
               </div>
               <ul className="mb-6 space-y-0.5 text-xs text-ink/50">
-                <li>Only events that have already happened are counted. Upcoming events are in the Per-event tab.</li>
+                <li>Only events that have already happened are counted (not cancelled ones). Upcoming events are in the Per-event tab.</li>
                 <li>Attendees: everyone who paid (online, cash, card, pay at door and friends), as in the table&apos;s Bookings.</li>
                 <li>Match rate: the share of those members with at least one date or friend match, at events whose results are in{summary.totals.matchRate === null ? ' (none yet)' : ''}.</li>
                 {summaryMemberFilters && <li>Expenses and profit aren&apos;t shown when restricted by age or gender: an event&apos;s expenses are for the whole night.</li>}
@@ -291,7 +294,9 @@ export default function ReportsPage() {
             <>
               {!eventReport.happened && (
                 <p role="status" className="mb-4 rounded-lg bg-ink/5 p-3 text-sm text-ink/70 print:hidden">
-                  This event hasn&apos;t happened yet, so its figures are 0 until it has.
+                  {eventReport.cancelled
+                    ? 'This event was cancelled, so it isn’t counted: its figures are 0.'
+                    : 'This event hasn’t happened yet, so its figures are 0 until it has.'}
                 </p>
               )}
               <div className="mb-6 grid grid-cols-3 gap-4 print:hidden">
@@ -303,8 +308,8 @@ export default function ReportsPage() {
                 <EventStatement r={eventReport} />
                 <Card className="h-fit print:hidden">
                   <h2 className="mb-3 font-extrabold text-ink">Matches</h2>
-                  <Row label="Date matches" value={`${eventReport.dateMatches} pairs`} />
-                  <Row label="Friend matches" value={`${eventReport.friendMatches} pairs`} />
+                  <Row label="Date matches" value={countOf(eventReport.dateMatches, 'pair', 'pairs')} />
+                  <Row label="Friend matches" value={countOf(eventReport.friendMatches, 'pair', 'pairs')} />
                 </Card>
               </div>
             </>
@@ -501,7 +506,7 @@ function EventPicker({ events, search, onSearch, selected, onSelect }: {
         </Select>
       </Field>
       <p className="-mt-2 text-xs text-ink/50">
-        {words.length ? `${matching.length.toLocaleString()} of ${events.length.toLocaleString()} events match.` : `${events.length.toLocaleString()} events, newest first.`}
+        {words.length ? `${matching.length.toLocaleString()} of ${countOf(events.length, 'event', 'events')} ${matching.length === 1 ? 'matches' : 'match'}.` : `${countOf(events.length, 'event', 'events')}, newest first.`}
         {matching.length > shown.length && ` Showing the first ${shown.length}: search to narrow it down.`}
       </p>
     </>

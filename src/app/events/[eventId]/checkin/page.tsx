@@ -25,8 +25,15 @@ interface Night {
   booking: { checkedIn: boolean; badge: number } | null;
   choicesOpen: boolean;
   matchesCalculated: boolean;
+  /** Checked in only after the admin worked out the results early: nothing to choose, no results. */
+  checkedInAfterResults: boolean;
   myChoices: Record<string, Choice>;
 }
+
+// Why choices can't be sent, in the member's words.
+const CLOSED_RESULTS = 'The matches for this event have been worked out, so choices can no longer be sent.';
+const CLOSED_MIDNIGHT = 'Choices for this event closed at midnight.';
+const CLOSED_LATE = 'You’re checked in. The matches for this event were worked out before you checked in, so choices can no longer be sent.';
 
 /** Late arrivals appear on the list without anyone reloading. */
 const REFRESH_EVERY_MS = 25_000;
@@ -82,6 +89,8 @@ export default function CheckinPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [closedMessage, setClosedMessage] = useState<string | null>(null);
+  // Checked in after the results were worked out: they have no results to look at.
+  const [closedLate, setClosedLate] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const draft = useRef<string | null>(null);
@@ -115,21 +124,32 @@ export default function CheckinPage() {
       if (n?.booking?.checkedIn) {
         // Back on the page later (a reload, the phone locked): straight to the list.
         if (!n.choicesOpen) {
-          setClosedMessage(n.matchesCalculated
-            ? 'The matches for this event have been worked out, so choices can no longer be sent.'
-            : 'Choices for this event closed at midnight.');
+          setClosedLate(n.checkedInAfterResults);
+          setClosedMessage(n.checkedInAfterResults ? CLOSED_LATE : n.matchesCalculated ? CLOSED_RESULTS : CLOSED_MIDNIGHT);
           setStep('closed');
         } else startRating(member, n);
       } else setStep('confirm');
     }).finally(() => setLoaded(true));
   }, [eventId, startRating]);
 
+  // Choices closed while the list was open (the admin worked out the results
+  // early, or midnight passed): said straight away, rather than only when
+  // "Submit matches" is pressed.
+  const checkStillOpen = useCallback(async () => {
+    const n: Night | null = await fetch(`/api/events/${eventId}/night`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    if (!n || n.choicesOpen) return;
+    setNight(n);
+    setClosedLate(false);
+    setClosedMessage(n.matchesCalculated ? CLOSED_RESULTS : CLOSED_MIDNIGHT);
+    setStep('closed');
+  }, [eventId]);
+
   // Late arrivals appear on their own.
   useEffect(() => {
     if (step !== 'roster') return;
-    const timer = setInterval(loadRoster, REFRESH_EVERY_MS);
+    const timer = setInterval(() => { loadRoster(); checkStillOpen(); }, REFRESH_EVERY_MS);
     return () => clearInterval(timer);
-  }, [step, loadRoster]);
+  }, [step, loadRoster, checkStillOpen]);
 
   async function handleCheckIn() {
     setError(null);
@@ -152,7 +172,17 @@ export default function CheckinPage() {
       return;
     }
 
-    if (me && night) startRating(me, { ...night, booking: { checkedIn: true, badge: data.badge } });
+    if (!me || !night) return;
+    // Results worked out early, before they checked in: nothing left to choose.
+    const fresh: Night | null = await fetch(`/api/events/${eventId}/night`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    if (fresh && !fresh.choicesOpen) {
+      setNight(fresh);
+      setClosedLate(fresh.matchesCalculated);
+      setClosedMessage(fresh.matchesCalculated ? CLOSED_LATE : CLOSED_MIDNIGHT);
+      setStep('closed');
+      return;
+    }
+    startRating(me, { ...(fresh ?? night), booking: { checkedIn: true, badge: data.badge } });
   }
 
   function selectRating(memberId: string, choice: Choice) {
@@ -244,6 +274,11 @@ export default function CheckinPage() {
             <DetailRow label="Mobile" value={me.mobile} />
             <DetailRow label="Email" value={me.email} />
           </dl>
+          {night?.matchesCalculated && (
+            <p className="text-[15px] leading-normal text-ink-600">
+              The matches for this event have already been worked out, so choices can no longer be sent. You can still check in.
+            </p>
+          )}
           {error && (
             <FormError>
               <p>{error}</p>
@@ -285,7 +320,7 @@ export default function CheckinPage() {
             </span>
             <span>Tap a name once you've met them.</span>
             {/* The list also refreshes on its own every 25 seconds. */}
-            <button type="button" onClick={loadRoster} disabled={refreshing} className={`${linkClass} ml-auto text-sm disabled:opacity-50`}>
+            <button type="button" onClick={() => { loadRoster(); checkStillOpen(); }} disabled={refreshing} className={`${linkClass} ml-auto text-sm disabled:opacity-50`}>
               {refreshing ? 'Refreshing…' : 'Refresh'}
             </button>
           </div>
@@ -387,8 +422,14 @@ export default function CheckinPage() {
       <SplitLayout title="Choices have closed" lead={night ? eventLabel({ name: night.event.name, theme: { name: night.event.theme } }) : undefined}>
         <FormCard>
           <p className="text-[17px] font-bold text-ink-900">{closedMessage}</p>
-          <p className="text-[15px] leading-normal text-ink-600">Your results are on My Match History, and in your email.</p>
-          <ButtonLink href="/matches" block>Go to My Match History</ButtonLink>
+          {closedLate ? (
+            <ButtonLink href="/events" block>Upcoming events</ButtonLink>
+          ) : (
+            <>
+              <p className="text-[15px] leading-normal text-ink-600">Your results are on My Match History, and in your email.</p>
+              <ButtonLink href="/matches" block>Go to My Match History</ButtonLink>
+            </>
+          )}
         </FormCard>
       </SplitLayout>
     );

@@ -53,10 +53,16 @@ export default function MemberEventsBrowser({ showBookedList, splitByAge = false
   const [booked, setBooked] = useState<BookedEvent[]>([]);
 
   useEffect(() => {
+    // A server error counts as not loading, the same as no connection: an
+    // empty answer used to show empty tables, as if nothing were on.
+    const list = (url: string) => fetch(url).then((r) => {
+      if (!r.ok) throw new Error(`${url}: ${r.status}`);
+      return r.json();
+    });
     Promise.all([
-      fetch('/api/events').then((r) => r.json()),
+      list('/api/events'),
       fetch('/api/auth/me').then((r) => r.json()).catch(() => ({ member: null })),
-      fetch('/api/cities').then((r) => r.json()),
+      list('/api/cities'),
     ]).then(([ev, me, cs]) => {
       setEvents(Array.isArray(ev) ? ev : []);
       setCities(Array.isArray(cs) ? cs : []);

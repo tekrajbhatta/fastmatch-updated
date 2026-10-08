@@ -6,6 +6,8 @@ import { memberFilterFromParams } from '@/lib/memberFilterParams';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { csvCell } from '@/lib/csv';
 import { withMobileMatches } from '@/lib/memberSearch';
+import { EVENT_TIME_ZONE } from '@/lib/datetime';
+import { dateIn } from '@/lib/zonedTime';
 
 // GET /api/admin/members/export — CSV of the currently filtered member set,
 // same filter params as GET /api/admin/members (search/gender/cityId/ageMin/
@@ -28,7 +30,10 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const header = 'Name,Email,Gender,City,Mobile,Date of Birth,Registered\n';
   const rows = members
     .map((m) =>
-      [m.name, m.email, m.gender, m.city.name, m.mobile, m.dateOfBirth.toISOString().slice(0, 10), m.createdAt.toISOString().slice(0, 10)]
+      // Date of birth is a calendar date, saved as such. "Registered" is the
+      // day the account was made on Sydney's calendar (FastMatch's own), not
+      // UTC's: an early-morning sign-up used to show as the day before.
+      [m.name, m.email, m.gender, m.city.name, m.mobile, m.dateOfBirth.toISOString().slice(0, 10), dateIn(m.createdAt, EVENT_TIME_ZONE)]
         .map(csvCell)
         .join(',')
     )
@@ -37,7 +42,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   return new NextResponse(header + rows, {
     headers: {
       'Content-Type': 'text/csv',
-      'Content-Disposition': `attachment; filename="members-${new Date().toISOString().slice(0, 10)}.csv"`,
+      'Content-Disposition': `attachment; filename="members-${dateIn(new Date(), EVENT_TIME_ZONE)}.csv"`,
     },
   });
 });

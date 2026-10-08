@@ -8,6 +8,7 @@ import BlastSendProgress, { blastOutcome } from '@/components/BlastSendProgress'
 import SmsCounter from '@/components/SmsCounter';
 import EmailPreview from '@/components/EmailPreview';
 import { withOptOut } from '@/lib/sms/optOut';
+import { countOf } from '@/lib/plural';
 import {
   boxesFromSavedFilter, filterWithBoxes, otherSavedFilterParts,
   CONTACT_METHODS, CONTACT_METHOD_LABELS, type SendTabBoxes,
@@ -375,7 +376,7 @@ function ViewBlastInner() {
           {previewCount !== null && (
             <div className="mb-4 rounded-lg bg-plum/10 p-3">
               <div className="flex items-center justify-between">
-                <span className="font-extrabold text-plum">{previewCount.toLocaleString()} members filtered</span>
+                <span className="font-extrabold text-plum">{countOf(previewCount, 'member', 'members')} filtered</span>
                 {previewCount > 0 && (
                   <button onClick={() => setShowMembers(!showMembers)} className="text-xs font-bold text-plum underline">
                     {showMembers ? 'Hide' : 'Show'}
@@ -457,7 +458,7 @@ function ViewBlastInner() {
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
             <h2 className="mb-1 text-lg font-extrabold text-ink">Confirm and send</h2>
             <p className="mb-3 text-sm text-ink/60">
-              This will send to <b>{(previewCount ?? 0).toLocaleString()} members</b> right now. This is the last chance to check before it goes out.
+              This will send to <b>{countOf(previewCount ?? 0, 'member', 'members')}</b> right now. This is the last chance to check before it goes out.
             </p>
             {campaign.sendEmail && renderedHtml && <EmailPreview html={renderedHtml} className="mb-4 h-72 w-full rounded-lg border border-ink/10" title="Final preview" />}
             {campaign.sendSms && (

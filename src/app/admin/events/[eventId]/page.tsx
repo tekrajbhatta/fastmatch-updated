@@ -11,6 +11,7 @@ import { formatPrice } from '@/lib/price';
 import { eventLabel } from '@/lib/eventLabel';
 import { blastEventDetails } from '@/lib/campaigns/blastFill';
 import CancelSummary, { type CancelResult } from '@/components/CancelSummary';
+import { countOf } from '@/lib/plural';
 
 interface EventDetail {
   id: string; name: string; venue: { name: string; address: string | null; phone: string | null; websiteUrl: string | null }; startsAt: string; cost: string;
@@ -240,7 +241,7 @@ export default function AdminEventDetailPage() {
             <p className="text-sm font-bold text-green-dark">
               {closeResult.alreadyCalculated
                 ? `Done. ${closeResult.emailsSent ?? 0} more result email${closeResult.emailsSent === 1 ? '' : 's'} sent.`
-                : `Done. ${closeResult.matchesCreated} matches created, ${closeResult.emailsSent ?? 0} result email${closeResult.emailsSent === 1 ? '' : 's'} sent.`}
+                : `Done. ${countOf(closeResult.matchesCreated ?? 0, 'match', 'matches')} created, ${countOf(closeResult.emailsSent ?? 0, 'result email', 'result emails')} sent.`}
             </p>
             {!!closeResult.emailFailures?.length && (
               <p className="mt-1 text-sm font-medium text-coral">

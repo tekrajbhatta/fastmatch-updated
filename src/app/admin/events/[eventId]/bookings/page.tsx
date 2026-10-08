@@ -6,11 +6,16 @@ import { Button, Field, Input, Select, Loader, BackLink } from '@/components/ui'
 import { calculateAge } from '@/lib/age';
 import { PAYMENT_METHODS, paymentMethodLabel, bookingStatusLabel } from '@/lib/paymentMethod';
 import { formatPrice } from '@/lib/price';
+import { hasStripePayment } from '@/lib/stripePayment';
+import { countOf } from '@/lib/plural';
 
 interface Booking {
   id: string; badge: number; status: string; paidAmount: string; checkedIn: boolean;
   paymentMethod: string | null;
-  bookedBy: { member: { name: string } } | null;
+  stripePaymentIntentId: string | null;
+  confirmedAt: string | null;
+  // The member who brought them, and how that member paid (for a friend's place).
+  bookedBy: { paymentMethod: string | null; stripePaymentIntentId: string | null; confirmedAt: string | null; member: { name: string } } | null;
   pendingFriends: { name: string }[] | null;
   member: { name: string; email: string; mobile: string; gender: string; dateOfBirth: string };
 }
@@ -31,6 +36,11 @@ export default function EventBookingsPage() {
   const [savingBooking, setSavingBooking] = useState(false);
   // Something to know about a save that worked (e.g. they'd just paid online).
   const [notice, setNotice] = useState<string | null>(null);
+  // The card payment in Stripe behind the booking being edited, looked up
+  // when its Edit row opens (the booking keeps only its payment page's id).
+  const [stripePayment, setStripePayment] = useState<
+    { state: 'loading' } | { state: 'none'; reason: string } | { state: 'failed' } | { state: 'found'; reference: string; url: string; paidBy: string | null } | null
+  >(null);
 
   function loadBookings() {
     fetch(`/api/admin/events/${eventId}/bookings`).then((r) => r.json()).then((d) => { setBookings(d); setLoaded(true); });
@@ -45,6 +55,14 @@ export default function EventBookingsPage() {
     setEditingId(b.id);
     setEdit({ status: b.status, paidAmount: String(b.paidAmount), checkedIn: b.checkedIn, paymentMethod: b.paymentMethod ?? '' });
     setEditFrom(b.status);
+    setStripePayment(null);
+    if (hasStripePayment(b)) {
+      setStripePayment({ state: 'loading' });
+      fetch(`/api/admin/bookings/${b.id}/stripe`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((d) => setStripePayment(d.payment ? { state: 'found', ...d.payment } : { state: 'none', reason: d.reason ?? '' }))
+        .catch(() => setStripePayment({ state: 'failed' }));
+    }
   }
 
   async function saveBooking(id: string) {
@@ -81,8 +99,8 @@ export default function EventBookingsPage() {
       <BackLink href={`/admin/events/${eventId}`}>Back to event</BackLink>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Event bookings</h1>
       <p className="mb-4 text-sm text-ink/60">
-        {loaded ? `${men} men · ${women} women booked` : 'Loading bookings…'}
-        {unpaid > 0 && <span className="text-ink/40"> · {unpaid} unpaid (each holds its places for 10 minutes while its payment page is open)</span>}
+        {loaded ? `${countOf(men, 'man', 'men')} · ${countOf(women, 'woman', 'women')} booked` : 'Loading bookings…'}
+        {unpaid > 0 && <span className="text-ink/40"> · {unpaid} unpaid ({unpaid === 1 ? 'it holds' : 'each holds'} its places for 10 minutes while its payment page is open)</span>}
       </p>
 
       {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
@@ -109,6 +127,12 @@ export default function EventBookingsPage() {
                   {bookingStatusLabel(b.status, formatPrice(b.paidAmount))}
                   <span className="ml-1 text-xs text-ink/50">· {paymentMethodLabel(b.paymentMethod)}</span>
                   {b.checkedIn && <span className="ml-2 text-xs font-bold text-green-dark">checked in</span>}
+                  {/* The card payment in Stripe (a friend's is the member's who brought them). */}
+                  {hasStripePayment(b) && (
+                    <a href={`/api/admin/bookings/${b.id}/stripe?open=1`} target="_blank" rel="noopener noreferrer" className="ml-2 whitespace-nowrap text-xs font-bold text-plum hover:underline">
+                      View in Stripe
+                    </a>
+                  )}
                   {/* Unpaid: their friends aren't booked yet, and appear as
                       their own rows once the payment goes through. */}
                   {b.status === 'PENDING' && b.pendingFriends?.length ? (
@@ -168,6 +192,21 @@ export default function EventBookingsPage() {
                     <p className="text-xs text-ink/50">
                       Records what happened. It doesn&apos;t take or refund a payment in Stripe.
                     </p>
+                    {stripePayment && (
+                      <p className="mt-1 text-xs text-ink/60">
+                        {stripePayment.state === 'loading' && 'Looking up the payment in Stripe…'}
+                        {stripePayment.state === 'failed' && 'Couldn’t look up the payment in Stripe just now.'}
+                        {stripePayment.state === 'none' && stripePayment.reason}
+                        {stripePayment.state === 'found' && (
+                          <>
+                            {stripePayment.paidBy ? `Paid as part of ${stripePayment.paidBy}’s card payment: ` : 'Card payment in Stripe: '}
+                            <span className="font-mono font-bold text-ink">{stripePayment.reference}</span>
+                            {' · '}
+                            <a href={stripePayment.url} target="_blank" rel="noopener noreferrer" className="font-bold text-plum hover:underline">View in Stripe</a>
+                          </>
+                        )}
+                      </p>
+                    )}
                   </td>
                 </tr>
               ) : null,

@@ -16,8 +16,11 @@ import { ageGroupOf, AGE_GROUPS, type BookingFact, type EventFact, type SignupFa
  *              for events in the filter, with the member's gender and their
  *              age ON THE NIGHT.
  *   Events   — every event in the filter that has happened, for its
- *              expenses (once each).
- *   Signups  — registrations in the date range, by the member's own city.
+ *              expenses (once each). Not a cancelled one: it didn't happen,
+ *              so its expenses aren't a loss on the night (the user, 8 Oct).
+ *   Signups  — registrations in the date range, by the member's own city:
+ *              accounts that were set up, so not a Tell A Friend invitee or a
+ *              friend booked in by someone else who never finished joining.
  * Months and dates are Sydney time, the admin's own. Draft events (unsaved
  * duplicates) are left out: a copy carries its original's expenses.
  */
@@ -58,6 +61,7 @@ export async function loadReportFacts(
   // (The Per-event tab still lists every event, an upcoming one at 0.)
   const eventWhere: Prisma.EventWhereInput = {
     draft: false,
+    status: { not: 'CANCELLED' },
     ...(q.cityId ? { cityId: q.cityId } : {}),
     ...(q.venueId ? { venueId: q.venueId } : {}),
     ...(q.themeId ? { themeId: q.themeId } : {}),
@@ -123,6 +127,8 @@ export async function loadReportFacts(
     const joined = await prisma.member.findMany({
       where: {
         isAdmin: false,
+        // Never set up: the account was made for them, not by them.
+        awaitingPasswordSetup: false,
         ...(q.cityId ? { cityId: q.cityId } : {}),
         ...(q.gender ? { gender: q.gender } : {}),
         ...(range ? { createdAt: range } : {}),

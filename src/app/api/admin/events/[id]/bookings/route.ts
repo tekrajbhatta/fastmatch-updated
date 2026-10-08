@@ -24,7 +24,11 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
   const bookings = await prisma.booking.findMany({
     where: { eventId: params.id },
     // bookedBy: for a friend's booking, who brought (and paid for) them.
-    include: { member: { select: BOOKING_MEMBER_SELECT }, bookedBy: { select: { member: { select: { name: true } } } } },
+    // bookedBy: how the member who brought them paid, for the Stripe payment link.
+    include: {
+      member: { select: BOOKING_MEMBER_SELECT },
+      bookedBy: { select: { paymentMethod: true, stripePaymentIntentId: true, confirmedAt: true, member: { select: { name: true } } } },
+    },
     orderBy: { badge: 'asc' },
   });
 

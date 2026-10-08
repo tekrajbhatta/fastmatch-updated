@@ -108,8 +108,13 @@ async function main() {
       info(`Business name: "${name}", bank statement: "${descriptor}", shortened: "${account.settings?.card_payments?.statement_descriptor_prefix ?? ''}"`);
       info(`Support email: ${account.business_profile?.support_email ?? '(none)'}, website: ${account.business_profile?.url ?? '(none)'}`);
       info(`Branding: background ${branding?.primary_color ?? '(default)'}, button ${branding?.secondary_color ?? '(default)'}, icon ${branding?.icon ? 'uploaded' : 'none'}, logo ${branding?.logo ? 'uploaded' : 'none'}`);
-      if (name === AGREED.name) ok('The payment page shows the name "FastMatch".'); else look(`The business name is "${name}"; agreed: "${AGREED.name}" (Dashboard step 2).`);
-      if (descriptor === AGREED.descriptor) ok('Bank statements show "FASTMATCH".'); else look(`The statement descriptor is "${descriptor}"; agreed: "${AGREED.descriptor}" (Dashboard step 2).`);
+      // In the test sandbox this reads the sandbox's own name ("Fastmatch AU"),
+      // while the payment page shows the public business name from Business
+      // details ("FastMatch", checked on the page itself, 9 Oct): not a problem.
+      if (name === AGREED.name) ok('The payment page shows the name "FastMatch".');
+      else info(`This key's account reports the name "${name}"; the payment page shows the public business name from Settings → Business → Business details.`);
+      // "FASTMATCH" was suggested; Gil's "WWW.FASTMATCH.COM.AU" does as well (kept, 9 Oct).
+      if (/FASTMATCH/i.test(descriptor)) ok(`Bank statements show "${descriptor}".`); else look(`The statement descriptor is "${descriptor}"; it should say FASTMATCH so members recognise the charge (Dashboard step 2).`);
       if ((branding?.secondary_color ?? '').toLowerCase() === AGREED.accent) ok('The Pay button is plum.'); else look(`The accent colour is ${branding?.secondary_color ?? '(default)'}; agreed: #3D1E6D (Dashboard step 1).`);
       if (AGREED.background.includes((branding?.primary_color ?? '').toLowerCase())) ok('The page background is the agreed colour.'); else look(`The brand colour is ${branding?.primary_color ?? '(default)'}; agreed: #F1E9F8 or #FFFFFF (Dashboard step 1).`);
       if (branding?.icon && branding?.logo) ok('The icon and logo are uploaded.'); else look('The icon or the logo isn\'t uploaded yet (Dashboard step 1).');
@@ -178,10 +183,12 @@ async function main() {
       include: { event: true }, orderBy: { createdAt: 'desc' }, take: 50,
     });
     const paidButPending: string[] = [];
+    const pageStatus = new Map<string, string>();
     let unknown = 0;
     for (const b of pending) {
       try {
         const s = await stripe.checkout.sessions.retrieve(b.stripePaymentIntentId!);
+        pageStatus.set(b.id, s.status ?? 'unknown');
         if (s.payment_status === 'paid') paidButPending.push(`booking ${b.id} (event #${b.event.number}, ${ago(b.createdAt, now)})`);
       } catch {
         unknown++; // a payment page from the other mode (test or live)
@@ -191,7 +198,11 @@ async function main() {
     else ok(`None of the ${pending.length} unconfirmed booking(s) with a payment page has been paid.`);
     if (unknown) info(`${unknown} payment page(s) couldn't be looked up with this key (made in the other mode).`);
     const stale = pending.filter((b) => now.getTime() - b.createdAt.getTime() > HOUR);
-    if (stale.length) look(`${stale.length} unpaid booking(s) are over an hour old; Stripe's "expired" event should have removed them after 30 minutes.`);
+    if (stale.length) {
+      look(`${stale.length} unpaid booking(s) are over an hour old; Stripe's "expired" event should have removed them after 30 minutes:`);
+      // Where to find each one (the admin can set it to Cancelled on the event's bookings list).
+      for (const b of stale) info(`  event #${b.event.number} (${b.event.name}), badge ${b.badge}, started ${sydney(b.createdAt)}, Stripe's page: ${pageStatus.get(b.id) ?? 'not found'}`);
+    }
     const confirmedByStripe = await prisma.booking.count({ where: { status: 'CONFIRMED', stripePaymentIntentId: { startsWith: 'cs_' }, confirmedAt: { gte: new Date(now.getTime() - 30 * DAY) } } });
     info(`Bookings confirmed by Stripe payments in the last 30 days: ${confirmedByStripe}`);
   }

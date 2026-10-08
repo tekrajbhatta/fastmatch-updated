@@ -15,11 +15,16 @@ interface DiscountCode {
   // chosen event has since been deleted (the code then works for no event).
   scopeEventId: string | null;
   scopeEvent: ScopeEvent | { deleted: true } | null;
+  // "Event type": the same, for one event type.
+  scopeThemeId: string | null;
+  scopeTheme: { id: string; name: string } | { deleted: true } | null;
 }
+
+interface EventType { id: string; name: string }
 
 interface EventOption extends ScopeEvent { draft: boolean; status: string }
 
-const emptyForm = { code: '', type: 'PERCENT_OFF', amount: '', validFrom: '', validTo: '', scopeEventId: '' };
+const emptyForm = { code: '', type: 'PERCENT_OFF', amount: '', validFrom: '', validTo: '', scopeEventId: '', scopeThemeId: '' };
 
 // "#12 28-40 years at Soultrap Bar, 2 Oct 2026", as in the blast forms, with
 // the year so past events can be told apart. The date is the event city's.
@@ -39,6 +44,8 @@ export default function AdminDiscountsPage() {
   // Every event, for the "Event" dropdown: upcoming soonest first, then past
   // ones most recent first.
   const [events, setEvents] = useState<EventOption[]>([]);
+  // The event types, for the "Event type" dropdown (as on the event forms).
+  const [eventTypes, setEventTypes] = useState<EventType[]>([]);
 
   function loadCodes() {
     fetch('/api/admin/discount-codes').then((r) => r.json()).then((d) => { setCodes(d); setLoaded(true); });
@@ -46,6 +53,7 @@ export default function AdminDiscountsPage() {
   useEffect(() => {
     loadCodes();
     fetch('/api/admin/events').then((r) => r.json()).then((all: EventOption[]) => setEvents(all)).catch(() => {});
+    fetch('/api/event-themes').then((r) => r.json()).then((all: EventType[]) => setEventTypes(Array.isArray(all) ? all : [])).catch(() => {});
   }, []);
 
   const now = Date.now();
@@ -56,6 +64,7 @@ export default function AdminDiscountsPage() {
   // until the admin picks another.
   const editingCode = codes.find((c) => c.id === editing);
   const scopeEventGone = !!form.scopeEventId && !events.some((e) => e.id === form.scopeEventId) && !!editingCode?.scopeEvent && 'deleted' in editingCode.scopeEvent;
+  const scopeThemeGone = !!form.scopeThemeId && !eventTypes.some((t) => t.id === form.scopeThemeId) && !!editingCode?.scopeTheme && 'deleted' in editingCode.scopeTheme;
 
   function openNew() {
     setEditing(null);
@@ -65,7 +74,7 @@ export default function AdminDiscountsPage() {
 
   function openEdit(c: DiscountCode) {
     setEditing(c.id);
-    setForm({ code: c.code, type: c.type, amount: c.amount ?? '', validFrom: discountDay(c.validFrom), validTo: discountDay(c.validTo), scopeEventId: c.scopeEventId ?? '' });
+    setForm({ code: c.code, type: c.type, amount: c.amount ?? '', validFrom: discountDay(c.validFrom), validTo: discountDay(c.validTo), scopeEventId: c.scopeEventId ?? '', scopeThemeId: c.scopeThemeId ?? '' });
     setShowForm(true);
   }
 
@@ -74,7 +83,13 @@ export default function AdminDiscountsPage() {
     setError(null);
     // An empty amount is sent as "none", so the server says it's needed
     // (sending nothing used to keep the old amount when editing).
-    const payload = { ...form, amount: form.amount === '' || form.type === 'FREE' ? null : Number(form.amount), scopeEventId: form.scopeEventId || null };
+    const payload = {
+      ...form,
+      amount: form.amount === '' || form.type === 'FREE' ? null : Number(form.amount),
+      scopeEventId: form.scopeEventId || null,
+      // A code for one event needs no event type (the server clears it too).
+      scopeThemeId: form.scopeEventId ? null : form.scopeThemeId || null,
+    };
     const res = editing
       ? await fetch(`/api/admin/discount-codes/${editing}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       : await fetch('/api/admin/discount-codes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -115,6 +130,20 @@ export default function AdminDiscountsPage() {
               <Field label="Valid to"><Input type="date" required value={form.validTo} onChange={(e) => setForm({ ...form, validTo: e.target.value })} /></Field>
               <p className="col-span-2 -mt-2 mb-3 text-xs text-ink/50">From 12:00 am on the first day to 11:59 pm on the last, Sydney time.</p>
               <div className="col-span-2">
+                <Field label="Event type">
+                  <Select value={form.scopeEventId ? '' : form.scopeThemeId} disabled={!!form.scopeEventId} onChange={(e) => setForm({ ...form, scopeThemeId: e.target.value })}>
+                    <option value="">All</option>
+                    {scopeThemeGone && <option value={form.scopeThemeId}>(an event type that has been deleted)</option>}
+                    {eventTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </Select>
+                  <p className="mt-1 text-xs text-ink/50">
+                    {form.scopeEventId
+                      ? 'Not needed: the code is for the one event chosen below.'
+                      : '"All" works for every type of event. Choose one to make the code work only for events of that type.'}
+                  </p>
+                </Field>
+              </div>
+              <div className="col-span-2">
                 <Field label="Event">
                   <Select value={form.scopeEventId} onChange={(e) => setForm({ ...form, scopeEventId: e.target.value })}>
                     <option value="">All</option>
@@ -145,17 +174,20 @@ export default function AdminDiscountsPage() {
       <div className="space-y-2">
         {codes.map((c) => {
           const status = discountStatus(c);
-          // Limited to an event that has since been deleted: it works nowhere.
-          const noEvent = !!c.scopeEvent && 'deleted' in c.scopeEvent;
+          // Limited to an event, or an event type, that has since been deleted: it works nowhere.
+          const noEvent = (!!c.scopeEvent && 'deleted' in c.scopeEvent) || (!!c.scopeTheme && 'deleted' in c.scopeTheme);
           return (
             <button key={c.id} onClick={() => openEdit(c)} className="flex w-full items-center justify-between rounded-lg border border-ink/10 bg-white p-3 text-left hover:border-plum">
               <div>
                 <div className="font-mono font-extrabold text-ink">{c.code}</div>
                 <div className="text-xs text-ink/50">
-                  {c.type === 'PERCENT_OFF' ? `${c.amount}% off` : c.type === 'FIXED_REDUCTION' ? `${formatPrice(c.amount ?? 0)} off` : 'Free'} · Used {c.usedCount} times
+                  {c.type === 'PERCENT_OFF' ? `${c.amount}% off` : c.type === 'FIXED_REDUCTION' ? `${formatPrice(c.amount ?? 0)} off` : 'Free'} · Used {c.usedCount} {c.usedCount === 1 ? 'time' : 'times'}
                   <br />{formatDiscountDay(c.validFrom)} to {formatDiscountDay(c.validTo)}
                   {c.scopeEvent && (
                     <><br />Only for {'deleted' in c.scopeEvent ? 'an event that has been deleted' : eventLabel(c.scopeEvent)}</>
+                  )}
+                  {!c.scopeEvent && c.scopeTheme && (
+                    <><br />Only for {'deleted' in c.scopeTheme ? 'an event type that has been deleted' : `${c.scopeTheme.name} events`}</>
                   )}
                 </div>
               </div>

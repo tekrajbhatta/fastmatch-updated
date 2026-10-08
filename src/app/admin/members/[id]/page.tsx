@@ -11,9 +11,13 @@ import { formatPrice } from '@/lib/price';
 import { AU_MOBILE_MESSAGE } from '@/lib/mobile';
 import { bookingStatusLabel } from '@/lib/paymentMethod';
 import { latestAdultDateOfBirth } from '@/lib/age';
+import { hasStripePayment } from '@/lib/stripePayment';
 
 interface Booking {
   id: string; badge: number; status: string; paidAmount: string; checkedIn: boolean;
+  paymentMethod: string | null; stripePaymentIntentId: string | null; confirmedAt: string | null;
+  // For a friend's place: how the member who brought them paid.
+  bookedBy: { paymentMethod: string | null; stripePaymentIntentId: string | null; confirmedAt: string | null } | null;
   event: { id: string; name: string; startsAt: string; status: string; venue: { name: string; address: string | null }; city?: { name: string } };
 }
 interface MemberDetail {
@@ -202,9 +206,15 @@ export default function MemberDetailPage() {
                   {venueLine(b.event.venue)} · {new Date(b.event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: timeZoneForCity(b.event.city?.name) })} · Badge #{b.badge}
                 </div>
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
                 <Badge tone={b.status === 'CONFIRMED' ? 'green' : 'muted'}>{bookingStatusLabel(b.status, formatPrice(b.paidAmount))}</Badge>
                 {b.checkedIn && <Badge tone="plum">Checked in</Badge>}
+                {/* The card payment in Stripe (a friend's is the member's who brought them). */}
+                {hasStripePayment(b) && (
+                  <a href={`/api/admin/bookings/${b.id}/stripe?open=1`} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-plum hover:underline">
+                    View in Stripe
+                  </a>
+                )}
               </div>
             </div>
           ))}

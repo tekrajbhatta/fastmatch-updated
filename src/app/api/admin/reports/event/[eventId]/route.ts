@@ -23,11 +23,13 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     venue: event.venue.name, city: event.city.name, theme: event.theme.name,
   };
 
-  // Not happened yet: listed so it can be picked, but every figure is 0
-  // until it has (Gil, 7 Oct). It used to show its bookings as "Attended".
-  if (event.startsAt > new Date()) {
+  // Not happened yet, or cancelled: listed so it can be picked, but every
+  // figure is 0 (Gil, 7 Oct). An upcoming event used to show its bookings as
+  // "Attended"; a cancelled one, its expenses as a loss (the user, 8 Oct).
+  const cancelled = event.status === 'CANCELLED';
+  if (cancelled || event.startsAt > new Date()) {
     return NextResponse.json({
-      event: summary, happened: false,
+      event: summary, happened: false, cancelled,
       attended: 0, men: 0, women: 0, matchRate: null, revenue: 0, expenses: 0, profit: 0, dateMatches: 0, friendMatches: 0,
       statement: { lines: [], revenue: 0, commissions: 0, expenses: 0, profit: 0 },
     });

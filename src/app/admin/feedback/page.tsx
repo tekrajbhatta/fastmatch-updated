@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button, Loader } from '@/components/ui';
 import { timeZoneForCity } from '@/lib/timezone';
+import { countOf } from '@/lib/plural';
 
 interface Item {
   id: string;
@@ -63,7 +64,7 @@ export default function MemberFeedbackPage() {
       {data && data.totalPages > 1 && (
         <div className="mt-4 flex items-center justify-center gap-3 text-sm">
           <Button variant="ghost" disabled={data.page <= 1} onClick={() => load(data.page - 1)}>Previous</Button>
-          <span className="text-ink/60">Page {data.page} of {data.totalPages} · {data.total} messages</span>
+          <span className="text-ink/60">Page {data.page} of {data.totalPages} · {countOf(data.total, 'message', 'messages')}</span>
           <Button variant="ghost" disabled={data.page >= data.totalPages} onClick={() => load(data.page + 1)}>Next</Button>
         </div>
       )}

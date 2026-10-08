@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Field, Input, Select, Button, Card, Badge, Loader } from '@/components/ui';
 import { memberFilterFromParams, memberFilterToParams, describeMemberFilter } from '@/lib/memberFilterParams';
 import { calculateAge } from '@/lib/age';
+import { countOf } from '@/lib/plural';
 
 interface Member { id: string; name: string; email: string; mobile: string; city: { name: string }; gender: string; dateOfBirth: string; _count: { bookings: number }; }
 interface Totals { count: number; male: number; female: number; totalMatches: number; }
@@ -79,7 +80,7 @@ export default function AdminMembersPage() {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="mb-1 text-2xl font-extrabold text-ink">Members</h1>
-          <p className="text-sm text-ink/60">{totals ? `${totals.count.toLocaleString()} members currently match this filter.` : 'Loading…'}</p>
+          <p className="text-sm text-ink/60">{totals ? `${countOf(totals.count, 'member currently matches', 'members currently match')} this filter.` : 'Loading…'}</p>
         </div>
         {/* Registers someone without an event (Gil). */}
         <Link href="/admin/members/new"><Button>+ Add member</Button></Link>
