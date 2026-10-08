@@ -18,8 +18,8 @@ patterns as the FastmatchLive codebase.
 - **`src/lib/calculateMatches.ts`** — the actual Date/Friend/No matching
   algorithm (mutual Date → date match, Date+Friend or mutual Friend → friend
   match, otherwise no match).
-- **`src/scripts/calculateMatches.ts`** — the nightly job that finds events
-  from today and calculates their matches at midnight.
+- **`src/scripts/calculateMatches.ts`** — the results job, run every hour: it
+  calculates each event's matches once midnight has passed in its own city.
 - **`src/lib/sendMatchEmails.ts`** — groups matches by attendee, ready to
   send, but the actual send call is a stub until an email provider is wired in.
 - **Auth routes**: register (enforces 18+ and T&Cs acceptance), login,
@@ -68,7 +68,7 @@ patterns as the FastmatchLive codebase.
   a serverless timeout if sent in one request. `processCampaignSendBatch()`
   handles 100 recipients per call and returns; `src/scripts/
   processCampaignSends.ts` is a scheduled job (run it every 1-2 minutes,
-  same mechanism as the midnight match-calculation job) that drives every
+  same mechanism as the hourly match-calculation job) that drives every
   in-progress send forward until complete. `/send` and `/resume` process one
   batch immediately for responsiveness, then the scheduled job takes over.
   Pause/cancel take effect at the next batch boundary, not instantly

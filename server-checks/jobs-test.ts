@@ -157,7 +157,7 @@ async function main() {
         bounced = await prisma.member.count({ where: { id: { in: [alex.id, sam.id] }, emailBounced: true } });
       }
       if (bounced === 2) pass('Mailgun reported the undeliverable emails, and the site marked both test members as bounced: the bounce webhook works.');
-      else fail(`${bounced} of 2 bounce reports arrived in 4 minutes. In Mailgun (Sending → Webhooks), "Permanent failure" should point at ${appUrl}/api/webhooks/email-bounce, with its signing key in MAILGUN_WEBHOOK_SIGNING_KEY.`);
+      else fail(`${bounced} of 2 bounce reports arrived in 4 minutes. Mailgun's Logs (search "servercheck") show what happened to the emails; under Webhooks, for the sending domain, "Permanent failure" should point at ${appUrl}/api/webhooks/email-bounce, with the "HTTP webhook signing key" in MAILGUN_WEBHOOK_SIGNING_KEY.`);
     }
   } catch (err) {
     fail(`The test stopped early: ${messageOf(err)}`);

@@ -76,12 +76,18 @@ export function rateKey(prefix: string, value: string): string {
 }
 
 /**
- * The visitor's address. The site sits behind Nginx, which passes the real
- * one in X-Forwarded-For / X-Real-IP; anywhere else (local development)
- * every request shares one bucket.
+ * The visitor's address. The site sits behind Nginx, which ADDS the address
+ * it was connected from to the end of X-Forwarded-For
+ * ($proxy_add_x_forwarded_for, as the server checks showed on 8 Oct), so the
+ * last entry is the real one. Anything before it came from the visitor, who
+ * can claim any address there: reading the first entry let anyone dodge the
+ * per-address limits by claiming a new one each time (review item 54). Behind
+ * Cloudflare, Nginx's real-IP settings (cloudflare-realip.conf) make that last
+ * entry the visitor's own address too. X-Real-IP (also set by Nginx) is the
+ * fallback; anywhere else (local development) every request shares one bucket.
  */
 export function clientIp(req: NextRequest): string {
-  const forwarded = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+  const forwarded = req.headers.get('x-forwarded-for')?.split(',').map((a) => a.trim()).filter(Boolean).pop();
   return forwarded || req.headers.get('x-real-ip')?.trim() || 'unknown';
 }
 

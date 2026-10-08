@@ -1,5 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { nextBucket, rateKey, LIMITS } from '@/lib/rateLimit';
+import { NextRequest } from 'next/server';
+import { nextBucket, rateKey, clientIp, LIMITS } from '@/lib/rateLimit';
+
+describe('the visitor\'s address (review item 54, 8 Oct)', () => {
+  const from = (headers: Record<string, string>) => clientIp(new NextRequest('https://fastmatch.test/api/auth/login', { headers }));
+
+  it('is the address Nginx added, at the end, not one the visitor claimed before it', () => {
+    expect(from({ 'x-forwarded-for': '198.51.100.7, 203.0.113.9' })).toBe('203.0.113.9');
+    expect(from({ 'x-forwarded-for': '198.51.100.7,203.0.113.9 ', 'x-real-ip': '203.0.113.9' })).toBe('203.0.113.9');
+    expect(from({ 'x-forwarded-for': '203.0.113.9' })).toBe('203.0.113.9');
+  });
+
+  it('falls back to X-Real-IP, then to one shared bucket', () => {
+    expect(from({ 'x-real-ip': ' 203.0.113.9 ' })).toBe('203.0.113.9');
+    expect(from({ 'x-forwarded-for': ' , ' })).toBe('unknown');
+  });
+});
 
 const now = new Date('2026-10-06T10:00:00Z');
 const minutes = (n: number) => new Date(now.getTime() + n * 60_000);

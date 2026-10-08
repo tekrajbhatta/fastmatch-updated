@@ -1,5 +1,8 @@
 /**
- * Run on a nightly schedule (cron / hosting platform scheduled job) at midnight.
+ * Run every hour (cron "0 * * * *"): an event's results are due at midnight
+ * on its own city's clock, which for Perth is three hours after Sydney's, so a
+ * run only at Sydney's midnight left them until the next night (server
+ * checks, 8 Oct). Each run does only what has become due, so most do nothing.
  * Finds every event from the evening just gone (and any from the last week a
  * missed run left behind) that hasn't had matches calculated yet, calculates
  * matches for each, and sends result emails. Which events, exactly, is

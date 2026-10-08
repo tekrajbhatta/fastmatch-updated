@@ -214,7 +214,14 @@ async function main() {
     }
   }
   const bounced = await prisma.member.count({ where: { emailBounced: true } });
-  info(`Members whose email Mailgun reported as undeliverable: ${bounced}`);
+  info(`Members whose email is marked undeliverable: ${bounced}`);
+  // Why: "Rejected on send" is Mailgun refusing the address while a blast was
+  // sent; anything else is the reason in one of Mailgun's bounce reports.
+  const reasons = await prisma.member.groupBy({ by: ['bounceReason'], where: { emailBounced: true }, _count: { _all: true } });
+  for (const r of reasons) {
+    const why = (r.bounceReason ?? '(no reason)').replace(/[^\s@<>"']+@[^\s@<>"']+/g, '[address]').slice(0, 140);
+    info(`  ${r._count._all} x ${why === 'Rejected on send' ? 'refused by Mailgun while a blast was sent' : `Mailgun's bounce report: "${why}"`}`);
+  }
 
   // ---------------------------------------------------------------- texts
   section('F. Text messages (Cellcast)');

@@ -107,7 +107,7 @@ if command -v nginx >/dev/null 2>&1; then
     /^# configuration file / { file = $4; sub(/:$/, "", file); next }
     { line = $0; sub(/^[ \t]+/, "", line) }
     line ~ /^#/ { next }
-    line ~ /^(server_name|listen|location|proxy_pass|proxy_set_header|real_ip_header|set_real_ip_from|real_ip_recursive|client_max_body_size|proxy_buffering|proxy_request_buffering)[ \t]/ { print file ": " line }' | indent
+    line ~ /^(server_name|listen|location|proxy_pass|proxy_set_header|real_ip_header|set_real_ip_from|real_ip_recursive|client_max_body_size|proxy_buffering|proxy_request_buffering|access_log)[ \t]/ { print file ": " line }' | indent
 else
   look "nginx isn't installed here, or isn't on the PATH"
 fi
@@ -131,6 +131,14 @@ else
     *" 503") look "Mailgun's bounce address says bounce reports aren't set up: MAILGUN_WEBHOOK_SIGNING_KEY is missing (503)" ;;
     *) look "Mailgun's bounce address answered: $out" ;;
   esac
+
+  # Who has been calling the two webhook addresses, and what they were told
+  # (Nginx's access logs: Stripe's and Mailgun's own requests show their names).
+  for hook in /api/stripe/webhook /api/webhooks/email-bounce; do
+    calls="$(grep -hs "POST $hook" /var/log/nginx/*access.log.1 /var/log/nginx/*access.log 2>/dev/null | grep -v 'curl/' | tail -n 5)"
+    if [ -n "$calls" ]; then info "The latest requests to $hook (not counting these checks):"; printf '%s\n' "$calls" | cut -c1-260 | indent
+    else info "No request to $hook in Nginx's recent access logs (apart from these checks)"; fi
+  done
 
   # A 9.5 MB request without logging in: 403 means it reached the site (which
   # refused it, rightly); 413 means Nginx stopped it first.
@@ -198,8 +206,15 @@ for f in "$BASE_DIR/shared/.env" "$BASE_DIR/shared/.my.cnf"; do
   perms="$(stat -c '%a, owner %U' "$f")"
   case "$perms" in 600*|400*) ok "$(basename "$f") can only be read by its owner ($perms)" ;; *) look "$(basename "$f") can be read by others ($perms)" ;; esac
 done
-for f in $(find "$BASE_DIR/shared" /var/backups/fastmatch -maxdepth 1 -type f \( -name '*.sql*' -o -name '*.env*' -o -name '*.gz' \) -perm -o=r 2>/dev/null); do
-  look "$f can be read by any user on the server: if it's still needed, sudo chmod 600 it; if not, delete it"
+BACKUPS=/var/backups/fastmatch
+if [ -d "$BACKUPS" ]; then
+  info "The deploy's database backups: $BACKUPS ($(stat -c '%a, owner %U' "$BACKUPS"), $(find "$BACKUPS" -maxdepth 1 -type f | wc -l) file(s))"
+  # A folder others can't open keeps every backup in it private, the next deploy's too.
+  mode="$(stat -c '%a' "$BACKUPS")"
+  if [ "${mode: -1}" = 0 ]; then ok "Others can't open the backups folder, so the backups in it are private"; BACKUPS=""; fi
+fi
+for f in $(find "$BASE_DIR/shared" $BACKUPS -maxdepth 1 -type f \( -name '*.sql*' -o -name '*.env*' -o -name '*.gz' \) -perm -o=r 2>/dev/null); do
+  look "$f can be read by any user on the server"
 done
 
 # ------------------------------------------------------------------ the site's own checks
