@@ -209,7 +209,8 @@ export default function AdminEventDetailPage() {
             <p className="text-sm font-bold text-green-dark">
               Calculated on{' '}
               {closeStatus.matchesCalculatedAt
-                ? new Date(closeStatus.matchesCalculatedAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+                // On the event city's clock, as "Worked out" on Matches and choices.
+                ? new Date(closeStatus.matchesCalculatedAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: timeZoneForCity(event.city.name) })
                 : 'an earlier date'}
               {' '}· {closeStatus.emailed} {closeStatus.emailed === 1 ? 'person' : 'people'} emailed their results.
             </p>

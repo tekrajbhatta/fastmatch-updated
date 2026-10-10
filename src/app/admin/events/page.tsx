@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button, Loader } from '@/components/ui';
 import { adminEventGroup, sortAdminEvents, isInactive, GROUP_ORDER, type AdminEventGroup } from '@/lib/adminEventGroups';
 import EventWhen from '@/components/EventWhen';
+import { useIsPhone } from '@/lib/useMediaQuery';
 
 interface AdminEvent {
   id: string;
@@ -70,6 +71,7 @@ export default function AdminEventsPage() {
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const phone = useIsPhone();
 
   useEffect(() => {
     fetch('/api/admin/events').then((r) => r.json()).then((data) => {
@@ -91,18 +93,51 @@ export default function AdminEventsPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold text-ink">Events</h1>
           <p className="text-sm text-ink/60">Numbers assign automatically, starting at #1.</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/admin/events/new"><Button>+ New event</Button></Link>
+          <Link href="/admin/events/new"><Button className="whitespace-nowrap">+ New event</Button></Link>
         </div>
       </div>
 
       {loading && <Loader label="Loading events…" />}
 
+      {phone ? (
+        // A phone: one card per event, in its row colour; tap it to open the event.
+        <div className="space-y-2">
+          {visible.map((e) => (
+            <div
+              key={e.id}
+              role="link"
+              tabIndex={0}
+              onClick={() => (window.location.href = `/admin/events/${e.id}`)}
+              onKeyDown={(ev) => { if (ev.key === 'Enter') window.location.href = `/admin/events/${e.id}`; }}
+              className={`cursor-pointer rounded-xl border border-ink/10 p-4 ${GROUP_STYLE[adminEventGroup(new Date(e.startsAt), e.confirmed, now, isInactive(e))].row}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs text-ink/60">#{e.number} · {e.theme.name}</div>
+                  <div className="font-bold text-ink">{e.name}</div>
+                </div>
+                <VisibilityChip e={e} />
+              </div>
+              <div className="mt-1 text-sm text-ink"><EventWhen startsAt={e.startsAt} city={e.city.name} /></div>
+              <div className="text-sm text-ink/70">{e.venue.name}, {e.city.name} · Ages {e.ageMin}–{e.ageMax}</div>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span>Men <b>{e.menBooked}/{e.maxMen}</b> · Women <b>{e.womenBooked}/{e.maxWomen}</b></span>
+                {e.seriesId && (
+                  <Link href={`/admin/events/series/${e.seriesId}`} onClick={(ev) => ev.stopPropagation()} className="whitespace-nowrap rounded-full bg-white/70 px-2.5 py-1 text-xs font-bold text-plum ring-1 ring-plum/20">
+                    part of a series
+                  </Link>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="overflow-x-auto rounded-xl border border-ink/10 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-cream/50 text-left text-xs font-bold uppercase text-ink/50">
@@ -152,17 +187,7 @@ export default function AdminEventsPage() {
                 <td className="px-4 py-3">{e.womenBooked}/{e.maxWomen}</td>
                 {/* A solid white chip rather than <Badge>: the badge's pale
                     tint vanishes against the coloured rows. */}
-                <td className="px-4 py-3">
-                  {e.status === 'CANCELLED' ? (
-                    <span className="inline-block whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-xs font-bold text-coral">Cancelled</span>
-                  ) : e.draft ? (
-                    <span className="inline-block whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-xs font-bold text-coral">Draft</span>
-                  ) : (
-                    <span className={`inline-block whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-xs font-bold ${e.visibility === 'PUBLIC' ? 'text-green-dark' : 'text-ink/60'}`}>
-                      {e.visibility === 'PUBLIC' ? 'Public' : 'Not public'}
-                    </span>
-                  )}
-                </td>
+                <td className="px-4 py-3"><VisibilityChip e={e} /></td>
                 <td className="px-4 py-3 text-right">
                   {/* Same destination as clicking the row — a visible target
                       for people who don't think to click a table row. */}
@@ -179,6 +204,7 @@ export default function AdminEventsPage() {
           </tbody>
         </table>
       </div>
+      )}
 
       {/* Hidden until there is a second page — a lone "Page 1 of 1" is just
           clutter on a short list. */}
@@ -242,5 +268,16 @@ function PagerButton({ disabled, onClick, children }: {
     >
       {children}
     </button>
+  );
+}
+
+/** Cancelled, Draft, Public or Not public. A solid white chip rather than <Badge>: the badge's pale tint vanishes against the coloured rows. */
+function VisibilityChip({ e }: { e: Pick<AdminEvent, 'status' | 'draft' | 'visibility'> }) {
+  if (e.status === 'CANCELLED') return <span className="inline-block whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-xs font-bold text-coral">Cancelled</span>;
+  if (e.draft) return <span className="inline-block whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-xs font-bold text-coral">Draft</span>;
+  return (
+    <span className={`inline-block whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-xs font-bold ${e.visibility === 'PUBLIC' ? 'text-green-dark' : 'text-ink/60'}`}>
+      {e.visibility === 'PUBLIC' ? 'Public' : 'Not public'}
+    </span>
   );
 }

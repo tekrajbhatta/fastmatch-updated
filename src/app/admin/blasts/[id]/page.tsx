@@ -7,6 +7,7 @@ import BlastTestSend from '@/components/BlastTestSend';
 import BlastSendProgress, { blastOutcome } from '@/components/BlastSendProgress';
 import SmsCounter from '@/components/SmsCounter';
 import EmailPreview from '@/components/EmailPreview';
+import Modal from '@/components/Modal';
 import { withOptOut } from '@/lib/sms/optOut';
 import { countOf } from '@/lib/plural';
 import {
@@ -44,6 +45,9 @@ function ViewBlastInner() {
   const [smsCredits, setSmsCredits] = useState<number | null>(null);
   const [renderedHtml, setRenderedHtml] = useState<string | null>(null);
   const [confirmingSend, setConfirmingSend] = useState(false);
+  // Cancelling a send part-way asks first, in a box over the page.
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   // The send that has just COMPLETED, so the admin gets told it finished
   // instead of being left staring at "sending…".
   const [justSent, setJustSent] = useState<Send | null>(null);
@@ -84,7 +88,8 @@ function ViewBlastInner() {
     });
     loadHistory(); loadRenderedPreview();
     fetch('/api/cities').then((r) => r.json()).then(setCities);
-    fetch('/api/admin/sms-credits').then((r) => r.json()).then((d) => setSmsCredits(d.credits));
+    // A number or nothing: an error reply (say the login ran out) has no credits, and the strip just stays hidden.
+    fetch('/api/admin/sms-credits').then((r) => r.json()).then((d) => setSmsCredits(typeof d?.credits === 'number' ? d.credits : null)).catch(() => {});
   }, [id]);
 
   // Shared by preview and send so the count shown is built from exactly the
@@ -237,8 +242,10 @@ function ViewBlastInner() {
   }
   async function handleCancel() {
     if (!activeSend) return;
-    if (!confirm('Cancel this send? It cannot be resumed once cancelled.')) return;
-    await fetch(`/api/admin/campaigns/${id}/sends/${activeSend.id}/cancel`, { method: 'POST' });
+    setCancelling(true);
+    await fetch(`/api/admin/campaigns/${id}/sends/${activeSend.id}/cancel`, { method: 'POST' }).catch(() => null);
+    setCancelling(false);
+    setConfirmingCancel(false);
     loadHistory();
   }
 
@@ -418,7 +425,7 @@ function ViewBlastInner() {
                   <div className="flex justify-center gap-2">
                     {activeSend.status === 'SENDING' && <Button variant="ghost" onClick={handlePause}>Pause</Button>}
                     {activeSend.status === 'PAUSED' && <Button onClick={handleResume}>Resume</Button>}
-                    <Button variant="danger" onClick={handleCancel}>Cancel</Button>
+                    <Button variant="danger" onClick={() => setConfirmingCancel(true)}>Cancel</Button>
                   </div>
                 </BlastSendProgress>
               ) : (
@@ -437,7 +444,7 @@ function ViewBlastInner() {
           {sends.map((s) => (
             <div key={s.id} className="flex items-center justify-between rounded-lg border border-ink/10 bg-white p-3">
               <div>
-                <div className="text-sm font-bold text-ink">{new Date(s.startedAt).toLocaleString('en-AU')}</div>
+                <div className="text-sm font-bold text-ink">{new Date(s.startedAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
                 {/* Failures used to be counted as sent. */}
                 <div className={`text-xs ${s.failedCount ? 'font-bold text-coral' : 'text-ink/50'}`}>
                   {s.failedCount ? blastOutcome(s.sentCount - s.failedCount, s.failedCount) : `${s.sentCount} / ${s.totalRecipients} sent`}
@@ -454,9 +461,7 @@ function ViewBlastInner() {
           rendered email plus the exact locked-in count, and requires an
           explicit second click before anything actually sends. */}
       {confirmingSend && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4" onClick={() => setConfirmingSend(false)}>
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
-            <h2 className="mb-1 text-lg font-extrabold text-ink">Confirm and send</h2>
+        <Modal title="Confirm and send" onClose={() => setConfirmingSend(false)} wide>
             <p className="mb-3 text-sm text-ink/60">
               This will send to <b>{countOf(previewCount ?? 0, 'member', 'members')}</b> right now. This is the last chance to check before it goes out.
             </p>
@@ -472,8 +477,16 @@ function ViewBlastInner() {
               <Button variant="ghost" onClick={() => setConfirmingSend(false)} className="flex-1">Cancel</Button>
               <Button onClick={handleConfirmSend} className="flex-1">Confirm &amp; Send Now</Button>
             </div>
+        </Modal>
+      )}
+      {confirmingCancel && (
+        <Modal title="Cancel this send?" onClose={() => setConfirmingCancel(false)} busy={cancelling}>
+          <p className="mb-4 text-sm text-ink/70">The members not reached yet won&apos;t get it, and a cancelled send can&apos;t be resumed.</p>
+          <div className="flex gap-2">
+            <Button variant="danger" onClick={handleCancel} disabled={cancelling} loading={cancelling} className="flex-1">Yes, cancel the send</Button>
+            <Button variant="ghost" onClick={() => setConfirmingCancel(false)} disabled={cancelling} className="flex-1">Keep sending</Button>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

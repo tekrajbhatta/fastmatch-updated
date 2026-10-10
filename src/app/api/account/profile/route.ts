@@ -4,6 +4,7 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { getSessionMember } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { nameProblemSentence } from '@/lib/personName';
 import { signEmailChangeToken } from '@/lib/tokens';
 import { sendEmail } from '@/lib/emails/send';
 import { confirmEmailChangeEmail, emailAlreadyUsedEmail } from '@/lib/emails/emailChangeEmails';
@@ -51,6 +52,8 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
 
   const parsed = schema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: 'Please check your details.' }, { status: 400 });
+  const nameIssue = nameProblemSentence(parsed.data.name, 'your');
+  if (nameIssue) return NextResponse.json({ error: nameIssue, field: 'name' }, { status: 400 });
 
   const { dateOfBirth, ...data } = parsed.data;
   let dob: Date | undefined;

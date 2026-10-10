@@ -16,11 +16,14 @@ function ChangePasswordInner() {
   const [newPassword, setNewPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'saving' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
+  // A message that belongs under one box ("Current password is incorrect.").
+  const [fieldError, setFieldError] = useState<{ field: 'currentPassword' | 'newPassword'; message: string } | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setFieldError(null);
     setStatus('saving');
     const res = await fetch('/api/auth/change-password', {
       method: 'POST',
@@ -31,7 +34,9 @@ function ChangePasswordInner() {
     if (res.status === 401) { setNeedsLogin(true); setStatus('idle'); return; }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setError(data.error ?? 'Something went wrong.');
+      const message = typeof data.error === 'string' ? data.error : 'Something went wrong.';
+      if (data.field === 'currentPassword' || data.field === 'newPassword') setFieldError({ field: data.field, message });
+      else setError(message);
       setStatus('idle');
       return;
     }
@@ -50,11 +55,17 @@ function ChangePasswordInner() {
           </>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-            <Field label="Current password">
-              <TextInput type="password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+            <Field label="Current password" error={fieldError?.field === 'currentPassword' ? fieldError.message : null}>
+              <TextInput
+                type="password" autoComplete="current-password" required value={currentPassword}
+                onChange={(e) => { setCurrentPassword(e.target.value); if (fieldError?.field === 'currentPassword') setFieldError(null); }}
+              />
             </Field>
-            <Field label="New password">
-              <TextInput type="password" required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            <Field label="New password" hint="At least 8 characters." error={fieldError?.field === 'newPassword' ? fieldError.message : null}>
+              <TextInput
+                type="password" autoComplete="new-password" required minLength={8} value={newPassword}
+                onChange={(e) => { setNewPassword(e.target.value); if (fieldError?.field === 'newPassword') setFieldError(null); }}
+              />
             </Field>
             {error && <FormError>{error}</FormError>}
             <Button type="submit" disabled={status === 'saving'} loading={status === 'saving'} block className="mt-1">

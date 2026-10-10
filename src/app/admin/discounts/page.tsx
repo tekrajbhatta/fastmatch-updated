@@ -76,6 +76,8 @@ export default function AdminDiscountsPage() {
     setEditing(c.id);
     setForm({ code: c.code, type: c.type, amount: c.amount ?? '', validFrom: discountDay(c.validFrom), validTo: discountDay(c.validTo), scopeEventId: c.scopeEventId ?? '', scopeThemeId: c.scopeThemeId ?? '' });
     setShowForm(true);
+    // The form opens above the list: bring it into view (on a phone it was off the screen).
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -101,9 +103,9 @@ export default function AdminDiscountsPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="text-2xl font-extrabold text-ink">Discount codes</h1><p className="text-sm text-ink/60">Percent off, fixed reduction, or free.</p></div>
-        <Button onClick={openNew}>+ New code</Button>
+        <Button onClick={openNew} className="whitespace-nowrap">+ New code</Button>
       </div>
 
       {showForm && (

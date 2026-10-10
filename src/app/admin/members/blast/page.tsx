@@ -9,6 +9,7 @@ import { resolveCampaignEmailHtml } from '@/lib/emails/campaignEmail';
 import { memberFilterFromParams, memberFilterToParams, describeMemberFilter } from '@/lib/memberFilterParams';
 import BlastSendProgress from '@/components/BlastSendProgress';
 import EmailPreview from '@/components/EmailPreview';
+import Modal from '@/components/Modal';
 import { countOf } from '@/lib/plural';
 
 interface BlastOption { id: string; title: string; blastStatus: string; reusable: boolean; hasBeenSent: boolean }
@@ -68,7 +69,7 @@ export default function BlastFilteredMembersPage() {
     // Normalised, so only the Members screen's own filter fields come along.
     setQuery(memberFilterToParams(memberFilterFromParams(new URLSearchParams(window.location.search))).toString());
     fetch('/api/cities').then((r) => r.json()).then(setCities);
-    fetch('/api/admin/sms-credits').then((r) => r.json()).then((d) => setSmsCredits(d.credits ?? null)).catch(() => {});
+    fetch('/api/admin/sms-credits').then((r) => r.json()).then((d) => setSmsCredits(typeof d?.credits === 'number' ? d.credits : null)).catch(() => {});
     loadBlasts();
   }, []);
 
@@ -279,9 +280,7 @@ export default function BlastFilteredMembersPage() {
 
       {/* The last check before anything goes out. */}
       {confirming && audience && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4" onClick={() => setConfirming(false)}>
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
-            <h2 className="mb-1 text-lg font-extrabold text-ink">Confirm and send</h2>
+        <Modal title="Confirm and send" onClose={() => setConfirming(false)} wide>
             <p className="mb-3 text-sm text-ink/60">
               &ldquo;{title}&rdquo; will be {content.sendEmail && content.sendSms ? 'emailed and texted' : content.sendEmail ? 'emailed' : 'texted'} to{' '}
               <b>{countOf(audience.recipients, 'member', 'members')}</b> right now.{dirty ? ' Your changes are saved to the blast first.' : ''}
@@ -291,8 +290,7 @@ export default function BlastFilteredMembersPage() {
               <Button variant="ghost" onClick={() => setConfirming(false)} className="flex-1">Cancel</Button>
               <Button onClick={handleConfirmSend} className="flex-1">Confirm &amp; Send Now</Button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

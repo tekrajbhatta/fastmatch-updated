@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { sendEmail } from '@/lib/emails/send';
 import { finishSignupEmail, alreadyMemberEmail, finishInvitationEmail } from '@/lib/emails/signupEmails';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { nameProblemSentence } from '@/lib/personName';
 import { calculateAge } from '@/lib/age';
 import { parseDateOfBirth } from '@/lib/friendBooking';
 import { setPasswordUrl } from '@/lib/welcomeLink';
@@ -54,6 +55,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
   const data = parsed.data;
+  const nameIssue = nameProblemSentence(data.name, 'your');
+  if (nameIssue) return NextResponse.json({ error: nameIssue, field: 'name' }, { status: 400 });
 
   const dob = parseDateOfBirth(data.dateOfBirth);
   if (!dob) return NextResponse.json({ error: 'Please enter your date of birth.' }, { status: 400 });

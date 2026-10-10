@@ -7,6 +7,7 @@ import { Field, Input, Select, Button, Card, Badge, Loader } from '@/components/
 import { memberFilterFromParams, memberFilterToParams, describeMemberFilter } from '@/lib/memberFilterParams';
 import { calculateAge } from '@/lib/age';
 import { countOf } from '@/lib/plural';
+import { useIsPhone } from '@/lib/useMediaQuery';
 
 interface Member { id: string; name: string; email: string; mobile: string; city: { name: string }; gender: string; dateOfBirth: string; _count: { bookings: number }; }
 interface Totals { count: number; male: number; female: number; totalMatches: number; }
@@ -14,6 +15,10 @@ interface City { id: string; name: string; }
 
 export default function AdminMembersPage() {
   const router = useRouter();
+  const phone = useIsPhone();
+  // On a phone the four extra filters fold away under "More filters", so the
+  // list isn't a whole screen down; Search is always there.
+  const [moreFilters, setMoreFilters] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
   // True while a page of members is being fetched (first load and every re-filter).
   const [loadingMembers, setLoadingMembers] = useState(true);
@@ -88,7 +93,8 @@ export default function AdminMembersPage() {
 
       <Card className="mb-6">
         <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <Field label="Search"><Input value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} placeholder="Name, email, mobile" /></Field>
+          <Field label="Search"><Input type="search" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') loadMembers(1, filterParams().toString()); }} placeholder="Name, email, mobile" /></Field>
+          {(!phone || moreFilters) && (<>
           <Field label="Gender">
             <Select value={filters.gender} onChange={(e) => setFilters({ ...filters, gender: e.target.value })}>
               <option value="">Any</option><option value="MALE">Male</option><option value="FEMALE">Female</option>
@@ -100,11 +106,19 @@ export default function AdminMembersPage() {
               {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           </Field>
-          <Field label="Age from"><Input type="number" value={filters.ageMin} onChange={(e) => setFilters({ ...filters, ageMin: e.target.value })} /></Field>
-          <Field label="Age to"><Input type="number" value={filters.ageMax} onChange={(e) => setFilters({ ...filters, ageMax: e.target.value })} /></Field>
+          <Field label="Age from"><Input type="number" inputMode="numeric" value={filters.ageMin} onChange={(e) => setFilters({ ...filters, ageMin: e.target.value })} /></Field>
+          <Field label="Age to"><Input type="number" inputMode="numeric" value={filters.ageMax} onChange={(e) => setFilters({ ...filters, ageMax: e.target.value })} /></Field>
+          </>)}
         </div>
-        <Button onClick={() => loadMembers(1, filterParams().toString())} className="mt-2">Apply filters</Button>
-        <Button variant="ghost" className="mt-2 ml-2" onClick={handleExport}>Export CSV</Button>
+        {phone && (
+          <button type="button" onClick={() => setMoreFilters((v) => !v)} className="mb-2 text-sm font-bold text-plum hover:underline" aria-expanded={moreFilters}>
+            {moreFilters ? 'Fewer filters' : 'More filters (gender, city, age)'}
+          </button>
+        )}
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button onClick={() => loadMembers(1, filterParams().toString())}>Apply filters</Button>
+          <Button variant="ghost" onClick={handleExport}>Export CSV</Button>
+        </div>
       </Card>
 
       {/* As on the old admin: once a list is showing, blast exactly that list. */}
@@ -128,8 +142,24 @@ export default function AdminMembersPage() {
         </div>
       )}
 
-      {/* Scrolls sideways on a phone, like the events and venues tables,
-          rather than squeezing seven columns into the screen width. */}
+      {phone ? (
+        // A phone: one card per member; tap it to open their page.
+        <div className="space-y-2">
+          {loadingMembers ? <Loader label="Loading members…" /> : members.length === 0 ? (
+            <p className="text-sm text-ink/50">No members match this filter.</p>
+          ) : members.map((m) => (
+            <Link key={m.id} href={`/admin/members/${m.id}`} className="block rounded-xl border border-ink/10 bg-white p-4 hover:bg-cream/30">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 font-bold text-ink">{m.name}</div>
+                <span className="shrink-0 text-xs text-ink/50">{countOf(m._count.bookings, 'event', 'events')} attended</span>
+              </div>
+              <div className="break-all text-sm text-ink/60">{m.email}</div>
+              <div className="text-sm text-ink/60">{m.mobile} · {m.gender === 'MALE' ? 'Male' : 'Female'} · {calculateAge(new Date(m.dateOfBirth))} · {m.city?.name}</div>
+            </Link>
+          ))}
+        </div>
+      ) : (
+      // A computer: the table (it scrolls sideways if the window is narrow).
       <div className="overflow-x-auto rounded-xl border border-ink/10 bg-white">
         <table className="w-full whitespace-nowrap text-sm">
           <thead className="bg-cream/50 text-left text-xs font-bold uppercase text-ink/50">
@@ -163,6 +193,7 @@ export default function AdminMembersPage() {
           </tbody>
         </table>
       </div>
+      )}
 
       <div className="mt-4 flex items-center justify-center gap-3 text-sm">
         <Button variant="ghost" disabled={page <= 1} onClick={() => loadMembers(page - 1, applied)}>Previous</Button>

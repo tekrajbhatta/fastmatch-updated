@@ -247,12 +247,13 @@ export default function ReportsPage() {
                 <Card>
                   <h2 className="mb-3 font-extrabold text-ink">Revenue over time</h2>
                   <ResponsiveContainer width="100%" height={220}>
-                    <LineChart data={summary.revenueOverTime}>
+                    {/* Straight lines with a dot per month: a smoothed curve drew dips and peaks between months that never happened. */}
+                    <LineChart data={summary.revenueOverTime} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#EAE6E0" />
                       <XAxis dataKey="month" fontSize={11} />
-                      <YAxis fontSize={11} />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="revenue" stroke="#3D1E6D" strokeWidth={2} dot={false} />
+                      <YAxis fontSize={11} width={56} tickFormatter={(v: number) => `$${v.toLocaleString('en-AU')}`} />
+                      <Tooltip formatter={(v) => [money(Number(v)), 'Revenue']} />
+                      <Line type="linear" dataKey="revenue" stroke="#3D1E6D" strokeWidth={2} dot={{ r: 3 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </Card>
@@ -262,12 +263,12 @@ export default function ReportsPage() {
                     <p className="text-sm text-ink/50">Not shown: a registration isn&apos;t tied to a venue or an event type.</p>
                   ) : (
                     <ResponsiveContainer width="100%" height={220}>
-                      <LineChart data={summary.memberGrowth}>
+                      <LineChart data={summary.memberGrowth} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#EAE6E0" />
                         <XAxis dataKey="month" fontSize={11} />
-                        <YAxis fontSize={11} />
-                        <Tooltip />
-                        <Line type="monotone" dataKey="count" stroke="#A4CE39" strokeWidth={2} dot={false} />
+                        <YAxis fontSize={11} width={40} allowDecimals={false} />
+                        <Tooltip formatter={(v) => [Number(v).toLocaleString('en-AU'), 'New members']} />
+                        <Line type="linear" dataKey="count" stroke="#A4CE39" strokeWidth={2} dot={{ r: 3 }} />
                       </LineChart>
                     </ResponsiveContainer>
                   )}

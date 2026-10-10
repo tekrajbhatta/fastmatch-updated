@@ -18,6 +18,20 @@ export const EMAIL_SUBHEADING = 'margin:24px 0 8px;font-family:Arial,sans-serif;
  */
 export const EMAIL_FRAME = `border:2px solid ${BRAND_COLORS.plum};`;
 
+/**
+ * Spacing for the plain paragraphs and lists in an email's body. Some mail
+ * programs drop the usual gap between paragraphs, so lines written as a bare
+ * <p> ran together there (the booking confirmation, the reminder, the
+ * results emails). Only bare tags get it: anything already styled is left
+ * exactly as it is.
+ */
+export function withEmailSpacing(html: string): string {
+  return html
+    .replace(/<p>/g, '<p style="margin:0 0 16px;">')
+    .replace(/<(ol|ul)>/g, '<$1 style="margin:0 0 16px;padding-left:22px;">')
+    .replace(/<li>/g, '<li style="margin:0 0 6px;">');
+}
+
 export function emailLayout(bodyHtml: string, opts: { unsubscribeUrl?: string } = {}) {
   const year = new Date().getFullYear();
 
@@ -40,7 +54,7 @@ export function emailLayout(bodyHtml: string, opts: { unsubscribeUrl?: string } 
   </div>
 
   <div style="padding:24px;">
-    ${bodyHtml}
+    ${withEmailSpacing(bodyHtml)}
   </div>
 
   <div style="background:${BRAND_COLORS.plum};color:#fff;padding:20px;font-size:0.75rem;text-align:center;">

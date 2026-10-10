@@ -13,11 +13,13 @@ export function Field({ label, children, error }: { label: string; children: Rea
   );
 }
 
+// 16px text on a phone, 14px from tablet size up: an iPhone zooms the whole
+// page in when a box with smaller text is tapped (the member site's boxes are 16px).
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm text-ink outline-none focus:border-plum ${props.className ?? ''}`}
+      className={`w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-base text-ink outline-none focus:border-plum sm:text-sm ${props.className ?? ''}`}
     />
   );
 }
@@ -26,7 +28,7 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm text-ink outline-none focus:border-plum ${props.className ?? ''}`}
+      className={`w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-base text-ink outline-none focus:border-plum sm:text-sm ${props.className ?? ''}`}
     />
   );
 }

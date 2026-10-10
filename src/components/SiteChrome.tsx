@@ -225,11 +225,12 @@ function SiteFooter({
   isAdmin: boolean;
   container: string;
 }) {
-  const link = 'rounded-sm font-bold text-white hover:text-match-300 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-match-400';
+  // A finger-sized target on a phone (each line is 40px tall), the same text as before.
+  const link = 'inline-flex min-h-[40px] items-center rounded-sm font-bold text-white hover:text-match-300 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-match-400 md:min-h-0';
   return (
     <footer className="bg-plum-950 print:hidden">
       <div className={`mx-auto flex flex-col gap-6 py-10 md:py-14 ${container}`}>
-        <nav aria-label="Footer" className="flex flex-wrap gap-x-8 gap-y-3.5 text-base">
+        <nav aria-label="Footer" className="flex flex-wrap gap-x-8 gap-y-0 text-base md:gap-y-3.5">
           {/* An admin gets no navigation duplicated down here. All seven admin
               destinations are already in the header on every page, so
               repeating them would just be a second menu competing with the

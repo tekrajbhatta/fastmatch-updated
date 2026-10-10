@@ -4,6 +4,7 @@ import { prisma } from './prisma';
 import { calculateAge } from './age';
 import { CONFIRMATION_OPTIONS } from './memberVerification';
 import { isAustralianMobile, AU_MOBILE_MESSAGE } from './mobile';
+import { nameProblemSentence } from './personName';
 
 /**
  * A member the admin registers: from an event's "Add a new member" (which
@@ -34,6 +35,8 @@ type Checked = { ok: true; dob: Date } | { ok: false; status: number; error: str
  * included, so the admin is told what to do instead.
  */
 export async function checkNewMember(data: NewMember, registered: (name: string) => string): Promise<Checked> {
+  const nameIssue = nameProblemSentence(data.name, 'the member’s');
+  if (nameIssue) return { ok: false, status: 400, error: nameIssue };
   const dob = new Date(data.dateOfBirth);
   if (Number.isNaN(dob.getTime())) return { ok: false, status: 400, error: 'Please enter a valid date of birth.' };
   if (calculateAge(dob) < 18) return { ok: false, status: 400, error: 'Members must be at least 18 years old.' };

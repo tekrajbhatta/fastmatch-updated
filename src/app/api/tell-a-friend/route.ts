@@ -9,6 +9,7 @@ import { sendEmail } from '@/lib/emails/send';
 import { tellAFriendEmail } from '@/lib/emails/friendEmail';
 import { setPasswordToken } from '@/lib/memberBooking';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { nameProblemSentence } from '@/lib/personName';
 import { hitRateLimit, LIMITS, rateKey } from '@/lib/rateLimit';
 import { isAustralianMobile } from '@/lib/mobile';
 
@@ -37,6 +38,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Please check your friend’s details.' }, { status: 400 });
   }
   const f = parsed.data;
+  const nameIssue = nameProblemSentence(f.name, 'their');
+  if (nameIssue) return NextResponse.json({ error: nameIssue.replace('their name', 'your friend’s first name'), field: 'name' }, { status: 400 });
 
   if (f.email.toLowerCase() === member.email.toLowerCase()) {
     return NextResponse.json({ error: 'That’s your own email. Please enter your friend’s.' }, { status: 400 });

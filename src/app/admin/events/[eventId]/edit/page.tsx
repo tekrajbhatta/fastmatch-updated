@@ -163,7 +163,7 @@ export default function EditEventPage() {
             <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </Field>
           <Field label="Event description">
-            <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum" rows={4}
+            <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-base outline-none sm:text-sm focus:border-plum" rows={4}
               value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Shown to members on the event page, under the photo." />
           </Field>
@@ -171,7 +171,8 @@ export default function EditEventPage() {
             hint="Optional. Shown at the top of the event page." />
           {/* Bottom-aligned: the start label names the city's clock, and a
               long city name wraps it onto a second line. */}
-          <div className="grid grid-cols-2 items-end gap-3">
+          {/* One above the other on a phone: side by side, the date and time box was too narrow to read. */}
+          <div className="grid items-end gap-x-3 sm:grid-cols-2">
             <Field label={`Start date & time (${cityName ?? 'event city'} time)`} error={err('startsAt')}>
               <Input type="datetime-local" required value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} />
             </Field>

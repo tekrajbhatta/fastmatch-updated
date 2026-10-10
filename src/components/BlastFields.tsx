@@ -35,7 +35,7 @@ export function blastContentFrom(c: Record<string, any>): BlastContent {
   };
 }
 
-const TEXTAREA = 'w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum';
+const TEXTAREA = 'w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-base outline-none sm:text-sm focus:border-plum';
 
 /**
  * A blast's content and channels — shared by Edit blast and "Blast these

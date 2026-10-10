@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Field, Input, Button, Card, Badge, Loader } from '@/components/ui';
+import Modal from '@/components/Modal';
 
 // The event types offered by the "Event type" dropdown on the event forms
 // (the old admin's Setup > Event Types). One field each: the name.
@@ -76,13 +77,13 @@ export default function AdminEventTypesPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0 flex-1 basis-64">
           <h1 className="mb-1 text-2xl font-extrabold text-ink">Event Types</h1>
           <p className="text-sm text-ink/60">Add an event type here, then pick it as the &quot;Event type&quot; when creating or editing an event.</p>
           <p className="text-sm text-ink/60">An event type already used by an event can&apos;t be deleted, but it can be renamed.</p>
         </div>
-        {!open && <Button onClick={startCreate} className="shrink-0">+ New event type</Button>}
+        {!open && <Button onClick={startCreate} className="shrink-0 whitespace-nowrap">+ New event type</Button>}
       </div>
 
       {error && !open && <p role="alert" className="mb-4 text-sm font-medium text-coral">{error}</p>}
@@ -106,16 +107,17 @@ export default function AdminEventTypesPage() {
         </Card>
       )}
 
+      {/* Over the page, so it shows beside the Delete that was pressed, however far down the list. */}
       {confirmDelete && (
-        <Card className="mb-6">
-          <p className="mb-3 text-sm text-ink/70">
+        <Modal title="Delete this event type?" onClose={() => setConfirmDelete(null)} busy={deleting}>
+          <p className="mb-4 text-sm text-ink/70">
             Delete <strong>{confirmDelete.name}</strong>? This can&apos;t be undone.
           </p>
           <div className="flex gap-2">
-            <Button variant="danger" onClick={() => handleDelete(confirmDelete)} disabled={deleting} loading={deleting}>Yes, delete</Button>
-            <Button variant="ghost" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+            <Button variant="danger" onClick={() => handleDelete(confirmDelete)} disabled={deleting} loading={deleting} className="flex-1 sm:flex-none">Yes, delete</Button>
+            <Button variant="ghost" onClick={() => setConfirmDelete(null)} disabled={deleting} className="flex-1 sm:flex-none">Cancel</Button>
           </div>
-        </Card>
+        </Modal>
       )}
 
       {!loaded ? (

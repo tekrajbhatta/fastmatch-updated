@@ -8,6 +8,7 @@ import { calculateAge } from '@/lib/age';
 import { parseDateOfBirth } from '@/lib/friendBooking';
 import { sendMobileVerification } from '@/lib/memberVerification';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { nameProblemSentence } from '@/lib/personName';
 import { isAustralianMobile, sameMobile, AU_MOBILE_MESSAGE } from '@/lib/mobile';
 
 /**
@@ -104,6 +105,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid request.' }, { status: 400 });
   }
   const data = parsed.data;
+  const nameIssue = nameProblemSentence(data.name, 'your');
+  if (nameIssue) return NextResponse.json({ error: nameIssue, field: 'name' }, { status: 400 });
 
   const t = readToken(data.token);
   if (!t.ok) return NextResponse.json({ error: t.error }, { status: 400 });

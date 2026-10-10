@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { nameProblemSentence } from '@/lib/personName';
 import { isAustralianMobile, sameMobile, AU_MOBILE_MESSAGE } from '@/lib/mobile';
 import { calculateAge } from '@/lib/age';
 
@@ -73,6 +74,8 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   const parsed = patchSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: 'Please check the details.' }, { status: 400 });
   const data = parsed.data;
+  const nameIssue = nameProblemSentence(data.name, 'the member’s');
+  if (nameIssue) return NextResponse.json({ error: nameIssue }, { status: 400 });
 
   const dob = new Date(data.dateOfBirth);
   if (Number.isNaN(dob.getTime())) {

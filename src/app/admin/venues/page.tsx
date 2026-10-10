@@ -4,6 +4,10 @@ import { useState, useEffect } from 'react';
 import { Field, Input, Select, Button, Card, Badge, Loader } from '@/components/ui';
 import PhotoUploadField from '@/components/PhotoUploadField';
 import { Spinner } from '@/components/Spinner';
+import Modal from '@/components/Modal';
+import { NETWORK_ERROR } from '@/lib/networkError';
+import { useIsPhone } from '@/lib/useMediaQuery';
+import { countOf } from '@/lib/plural';
 
 interface City { id: string; name: string; }
 interface Venue {
@@ -27,6 +31,8 @@ export default function AdminVenuesPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Venue | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const phone = useIsPhone();
   const [duplicating, setDuplicating] = useState<string | null>(null);
 
   function load() {
@@ -82,9 +88,12 @@ export default function AdminVenuesPage() {
 
   async function handleDelete(v: Venue) {
     setError(null);
-    const res = await fetch(`/api/admin/venues/${v.id}`, { method: 'DELETE' });
-    const data = await res.json();
+    setDeleting(true);
+    const res = await fetch(`/api/admin/venues/${v.id}`, { method: 'DELETE' }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
+    setDeleting(false);
     setConfirmDelete(null);
+    if (!res) { setError(NETWORK_ERROR); return; }
     if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Could not delete that venue.'); return; }
     load();
   }
@@ -106,13 +115,13 @@ export default function AdminVenuesPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 flex-1 basis-64">
           <h1 className="mb-1 text-2xl font-extrabold text-ink">Venues</h1>
           <p className="text-sm text-ink/60">Add a venue here, then pick it when creating an event or a blast. Its image and description are copied in, ready to edit.</p>
           <p className="text-sm text-ink/60">The venues that are already in use by an event can not be deleted.</p>
         </div>
-        {!open && <Button onClick={startCreate}>Create venue</Button>}
+        {!open && <Button onClick={startCreate} className="whitespace-nowrap">Create venue</Button>}
       </div>
 
       {error && !open && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
@@ -160,7 +169,7 @@ export default function AdminVenuesPage() {
                 value={form.description}
                 onChange={(e) => set({ description: e.target.value })}
                 placeholder="A few words about the venue: the setting, the drinks, how to find it."
-                className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-plum"
+                className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-base outline-none sm:text-sm focus:border-plum"
               />
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -178,22 +187,50 @@ export default function AdminVenuesPage() {
         </Card>
       )}
 
+      {/* Over the page, so it shows beside the Delete that was pressed, however far down the list. */}
       {confirmDelete && (
-        <Card className="mb-6">
-          <p className="mb-3 text-sm text-ink/70">
+        <Modal title="Delete this venue?" onClose={() => setConfirmDelete(null)} busy={deleting}>
+          <p className="mb-4 text-sm text-ink/70">
             Delete <strong>{confirmDelete.name}</strong>? This can&apos;t be undone.
           </p>
           <div className="flex gap-2">
-            <Button variant="danger" onClick={() => handleDelete(confirmDelete)}>Yes, delete</Button>
-            <Button variant="ghost" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+            <Button variant="danger" onClick={() => handleDelete(confirmDelete)} disabled={deleting} loading={deleting} className="flex-1 sm:flex-none">Yes, delete</Button>
+            <Button variant="ghost" onClick={() => setConfirmDelete(null)} disabled={deleting} className="flex-1 sm:flex-none">Cancel</Button>
           </div>
-        </Card>
+        </Modal>
       )}
 
       {!loaded ? (
         <Loader label="Loading venues…" />
       ) : venues.length === 0 ? (
         <Card><p className="text-sm text-ink/50">No venues yet. Create one to start adding events.</p></Card>
+      ) : phone ? (
+        // A phone: one card per venue, its buttons underneath.
+        <div className="space-y-2">
+          {venues.map((v) => (
+            <div key={v.id} className="rounded-xl border border-ink/10 bg-white p-4">
+              <div className="flex items-start gap-3">
+                {(v.logoUrl || v.imageUrl) && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={(v.logoUrl || v.imageUrl)!} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold text-ink">{v.name}</div>
+                  <div className="text-sm text-ink/60">{[v.address, v.city.name].filter(Boolean).join(', ')}</div>
+                  {(v.phone || v.websiteUrl) && <div className="break-words text-sm text-ink/60">{[v.phone, v.websiteUrl].filter(Boolean).join(' · ')}</div>}
+                </div>
+                <Badge tone={v._count.events > 0 ? 'green' : 'muted'}>{countOf(v._count.events, 'event', 'events')}</Badge>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button variant="ghost" onClick={() => startEdit(v)} className="flex-1">Edit</Button>
+                <Button variant="ghost" onClick={() => handleDuplicate(v)} disabled={duplicating !== null} loading={duplicating === v.id} className="flex-1">
+                  {duplicating === v.id ? 'Duplicating…' : 'Duplicate'}
+                </Button>
+                {v._count.events === 0 && <Button variant="danger" onClick={() => setConfirmDelete(v)} className="flex-1">Delete</Button>}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-ink/10 bg-white">
           <table className="w-full text-sm">

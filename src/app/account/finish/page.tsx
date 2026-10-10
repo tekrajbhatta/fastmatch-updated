@@ -7,6 +7,7 @@ import { SplitLayout, FormCard, LoadingNote } from '@/components/site/layout';
 import { Button, ButtonLink, linkClass } from '@/components/site/button';
 import { FormError, Notice } from '@/components/site/form';
 import ResendConfirmation from '@/components/ResendConfirmation';
+import LoadFailed from '@/components/site/LoadFailed';
 import { safeNext } from '@/lib/safeNext';
 import { unfinishedSteps, finishSetupHref, verifyMobileHref } from '@/lib/accountSetup';
 
@@ -25,7 +26,11 @@ function FinishSetupInner() {
   const [loaded, setLoaded] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [keeping, setKeeping] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Each box shows its own problem, next to the button that was pressed.
+  const [termsError, setTermsError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  // The site couldn't be reached at all: not the same as being logged out.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [next, setNext] = useState('/events');
 
   useEffect(() => {
@@ -33,23 +38,24 @@ function FinishSetupInner() {
     fetch('/api/auth/me')
       .then((r) => r.json())
       .then((d) => setMe(d.member))
+      .catch(() => setLoadFailed(true))
       .finally(() => setLoaded(true));
   }, [nextParam]);
 
   async function acceptTerms() {
-    setError(null);
+    setTermsError(null);
     setAccepting(true);
     const res = await fetch('/api/account/accept-terms', { method: 'POST' }).catch(() => null).finally(() => setAccepting(false));
-    if (!res?.ok) { setError('That didn’t work. Please try again.'); return; }
+    if (!res?.ok) { setTermsError('That didn’t work. Please try again.'); return; }
     setMe((m) => (m ? { ...m, agreedTerms: true } : m));
   }
 
   // Keeps the password the admin set: they aren't asked again.
   async function keepPassword() {
-    setError(null);
+    setPasswordError(null);
     setKeeping(true);
     const res = await fetch('/api/account/keep-password', { method: 'POST' }).catch(() => null).finally(() => setKeeping(false));
-    if (!res?.ok) { setError('That didn’t work. Please try again.'); return; }
+    if (!res?.ok) { setPasswordError('That didn’t work. Please try again.'); return; }
     setMe((m) => (m ? { ...m, passwordSetByAdmin: false } : m));
   }
 
@@ -57,6 +63,13 @@ function FinishSetupInner() {
     return (
       <SplitLayout title="Finish setting up your account">
         <FormCard><LoadingNote>Loading…</LoadingNote></FormCard>
+      </SplitLayout>
+    );
+  }
+  if (loadFailed) {
+    return (
+      <SplitLayout title="Finish setting up your account">
+        <FormCard><LoadFailed /></FormCard>
       </SplitLayout>
     );
   }
@@ -92,6 +105,7 @@ function FinishSetupInner() {
               FastMatch set a password for you when you were added. You can keep using it, or choose your own.
             </p>
             <ButtonLink href={`/account/change-password?next=${encodeURIComponent(finishSetupHref(next))}`} block>Choose my own password</ButtonLink>
+            {passwordError && <FormError>{passwordError}</FormError>}
             <Button variant="secondary" onClick={keepPassword} disabled={keeping} loading={keeping} block>Keep this password</Button>
           </Notice>
         )}
@@ -118,7 +132,7 @@ function FinishSetupInner() {
               Please read our <Link href="/terms" className={linkClass}>Terms &amp; Conditions</Link> and{' '}
               <Link href="/privacy" className={linkClass}>Privacy Policy</Link>.
             </p>
-            {error && <FormError>{error}</FormError>}
+            {termsError && <FormError>{termsError}</FormError>}
             <Button onClick={acceptTerms} disabled={accepting} loading={accepting} block className="!h-auto min-h-[54px] !whitespace-normal py-3 leading-snug">
               I agree to the Terms &amp; Privacy Policy
             </Button>

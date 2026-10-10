@@ -138,7 +138,13 @@ export default function MemberDetailPage() {
           <dl className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-[auto_1fr]">
             <InfoRow label="Contact method" value={CONTACT_LABELS[member.contactMethod] ?? member.contactMethod} />
             <InfoRow label="Special offers" value={member.marketingOptIn ? 'Yes, opted in' : 'No'} />
-            <InfoRow label="Email" value={member.emailBounced ? `Bounced${member.bounceReason ? ` (${member.bounceReason})` : ''}: emails aren’t sent to it` : 'Working'} warn={member.emailBounced} />
+            {/* A bounced address only drops out of blasts: account, booking and results emails still go (memberFilter.ts). */}
+            <InfoRow
+              label="Email"
+              value={member.emailBounced ? 'Bounced: left out of email blasts' : 'Working'}
+              note={member.emailBounced ? `Booking and results emails still go to it.${member.bounceReason ? ` The mail service said: “${member.bounceReason}”` : ''}` : undefined}
+              warn={member.emailBounced}
+            />
             <InfoRow label="Email confirmed" value={member.emailVerified ? 'Yes' : 'No'} warn={!member.emailVerified} />
             <InfoRow label="Mobile confirmed" value={member.mobileVerified ? 'Yes' : 'No'} warn={!member.mobileVerified} />
             <InfoRow label="Terms & Conditions" value={member.agreedTerms ? `Accepted${member.agreedTermsAt ? ` on ${new Date(member.agreedTermsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}` : 'Not yet accepted'} warn={!member.agreedTerms} />
@@ -177,7 +183,7 @@ export default function MemberDetailPage() {
               </Select>
             </Field>
             <Tick label="Receive special offers" hint="Blasts go only to members who opted in." checked={form.marketingOptIn} onChange={(v) => setForm({ ...form, marketingOptIn: v })} />
-            <Tick label="Email bounced" hint="Untick to start emailing this address again (once it's been fixed)." checked={form.emailBounced} onChange={(v) => setForm({ ...form, emailBounced: v })} />
+            <Tick label="Email bounced" hint="Leaves this address out of email blasts. Untick once it's been fixed to include it again. Booking and results emails go to it either way." checked={form.emailBounced} onChange={(v) => setForm({ ...form, emailBounced: v })} />
             <Tick label="Email confirmed" checked={form.emailVerified} onChange={(v) => setForm({ ...form, emailVerified: v })} />
             <Tick label="Mobile confirmed" hint="Both must be confirmed to book online." checked={form.mobileVerified} onChange={(v) => setForm({ ...form, mobileVerified: v })} />
             {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
@@ -276,11 +282,14 @@ const CONTACT_LABELS: Record<string, string> = {
   DO_NOT_CONTACT: 'Do not contact',
 };
 
-function InfoRow({ label, value, warn = false }: { label: string; value: string; warn?: boolean }) {
+function InfoRow({ label, value, note, warn = false }: { label: string; value: string; note?: string; warn?: boolean }) {
   return (
     <>
       <dt className="text-ink/50">{label}</dt>
-      <dd className={warn ? 'font-bold text-coral' : 'font-bold text-ink'}>{value}</dd>
+      <dd className={`min-w-0 break-words ${warn ? 'font-bold text-coral' : 'font-bold text-ink'}`}>
+        {value}
+        {note && <span className="mt-0.5 block text-xs font-normal text-ink/50">{note}</span>}
+      </dd>
     </>
   );
 }

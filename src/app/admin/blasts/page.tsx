@@ -35,20 +35,21 @@ export default function BlastsListPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div><h1 className="text-2xl font-extrabold text-ink">Blasts</h1><p className="text-sm text-ink/60">Create a newsletter or SMS blast, filter who it goes to, then send.</p></div>
-        <Link href="/admin/blasts/new"><Button>+ Create a new blast</Button></Link>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 flex-1 basis-64"><h1 className="text-2xl font-extrabold text-ink">Blasts</h1><p className="text-sm text-ink/60">Create a newsletter or SMS blast, filter who it goes to, then send.</p></div>
+        <Link href="/admin/blasts/new"><Button className="whitespace-nowrap">+ Create a new blast</Button></Link>
       </div>
 
       {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
 
       <div className="space-y-2">
         {blasts.map((b) => (
-          <div key={b.id} className="flex items-center gap-3 rounded-lg border border-ink/10 bg-white p-3 hover:border-plum">
+          // On a phone the title takes the full width and the buttons go underneath (they squeezed it to a letter or two).
+          <div key={b.id} className="flex flex-col gap-3 rounded-lg border border-ink/10 bg-white p-3 hover:border-plum sm:flex-row sm:items-center">
             {/* The row still opens the blast; the buttons at the end are shortcuts. */}
             <Link href={`/admin/blasts/${b.id}`} className="flex min-w-0 flex-1 items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="truncate font-bold text-ink">{b.title}</div>
+                <div className="font-bold text-ink sm:truncate">{b.title}</div>
                 <div className="text-xs text-ink/50">{b.sendEmail && b.sendSms ? 'Email + SMS' : b.sendEmail ? 'Email' : 'SMS'}</div>
               </div>
               <span className="flex shrink-0 gap-1.5">
@@ -57,21 +58,21 @@ export default function BlastsListPage() {
                 <Badge tone={statusTone(b.blastStatus)}>{b.blastStatus === 'UNUSED' ? 'Unused' : b.blastStatus.charAt(0) + b.blastStatus.slice(1).toLowerCase()}</Badge>
               </span>
             </Link>
-            <div className="flex shrink-0 gap-2">
-              <Link href={`/admin/blasts/${b.id}/edit`} className="rounded-lg border border-plum px-3 py-1.5 text-xs font-bold text-plum hover:bg-plum hover:text-white">
+            <div className="flex shrink-0 gap-2 [&>*]:flex-1 [&>*]:text-center sm:[&>*]:flex-none">
+              <Link href={`/admin/blasts/${b.id}/edit`} className="rounded-lg border border-plum px-3 py-2 text-xs font-bold text-plum hover:bg-plum hover:text-white sm:py-1.5">
                 Edit
               </Link>
               <button
                 onClick={() => duplicate(b.id)}
                 disabled={duplicating !== null}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-plum px-3 py-1.5 text-xs font-bold text-plum hover:bg-plum hover:text-white disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-plum px-3 py-2 text-xs font-bold text-plum hover:bg-plum hover:text-white disabled:opacity-50 sm:py-1.5"
               >
                 {duplicating === b.id && <Spinner className="h-3.5 w-3.5" />}
                 {duplicating === b.id ? 'Duplicating…' : 'Duplicate'}
               </button>
               {/* Same destination as clicking the row (preview, send,
                   history) — a visible target, as on the events list. */}
-              <Link href={`/admin/blasts/${b.id}`} className="rounded-lg border border-plum px-3 py-1.5 text-xs font-bold text-plum hover:bg-plum hover:text-white">
+              <Link href={`/admin/blasts/${b.id}`} className="rounded-lg border border-plum px-3 py-2 text-xs font-bold text-plum hover:bg-plum hover:text-white sm:py-1.5">
                 Manage
               </Link>
             </div>

@@ -6,6 +6,7 @@
  */
 import { calculateAge } from './age';
 import { isAustralianMobile } from './mobile';
+import { nameProblem } from './personName';
 
 export type FriendGender = 'MALE' | 'FEMALE';
 
@@ -56,6 +57,11 @@ export function validateFriends(
 
   friends.forEach((f, index) => {
     if (!f.name.trim()) errors.push({ index, field: 'name', message: 'Please enter their name' });
+    else {
+      // Their name greets them in their booking email: not an email address (personName.ts).
+      const problem = nameProblem(f.name, 'their');
+      if (problem) errors.push({ index, field: 'name', message: problem });
+    }
     if (!f.mobile.trim()) errors.push({ index, field: 'mobile', message: 'Please enter their mobile' });
     // Australian mobiles only (Gil, Q21).
     else if (!isAustralianMobile(f.mobile)) errors.push({ index, field: 'mobile', message: 'Please enter an Australian mobile, like 0412 345 678' });

@@ -17,11 +17,21 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const member = await getSessionMember(req);
   if (!member) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
-  const parsed = bodySchema.safeParse(await req.json());
-  if (!parsed.success) return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+  const parsed = bodySchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    const short = parsed.error.issues.some((i) => i.path[0] === 'newPassword');
+    return NextResponse.json(
+      short
+        ? { error: 'Your new password needs at least 8 characters.', field: 'newPassword' }
+        : { error: 'Please enter your current password.', field: 'currentPassword' },
+      { status: 400 },
+    );
+  }
 
+  // 400, not 401: the member IS logged in, and the page reads a 401 as an
+  // ended session ("Your session has expired").
   const ok = await bcrypt.compare(parsed.data.currentPassword, member.passwordHash);
-  if (!ok) return NextResponse.json({ error: 'Current password is incorrect.' }, { status: 401 });
+  if (!ok) return NextResponse.json({ error: 'Current password is incorrect.', field: 'currentPassword' }, { status: 400 });
 
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
   // Their own now: no longer "the password FastMatch set" (src/lib/adminMember.ts).
