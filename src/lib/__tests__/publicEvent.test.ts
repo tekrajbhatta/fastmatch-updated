@@ -36,7 +36,7 @@ describe('toPublicEvent', () => {
     expect(out).toMatchObject({
       id: 'e1', name: '28-40 years', ageMin: 28, ageMax: 40, cityId: 'c1',
       theme: { name: 'Speed dating' }, city: { name: 'Sydney' },
-      venue: { name: 'Soultrap Bar', address: '88 Campbell St, Surry Hills', logoUrl: '/uploads/logo.jpg' },
+      venue: { name: 'Soultrap Bar', address: '88 Campbell St, Surry Hills', logoUrl: '/uploads/logo.jpg', imageUrl: '/uploads/img.jpg' },
     });
   });
 
