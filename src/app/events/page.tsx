@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { venueLineWithCity } from '@/lib/venue';
 import MemberEventsBrowser from '@/components/MemberEventsBrowser';
 import EventCard from '@/components/site/EventCard';
-import { eventCardBlurb, eventCardPhoto } from '@/lib/eventCard';
+import { eventDescription, eventPhoto } from '@/lib/eventFallbacks';
 import { Card, Container, PageHero, PageLoader } from '@/components/site/layout';
 import LoadFailed from '@/components/site/LoadFailed';
 import { formatEventForViewer } from '@/lib/timezone';
@@ -14,7 +14,7 @@ interface EventListItem {
   name: string;
   description: string | null;
   photoUrl: string | null;
-  venue: { name: string; address: string | null; imageUrl: string | null };
+  venue: { name: string; address: string | null; imageUrl: string | null; description: string | null };
   startsAt: string;
   ageMin: number;
   ageMax: number;
@@ -94,8 +94,8 @@ function EventGrid({ events }: { events: EventListItem[] }) {
     <div className="mx-auto grid w-full max-w-[1264px] grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))] gap-[clamp(18px,2vw,28px)] px-[clamp(16px,2.2vw,32px)]">
       {events.map((event) => {
         const when = formatEventForViewer(event.startsAt, event.city.name);
-        // The event's own photo, or its venue's picture when it has none.
-        const photo = eventCardPhoto(event);
+        // The event's own photo and description, or its venue's when it has none.
+        const photo = eventPhoto(event);
 
         return (
           <EventCard
@@ -105,7 +105,7 @@ function EventGrid({ events }: { events: EventListItem[] }) {
             title={event.name}
             venue={venueLineWithCity(event.venue, event.city.name)}
             photo={photo ? { src: photo, alt: `${event.theme.name}, ${event.name}` } : null}
-            description={eventCardBlurb(event.description)}
+            description={eventDescription(event)}
             date={`${when.shortDate}, ${when.time}`}
             zone={when.note ? `(${when.note})` : undefined}
             ages={`Ages ${event.ageMin}–${event.ageMax}`}

@@ -37,9 +37,13 @@ export function toPublicEvent(e: EventWithRefs, booked: { men: number; women: nu
     cityId: e.cityId,
     theme: { id: e.theme.id, name: e.theme.name },
     city: { id: e.city.id, name: e.city.name },
-    // imageUrl: the venue's own picture, which Upcoming Events shows on the
-    // card of an event that has no photo of its own.
-    venue: { id: e.venue.id, name: e.venue.name, address: e.venue.address, logoUrl: e.venue.logoUrl, imageUrl: e.venue.imageUrl },
+    // imageUrl and description: the venue's own picture and text, shown for
+    // an event that has no photo or description of its own (see
+    // src/lib/eventFallbacks.ts).
+    venue: {
+      id: e.venue.id, name: e.venue.name, address: e.venue.address, logoUrl: e.venue.logoUrl,
+      imageUrl: e.venue.imageUrl, description: e.venue.description,
+    },
     // Whether it can be booked, and if not why: the event page shows
     // "finished", "cancelled" or "not open" instead of the booking panel.
     availability: eventAvailability(e),

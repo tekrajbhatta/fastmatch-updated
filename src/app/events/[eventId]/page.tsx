@@ -7,6 +7,7 @@ import { Card, Container, PageHero, PageLoader, BackLink } from '@/components/si
 import { Field, FieldError, FormError, FormSuccess, Notice, SelectInput, TextInput } from '@/components/site/form';
 import { Button, linkClass } from '@/components/site/button';
 import { venueLineWithCity } from '@/lib/venue';
+import { eventDescription, eventPhoto } from '@/lib/eventFallbacks';
 import { formatEventForViewer } from '@/lib/timezone';
 import { priceBooking, GROUP_DISCOUNT_PER_FRIEND, MAX_FRIENDS_PER_GENDER, type CouponType } from '@/lib/bookingPrice';
 import { validateFriends, type FriendFieldError, type FriendGender } from '@/lib/friendBooking';
@@ -23,7 +24,7 @@ interface EventDetail {
   name: string;
   description: string | null;
   photoUrl: string | null;
-  venue: { name: string; address: string | null; logoUrl: string | null };
+  venue: { name: string; address: string | null; logoUrl: string | null; imageUrl: string | null; description: string | null };
   startsAt: string;
   ageMin: number;
   ageMax: number;
@@ -248,7 +249,10 @@ export default function EventDetailPage() {
   // The main column holds the photo and blurb, plus — for a member who can
   // book — the details check and the friends form. With none of those the
   // booking card centres itself.
-  const hasMain = !!event.photoUrl || !!event.description || (!!me && canBook);
+  // The event's own photo and description, or its venue's when it has none.
+  const photo = eventPhoto(event);
+  const description = eventDescription(event);
+  const hasMain = !!photo || !!description || (!!me && canBook);
   // Anything still to do before this member can book, said up front rather
   // than only when the booking is refused.
   const setupSteps = me ? unfinishedSteps(me) : [];
@@ -283,22 +287,24 @@ export default function EventDetailPage() {
                 </Notice>
               )}
 
-              {/* The event's own photo, uploaded on the event form. Nothing renders
-                  if this event has none, so the page still reads correctly. */}
-              {event.photoUrl && (
+              {/* The event's own photo, uploaded on the event form, or its venue's
+                  picture when it has none. Nothing renders if neither has one, so
+                  the page still reads correctly. */}
+              {photo && (
                 <div className="aspect-[16/7] overflow-hidden rounded-bubble bg-[#E9E0EF]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={event.photoUrl} alt={event.name} className="block h-full w-full object-cover" />
+                  <img src={photo} alt={event.name} className="block h-full w-full object-cover" />
                 </div>
               )}
 
               {/* Directly under the photo, where Gil asked for it — the blurb sells
                   the night, so it belongs above the price and the button rather than
-                  below them. whitespace-pre-line keeps the admin's line breaks: the
-                  field is a textarea and people write in paragraphs. */}
-              {event.description && (
+                  below them. The venue's description when the event has none of its
+                  own. whitespace-pre-line keeps the admin's line breaks: the field
+                  is a textarea and people write in paragraphs. */}
+              {description && (
                 <div className="max-w-[660px] whitespace-pre-line text-[clamp(17px,1.3vw,19px)] leading-[1.65] text-[#3E3548] text-pretty">
-                  {event.description}
+                  {description}
                 </div>
               )}
 
