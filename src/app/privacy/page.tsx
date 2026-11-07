@@ -5,31 +5,19 @@ import { Container, PageHero } from '@/components/site/layout';
 import { linkClass } from '@/components/site/button';
 
 export const metadata: Metadata = { title: 'Privacy policy' };
-// Read on each visit, so the address below follows APP_URL when the site
-// moves domain (5minutedating.com.au now, fastmatch.com.au soon, Gil).
-export const dynamic = 'force-dynamic';
-
-/** The site's own address, as members see it in their browser ("fastmatch.com.au"). */
-function siteAddress(): string {
-  try {
-    return new URL(process.env.APP_URL ?? '').host.replace(/^www\./, '') || 'fastmatch.com.au';
-  } catch {
-    return 'fastmatch.com.au';
-  }
-}
 
 /** When this policy last changed, shown at the top (update it with the wording). */
-const LAST_UPDATED = '9 October 2026';
+const LAST_UPDATED = '8 November 2026';
 
 export default function PrivacyPage() {
-  const site = siteAddress();
   return (
     <>
       <PageHero title="Privacy Policy" />
       <Container className="pb-[clamp(56px,6.7vw,96px)] pt-[clamp(32px,4.4vw,64px)]">
         <div className="max-w-[720px] text-base leading-relaxed text-ink-600 md:text-[17px]">
           <P><strong className="font-bold text-ink-900">Last updated: {LAST_UPDATED}</strong></P>
-          <P>Fast Match conducts events, workshops and seminars for singles, couples and friends, and the main way we collect and share information is our website, {site}.</P>
+          {/* Both addresses, whichever one the site is on (Gil, 7 Nov). */}
+          <P>Fast Match conducts events, workshops and seminars for singles, couples and friends, and the main way we collect and share information is on our websites at 5minutedating.com.au and fastmatch.com.au.</P>
           <P>Fast Match is bound by the Australian Privacy Principles contained in the Privacy Act 1988 (Cth). We may review and update this policy from time to time, to take account of new laws and technology and changes to how Fast Match works. The current version is always the one on this page.</P>
 
           <H2>What we collect</H2>

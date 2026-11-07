@@ -48,12 +48,14 @@ describe('who members see and rate (Gil: "show only M or F")', () => {
   });
 });
 
-describe('how to check in on the night (Gil: the old line was unclear)', () => {
+describe('how to check in to the event (Gil: the old line was unclear)', () => {
   const url = 'https://fastmatch.test/events/e1/checkin';
 
   it('spells out the steps, with the check-in button', () => {
     const html = checkInStepsHtml(url);
-    expect(html).toContain('How to check in on the night');
+    expect(html).toContain('How to check in to the event');
+    // Not "on the night": some events are in the day (Gil, 7 Nov).
+    expect(html).not.toContain('How to check in on the night');
     expect(html).toContain('Check-in opens an hour before the start');
     expect(html).toContain('Confirm &amp; check in');
     expect(html).toContain('Submit matches</strong> before midnight');
@@ -69,7 +71,7 @@ describe('how to check in on the night (Gil: the old line was unclear)', () => {
       eventReminderEmail({ memberName: 'Ann', eventName: 'Ages 29 to 42', venue: 'The Hangout Bar', startsAt, timeZone, checkInUrl: url }).html,
     ];
     for (const html of emails) {
-      expect(html).toContain('How to check in on the night');
+      expect(html).toContain('How to check in to the event');
       expect(html).toContain(`href="${url}"`);
       expect(html).not.toContain('show this link (or the QR code at the venue)');
     }

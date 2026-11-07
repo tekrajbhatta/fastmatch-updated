@@ -230,7 +230,7 @@ export default function CheckinPage() {
     return (
       <Container className="flex justify-center py-[clamp(48px,7vw,96px)]">
         <FormCard className="text-center">
-          <p className="text-base text-ink-600">Please log in to check in for tonight&apos;s event.</p>
+          <p className="text-base text-ink-600">Please log in to check in for the event.</p>
           <ButtonLink href={`/login?next=${encodeURIComponent(`/events/${eventId}/checkin`)}`} block>Log in</ButtonLink>
         </FormCard>
       </Container>
@@ -266,7 +266,7 @@ export default function CheckinPage() {
     return (
       <SplitLayout
         title={`Welcome, ${me.name.split(' ')[0]}`}
-        lead="Please confirm your details before you check in for tonight's event."
+        lead="Please confirm your details before you check in for the event."
       >
         <FormCard>
           <dl className="divide-y divide-line">
@@ -305,7 +305,7 @@ export default function CheckinPage() {
         <div className="mx-auto max-w-[560px]">
           <div className="relative overflow-hidden rounded-bubble bg-plum-900 px-6 py-7 text-center">
             <DecorRing className="-right-10 -top-16 w-40 opacity-60" />
-            <p className="relative text-[13px] font-extrabold uppercase tracking-[0.1em] text-plum-200">Your number tonight</p>
+            <p className="relative text-[13px] font-extrabold uppercase tracking-[0.1em] text-plum-200">Your number for this event</p>
             <p className="relative mt-1 font-display text-[64px] font-extrabold leading-none tracking-[-0.03em] text-match-300">{String(myBadge).padStart(2, '0')}</p>
           </div>
 
@@ -410,7 +410,14 @@ export default function CheckinPage() {
             <br />
             <span className="whitespace-nowrap">&lsquo;My Match History&rsquo; page.</span>
           </p>
-          <p className="relative max-w-[460px] text-[15px] leading-normal text-plum-200">You can still change your choices until midnight.</p>
+          {/* Gil's wording (7 Nov). HERE reopens this event's list with the
+              choices just sent, to change and submit again: a full page load,
+              so the list and choices are read afresh (and, once midnight or
+              the results have closed choices, it says so instead). */}
+          <p className="relative max-w-[460px] text-[15px] leading-normal text-plum-200 text-pretty">
+            You can still make changes to your matches before midnight by clicking{' '}
+            <a href={`/events/${eventId}/checkin`} className="font-bold text-white underline underline-offset-2 hover:text-match-300">HERE</a>.
+          </p>
           <a href="/matches" className={`relative mt-2 ${buttonClass({ onDark: true })}`}>Go to My Match History</a>
         </div>
       </Container>

@@ -17,14 +17,15 @@ const CHECK_IN_BUTTON = `background:${BRAND_COLORS.redCta};color:#fff;padding:10
  * booking, friend-booking and reminder emails. It used to be one line ("On
  * the night, show this link (or the QR code at the venue) to check yourself
  * in"), which Gil found unclear. Check-in opens an hour before the start and
- * closes at midnight (src/lib/eventNight.ts).
+ * closes at midnight (src/lib/eventNight.ts). Headed "to the event", not "on
+ * the night": some events are in the day (Gil, 7 Nov).
  */
 export function checkInStepsHtml(checkInUrl: string): string {
   return `
-    <h2 style="${EMAIL_SUBHEADING}color:${BRAND_COLORS.plum};">How to check in on the night</h2>
+    <h2 style="${EMAIL_SUBHEADING}color:${BRAND_COLORS.plum};">How to check in to the event</h2>
     <ol style="margin:0 0 16px;padding-left:22px;">
       <li style="margin:0 0 8px;">When you arrive at the venue, tap <strong>Check in</strong> below on your phone, or scan the QR code at the venue. Check-in opens an hour before the start.</li>
-      <li style="margin:0 0 8px;">Log in if you're asked to, check your details and tap <strong>Confirm &amp; check in</strong>. You'll see your number for the night.</li>
+      <li style="margin:0 0 8px;">Log in if you're asked to, check your details and tap <strong>Confirm &amp; check in</strong>. You'll see your number for this event.</li>
       <li style="margin:0 0 8px;">After you meet each person, tap their name and choose <strong>Date</strong>, <strong>Friend</strong> or <strong>No</strong>. Then tap <strong>Submit matches</strong> before midnight.</li>
     </ol>
     <p style="margin:0 0 16px;"><a href="${checkInUrl}" style="${CHECK_IN_BUTTON}">Check in</a></p>
@@ -242,7 +243,7 @@ export function friendShareRefundEmail(opts: {
     <h1 style="${EMAIL_HEADING}">A refund for ${escapeHtml(opts.friendName)}'s place</h1>
     <p style="${P}">Hi ${escapeHtml(opts.memberName)},</p>
     <p style="${P}">${escapeHtml(opts.friendName)} was already booked into <strong>${escapeHtml(opts.eventName)}</strong> on ${dateStr}, so they didn't need the place you paid for. ${money}</p>
-    <p style="${P}">Your own booking is confirmed, and your booking confirmation email has everything you need for the night.</p>
+    <p style="${P}">Your own booking is confirmed, and your booking confirmation email has everything you need for the event.</p>
     <p style="${P}">If you have any questions, please contact <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>
     <p style="${P}">The FastMatch Team</p>
   `);

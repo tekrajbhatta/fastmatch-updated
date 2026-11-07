@@ -6,6 +6,7 @@ import { Button, Loader } from '@/components/ui';
 import { adminEventGroup, sortAdminEvents, isInactive, GROUP_ORDER, type AdminEventGroup } from '@/lib/adminEventGroups';
 import EventWhen from '@/components/EventWhen';
 import { useIsPhone } from '@/lib/useMediaQuery';
+import { resultsState, RESULTS_LABEL } from '@/lib/eventResults';
 
 interface AdminEvent {
   id: string;
@@ -30,6 +31,9 @@ interface AdminEvent {
   // was needed to show the age range.
   ageMin: number;
   ageMax: number;
+  // Results worked out, and all emailed (the "Closed" tag).
+  matchesCalculated: boolean;
+  matchEmailsSent: boolean;
 }
 
 const PER_PAGE = 10;
@@ -133,6 +137,7 @@ export default function AdminEventsPage() {
                     part of a series
                   </Link>
                 )}
+                <ResultsChip e={e} />
               </div>
             </div>
           ))}
@@ -170,6 +175,7 @@ export default function AdminEventsPage() {
                       part of a series
                     </Link>
                   )}
+                  <ResultsChip e={e} className="ml-2" />
                 </td>
                 {/* Cell order must mirror the <th> order above: Date & Time,
                     Event type, City, Venue, Ages, Men, Women, Visibility, Action. */}
@@ -268,6 +274,21 @@ function PagerButton({ disabled, onClick, children }: {
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * "Closed · matches sent" once the results are worked out and emailed (Gil,
+ * 7 Nov), or "not all emailed" if some failed. White, like the other chips,
+ * so it reads on every row colour.
+ */
+function ResultsChip({ e, className = '' }: { e: Pick<AdminEvent, 'matchesCalculated' | 'matchEmailsSent'>; className?: string }) {
+  const state = resultsState(e);
+  if (state === 'open') return null;
+  return (
+    <span className={`inline-block whitespace-nowrap rounded-full bg-white px-2 py-0.5 text-xs font-bold ring-1 ${state === 'sent' ? 'text-green-dark ring-green-dark/30' : 'text-coral ring-coral/30'} ${className}`}>
+      {RESULTS_LABEL[state]}
+    </span>
   );
 }
 

@@ -124,7 +124,7 @@ describe('a member added at an event gets ONE email: booking + how to log in', (
     expect(html).toContain('This link works for 7 days');
     // The account part comes before the check-in steps, which need a log-in.
     expect(html.indexOf('Your FastMatch account')).toBeGreaterThan(0);
-    expect(html.indexOf('Your FastMatch account')).toBeLessThan(html.indexOf('How to check in on the night'));
+    expect(html.indexOf('Your FastMatch account')).toBeLessThan(html.indexOf('How to check in to the event'));
     expect(html).toContain('href="https://fastmatch.test/events/e1/checkin"');
 
     // The choose-your-own-password link is a reset link for them, for a week.

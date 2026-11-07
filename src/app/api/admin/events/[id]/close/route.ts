@@ -33,6 +33,9 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     submitted: raters.length,
     matchesCalculated: event.matchesCalculated,
     matchesCalculatedAt: event.matchesCalculatedAt,
+    // Every results email went (the page's "closed and matches sent" line,
+    // the same rule as the dashboard and the events list).
+    matchEmailsSent: event.matchEmailsSent,
     emailed: emailed.size,
     // Worked out, but these people's results haven't gone yet (the nightly
     // job tries again; "Send them now" does it straight away).

@@ -12,6 +12,7 @@ import { eventLabel } from '@/lib/eventLabel';
 import { blastEventDetails } from '@/lib/campaigns/blastFill';
 import CancelSummary, { type CancelResult } from '@/components/CancelSummary';
 import { countOf } from '@/lib/plural';
+import { resultsState, RESULTS_SENT_MESSAGE, RESULTS_NOT_ALL_EMAILED_MESSAGE } from '@/lib/eventResults';
 
 interface EventDetail {
   id: string; name: string; venue: { name: string; address: string | null; phone: string | null; websiteUrl: string | null }; startsAt: string; cost: string;
@@ -30,7 +31,7 @@ export default function AdminEventDetailPage() {
   const [closeError, setCloseError] = useState<string | null>(null);
   // Where the results stand, and the "are you sure?" step before working them
   // out early: one tap used to lock in incomplete results with no trace.
-  const [closeStatus, setCloseStatus] = useState<{ checkedIn: number; submitted: number; matchesCalculated: boolean; matchesCalculatedAt: string | null; emailed: number; notEmailed: number; closeBlocked: string | null } | null>(null);
+  const [closeStatus, setCloseStatus] = useState<{ checkedIn: number; submitted: number; matchesCalculated: boolean; matchesCalculatedAt: string | null; matchEmailsSent: boolean; emailed: number; notEmailed: number; closeBlocked: string | null } | null>(null);
   const [confirmingClose, setConfirmingClose] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -158,6 +159,18 @@ export default function AdminEventDetailPage() {
       <BackLink href="/admin/events">Back to events</BackLink>
       {event.status === 'CANCELLED' && (
         <p className="mb-4 rounded-lg bg-coral/10 p-3 text-sm font-bold text-coral">This event was cancelled. It isn&apos;t on the site and can&apos;t be booked.</p>
+      )}
+      {/* Results worked out: said at the top (Gil, 7 Nov), not only in the
+          "Close event" card further down, by the same rule as the dashboard
+          and the events list. Who hasn't been emailed is in that card, with
+          "Send them now". */}
+      {closeStatus && resultsState(closeStatus) === 'sent' && (
+        <p className="mb-4 rounded-lg bg-green/15 p-3 text-sm font-bold text-green-dark">{RESULTS_SENT_MESSAGE}</p>
+      )}
+      {closeStatus && resultsState(closeStatus) === 'not-all-emailed' && (
+        <p className="mb-4 rounded-lg bg-amber/15 p-3 text-sm font-bold text-ink">
+          {RESULTS_NOT_ALL_EMAILED_MESSAGE} See &ldquo;Close event &amp; calculate matches&rdquo; below.
+        </p>
       )}
       <h1 className="mb-1 text-2xl font-extrabold text-ink">{event.name}</h1>
       <p className="mb-6 text-sm text-ink/60">{venueLine(event.venue)} · {new Date(event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', timeZone: timeZoneForCity(event.city.name) })}</p>

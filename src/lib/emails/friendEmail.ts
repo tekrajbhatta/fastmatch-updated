@@ -40,7 +40,7 @@ export function friendWelcomeEmail(opts: {
     <p style="${PARA}">${escapeHtml(opts.bookedByName)} has booked you into <strong>${escapeHtml(opts.eventName)}</strong> at ${escapeHtml(opts.venue)}.</p>
     <p style="${PARA}"><strong>${formatEventWhen(opts.startsAt, opts.timeZone)}${opts.zoneNote ? ` (${escapeHtml(opts.zoneNote)})` : ''}</strong></p>
     <p style="${PARA}">You've been added to FastMatch with this email address. Set a password so you can
-      check in on the night and choose your matches afterwards:</p>
+      check in for the event and choose your matches afterwards:</p>
     <p style="${PARA_BUTTON}"><a href="${opts.setPasswordUrl}" style="${BUTTON}">Set your password</a></p>
     ${checkInStepsHtml(opts.checkInUrl)}
     <p style="${PARA}">Can't make it, or not expecting this? Let us know at

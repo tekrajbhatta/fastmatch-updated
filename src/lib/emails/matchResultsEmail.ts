@@ -17,7 +17,8 @@ export function matchResultsEmail(opts: {
   timeZone: string;
   dateMatches: { name: string; email: string; mobile: string }[];
   friendMatches: { name: string; email: string; mobile: string }[];
-  /** The Upcoming Events page, for the "no mutual matches" email. */
+  /** The Upcoming Events page: the "see you at another event" link, and
+      the "no mutual matches" email's button. */
   eventsUrl: string;
 }) {
   if (!opts.dateMatches.length && !opts.friendMatches.length) return noMatchesEmail(opts);
@@ -46,6 +47,7 @@ export function matchResultsEmail(opts: {
         : ''
     }
 
+    <p>Hope you enjoyed the event and we see you at <a href="${opts.eventsUrl}">another FastMatch event</a> real soon.</p>
     <p>The FastMatch Team</p>
   `);
 
