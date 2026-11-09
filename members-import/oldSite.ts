@@ -8,7 +8,9 @@
  *     bounce). Old passwords aren't carried over.
  *   - Everyone else comes across with what they have: no mobile or no city of
  *     ours is fine (they add them later in Edit profile).
- *   - Event news and offers: on for everyone.
+ *   - Event news and offers: on, except for members who unsubscribed on the
+ *     old site ("unsub"): off, as Australia's Spam Act requires an
+ *     unsubscribe to be honoured (the user, 9 Nov).
  *   - Email confirmed only where the old site had it confirmed ("conf"), or
  *     the member later unsubscribed there ("unsub": the address worked).
  *   - Contact method as they chose it there.
@@ -76,7 +78,8 @@ export function mapOldMember(m: OldRow, locationTitle: string | null): { row: Im
       // The old site texted these numbers; one that isn't an Australian
       // mobile is left out above (it can't be texted).
       mobileConfirmed: mobile ? 'yes' : 'no',
-      marketingOptIn: 'yes',
+      // An unsubscribe on the old site still stands (Spam Act).
+      marketingOptIn: m.emailConfirm === 'unsub' ? 'no' : 'yes',
       contactMethod: CONTACT[m.contactMethod ?? 'emailsms'] ?? 'Email and SMS',
       joined: (m.registered ?? '').startsWith('0000') ? '' : (m.registered ?? ''),
       oldMemberId: m.memberId ?? '',

@@ -23,7 +23,7 @@ Decided 9 Nov 2026 (rules in `oldSite.ts` and `src/lib/importRow.ts`):
 | No mobile, or a number that isn't an Australian mobile | No mobile (added later in Edit profile, confirmed before booking) |
 | City is one of the site's | That city |
 | Any other city, or "Unknown" | No city (chosen later in Edit profile) |
-| Event news and offers | On for everyone |
+| Event news and offers | On, except for members who unsubscribed there: off (Australia's Spam Act requires an unsubscribe to be honoured) |
 | Contact method | As they chose it there ("none" = Do not contact) |
 | Joined | When they registered there; the import day if that's missing |
 | Terms & Conditions | Not accepted: asked before their first booking |
@@ -52,43 +52,46 @@ them in a file (one per line, or any CSV containing them) and add
 
 The code (including the database change it needs) must already be deployed.
 
+The `deploy` user can't write in `shared/`, and only the site's own user
+(`fastmatch`) can read the site's settings (`shared/.env`, which holds the
+database login). So the file goes up to the `deploy` user's home folder, is
+moved into a folder only `fastmatch` can open, and the import runs as
+`fastmatch`, the same way the nightly jobs run.
+
 ```bash
 # from your computer: copy the file up (not into git)
-scp members-import/data/members.csv deploy@170.64.189.54:/var/www/fastmatch.com.au/shared/members.csv
+scp members-import/data/members.csv deploy@170.64.189.54:members.csv
 
 # on the server
 ssh deploy@170.64.189.54
-chmod 600 /var/www/fastmatch.com.au/shared/members.csv
+sudo install -d -o fastmatch -g fastmatch -m 700 /var/www/fastmatch.com.au/shared/member-import
+sudo install -o fastmatch -g fastmatch -m 600 ~/members.csv /var/www/fastmatch.com.au/shared/member-import/members.csv
+rm ~/members.csv
+```
+
+The deploy backed up the database just before it went live. Check that
+backup is there, from today:
+
+```bash
+sudo ls -lt /var/backups/fastmatch | head -3
+```
+
+Then check, and import:
+
+```bash
 cd /var/www/fastmatch.com.au/current
+sudo -u fastmatch -H npm run import-members -- /var/www/fastmatch.com.au/shared/member-import/members.csv --dry-run
+sudo -u fastmatch -H npm run import-members -- /var/www/fastmatch.com.au/shared/member-import/members.csv
 ```
-
-Back up the database first (the deploy makes one too, but take one just before
-the import). Use the same settings as the deploy's backups, for example:
-
-```bash
-mysqldump --defaults-extra-file=/var/www/fastmatch.com.au/shared/.my.cnf <database name> | gzip > ~/before-member-import-$(date +%F-%H%M).sql.gz
-```
-
-Then check, and import. `tmux` keeps it running if the SSH connection drops
-(`tmux attach` to come back to it):
-
-```bash
-tmux
-npm run import-members -- /var/www/fastmatch.com.au/shared/members.csv --dry-run
-npm run import-members -- /var/www/fastmatch.com.au/shared/members.csv
-```
-
-If it says it can't find the database, load the site's settings first:
-`set -a; . /var/www/fastmatch.com.au/shared/.env; set +a`.
 
 The dry run reads every row and says how many would be imported, saving
 nothing. The real run saves 500 at a time and takes well under a minute.
 Anyone already on the site (the same email address) is left as they are, so
-running it again after a stop simply carries on.
+if the connection drops, running it again simply carries on.
 
 Afterwards, check the admin's Members page shows the new total, then delete the
-files:
+folder (the file, and the list of skipped rows if there is one):
 
 ```bash
-rm -f /var/www/fastmatch.com.au/shared/members.csv /var/www/fastmatch.com.au/shared/members.csv.skipped.csv
+sudo rm -rf /var/www/fastmatch.com.au/shared/member-import
 ```

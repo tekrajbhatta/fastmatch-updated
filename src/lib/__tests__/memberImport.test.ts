@@ -5,8 +5,9 @@ import { mapOldMember, parseInsertValues } from '../../../members-import/oldSite
 
 /**
  * The old site's members come across with what they have (the user, 9 Nov):
- * no mobile or no city of ours is fine, everyone gets event news and offers,
- * and anyone whose email would bounce is left out.
+ * no mobile or no city of ours is fine, event news and offers are on (off for
+ * anyone who unsubscribed on the old site), and anyone whose email would
+ * bounce is left out.
  */
 
 const cities = new Map([['sydney', 'city-syd'], ['melbourne', 'city-mel']]);
@@ -96,7 +97,7 @@ describe('old-site members (mapOldMember)', () => {
     expect(map({ dob: '0000-00-00' })).toEqual({ skip: 'No valid date of birth' });
   });
 
-  it('brings the rest across as they are, with event news and offers on', () => {
+  it('brings the rest across as they are, with event news and offers on unless they unsubscribed', () => {
     expect(map({})).toEqual({ row: {
       name: "Anna O'Brien", gender: 'female', email: 'anna@example.com', dateOfBirth: '1985-07-01', mobile: '0412345678', city: 'Sydney',
       emailConfirmed: 'yes', mobileConfirmed: 'yes', marketingOptIn: 'yes', contactMethod: 'Email and SMS', joined: '2006-05-01 10:22:33', oldMemberId: '42',
@@ -104,7 +105,7 @@ describe('old-site members (mapOldMember)', () => {
     const r = map({ emailConfirm: 'nores', mobile: null, contactMethod: 'none', registered: null, lastName: null }, 'Unknown');
     expect('row' in r && r.row).toMatchObject({ name: 'Anna', emailConfirmed: 'no', mobile: '', mobileConfirmed: 'no', city: '', contactMethod: 'Do not contact', joined: '', marketingOptIn: 'yes' });
     const unsub = map({ emailConfirm: 'unsub' });
-    expect('row' in unsub && unsub.row).toMatchObject({ emailConfirmed: 'yes', marketingOptIn: 'yes' });
+    expect('row' in unsub && unsub.row).toMatchObject({ emailConfirmed: 'yes', marketingOptIn: 'no' });
   });
 });
 

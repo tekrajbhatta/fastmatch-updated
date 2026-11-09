@@ -179,6 +179,7 @@ async function main() {
     '',
     'Of those to import:',
     `  email confirmed: ${rows.filter((r) => r.emailConfirmed === 'yes').length}, not confirmed: ${rows.filter((r) => r.emailConfirmed === 'no').length}`,
+    `  event news and offers on: ${rows.filter((r) => r.marketingOptIn === 'yes').length}, off (unsubscribed on the old site): ${rows.filter((r) => r.marketingOptIn === 'no').length}`,
     `  with a mobile (confirmed): ${rows.filter((r) => r.mobile).length}, without one: ${rows.filter((r) => !r.mobile).length}`,
     `  contact method: ${count(rows, (r) => r.contactMethod).map(([c, n]) => `${c} ${n}`).join(', ')}`,
     `  city: ${count(rows, (r) => r.city || '(none)').slice(0, 12).map(([c, n]) => `${c} ${n}`).join(', ')}, …`,
