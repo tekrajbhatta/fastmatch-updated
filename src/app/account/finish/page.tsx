@@ -120,9 +120,21 @@ function FinishSetupInner() {
         )}
         {steps.includes('mobile') && (
           <Notice className="flex flex-col gap-3">
-            <p className="font-bold">Confirm your mobile number</p>
-            <p className="text-ink-600">We text a 6-digit code to {me.mobile}.</p>
-            <ButtonLink href={verifyMobileHref(afterMobile)} block>Confirm your mobile</ButtonLink>
+            {me.mobile.trim() ? (
+              <>
+                <p className="font-bold">Confirm your mobile number</p>
+                <p className="text-ink-600">We text a 6-digit code to {me.mobile}.</p>
+                <ButtonLink href={verifyMobileHref(afterMobile)} block>Confirm your mobile</ButtonLink>
+              </>
+            ) : (
+              // Imported from the old site without one: added in the profile,
+              // which then texts the code.
+              <>
+                <p className="font-bold">Add your mobile number</p>
+                <p className="text-ink-600">Your account doesn&apos;t have a mobile number yet. Add one in your profile, and we&apos;ll text you a code to confirm it.</p>
+                <ButtonLink href="/account/edit-profile" block>Add your mobile number</ButtonLink>
+              </>
+            )}
           </Notice>
         )}
         {steps.includes('terms') && (

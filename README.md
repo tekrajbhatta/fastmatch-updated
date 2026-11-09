@@ -153,17 +153,16 @@ anything. Campaign blasts use `sendSmsBulk`, which sends a whole 100-recipient
 batch in one Cellcast request. See `cellcast-implementation-notes.md` in the
 repo root for the Cellcast contract and its open questions.
 
-- **Member import**: `src/scripts/importMembers.ts` (`npm run
-  import-members -- path/to/file.csv`) — bulk-imports members from a CSV,
-  in batches of 500 (built for the ~64k old-database migration, but works
-  for any list). Skips duplicates by email, skips and logs invalid rows
-  (bad city/date/missing fields) without failing the whole run, never
-  imports card data (not even a column for it), never invents a password
-  (imported members use "Forgot password" to set one), and marks imported
-  members as email+mobile verified but **not** as having agreed to this
-  site's T&Cs — they accept on first login via
-  `POST /api/account/accept-terms`, which the booking route now also gates
-  on alongside verification.
+- **Member import**: `members-import/` (see its README.md). The old site's
+  database dump is turned into a CSV on your own computer
+  (`convert-old-members.ts`), then imported on the server with
+  `npm run import-members -- path/to/members.csv [--dry-run]`, 500 at a time,
+  skipping anyone already on the site, so it can be re-run safely. Never
+  imports card data or old passwords (imported members use "Forgot password"
+  to set one; the login page says so), and doesn't email or text anyone.
+  Members come across with what they have: no mobile or no city of the
+  site's is fine (they add them in Edit profile), and they accept this
+  site's T&Cs before their first booking.
 
 ## What's not written yet
 

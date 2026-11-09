@@ -33,6 +33,7 @@ export async function sendEmailVerification(member: Pick<Member, 'id' | 'name' |
 }
 
 export async function sendMobileVerification(member: Pick<Member, 'id' | 'mobile'>): Promise<boolean> {
+  if (!member.mobile.trim()) return false; // no mobile yet (imported from the old site): nothing to text
   try {
     const code = newMobileCode();
     await prisma.member.update({

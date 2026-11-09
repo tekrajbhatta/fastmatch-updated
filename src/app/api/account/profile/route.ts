@@ -102,10 +102,17 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
   }
 
   // Everything except the email is saved now.
-  const { email: _email, currentPassword: _password, ...rest } = data;
+  // No city chosen (a member imported without one may leave it empty);
+  // otherwise one of the site's.
+  const cityId = data.cityId.trim() || null;
+  if (cityId && !(await prisma.city.findUnique({ where: { id: cityId }, select: { id: true } }))) {
+    return NextResponse.json({ error: 'Please choose your city from the list.' }, { status: 400 });
+  }
+
+  const { email: _email, currentPassword: _password, cityId: _city, ...rest } = data;
   const updated = await prisma.member.update({
     where: { id: member.id },
-    data: { ...rest, ...(dob ? { dateOfBirth: dob } : {}), ...(mobileChanged ? { mobileVerified: false } : {}) },
+    data: { ...rest, cityId, ...(dob ? { dateOfBirth: dob } : {}), ...(mobileChanged ? { mobileVerified: false } : {}) },
   });
   const smsSent = mobileChanged ? await sendMobileVerification(updated) : undefined;
 

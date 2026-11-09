@@ -43,7 +43,7 @@ export default function EditProfilePage() {
       if (!r.ok) { setLoadFailed(true); return; }
       const m = await r.json();
       // Stored as UTC midnight, so the first 10 characters are the date itself.
-      setForm({ name: m.name, email: m.email, mobile: m.mobile, cityId: m.cityId, dateOfBirth: m.dateOfBirth ? String(m.dateOfBirth).slice(0, 10) : '' });
+      setForm({ name: m.name, email: m.email, mobile: m.mobile, cityId: m.cityId ?? '', dateOfBirth: m.dateOfBirth ? String(m.dateOfBirth).slice(0, 10) : '' });
       setCurrentEmail(m.email);
       setLoaded(true);
     }).catch(() => setLoadFailed(true));
@@ -103,6 +103,8 @@ export default function EditProfilePage() {
           </div>
           <Field label="City">
             <SelectInput value={form.cityId} onChange={(e) => setForm({ ...form, cityId: e.target.value })}>
+              {/* Members imported from the old site may have no city yet. */}
+              {!form.cityId && <option value="">Choose your city</option>}
               {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </SelectInput>
           </Field>

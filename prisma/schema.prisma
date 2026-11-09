@@ -80,8 +80,11 @@ model Member {
   gender         Gender
   dateOfBirth    DateTime
   mobile         String
-  city           City      @relation(fields: [cityId], references: [id])
-  cityId         String
+  // Empty for members imported from the old site whose city isn't one of
+  // ours (Darwin, Canberra, "Unknown"…): they choose one in Edit profile.
+  // Everyone who signs up or is added by the admin picks one.
+  city           City?     @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  cityId         String?
   agreedTerms    Boolean   @default(false)
   agreedTermsAt  DateTime?
   marketingOptIn Boolean   @default(true)

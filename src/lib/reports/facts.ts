@@ -140,7 +140,7 @@ export async function loadReportFacts(
       const age = ageAt(m.dateOfBirth, m.createdAt);
       if (!inAgeRange(age)) continue;
       const month = monthIn(m.createdAt, tz);
-      signups.push({ at: { month: place(month.key, month.label, month.key), ageGroup: agePlace(age), location: place(m.city.id, m.city.name) } });
+      signups.push({ at: { month: place(month.key, month.label, month.key), ageGroup: agePlace(age), location: m.city ? place(m.city.id, m.city.name) : place('none', 'No city', '~') } });
     }
   }
 

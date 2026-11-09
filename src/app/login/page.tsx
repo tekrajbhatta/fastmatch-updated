@@ -86,6 +86,11 @@ function LoginInner() {
 
         <div className="flex flex-col items-center gap-2.5 text-center text-[15px]">
           <Link href="/forgot-password" className={linkClass}>Forgot password?</Link>
+          {/* Old site passwords weren't carried over: members imported from it
+              set a new one through "Forgot password?" (Gil, 9 Nov). */}
+          <p className="text-ink-600">
+            Members of our old site: use <Link href="/forgot-password" className={linkClass}>Forgot password</Link> the first time
+          </p>
           <p className="text-ink-600">
             New to FastMatch?{' '}
             {/* Signing up from here comes back to the same page (an event they were booking, say). */}

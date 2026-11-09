@@ -22,8 +22,9 @@ interface Booking {
 }
 interface MemberDetail {
   id: string; name: string; email: string; mobile: string; gender: string;
-  dateOfBirth: string; createdAt: string; agreedTerms: boolean; agreedTermsAt: string | null; cityId: string;
-  city: { name: string };
+  dateOfBirth: string; createdAt: string; agreedTerms: boolean; agreedTermsAt: string | null; cityId: string | null;
+  // Empty for some members imported from the old site.
+  city: { name: string } | null;
   // Gil (Q15): shown, and changeable here (all but admin access).
   contactMethod: string; marketingOptIn: boolean; emailBounced: boolean; bounceReason: string | null;
   emailVerified: boolean; mobileVerified: boolean; isAdmin: boolean; awaitingPasswordSetup: boolean; passwordSetByAdmin: boolean;
@@ -69,7 +70,7 @@ export default function MemberDetailPage() {
       gender: member.gender,
       // <input type="date"> needs YYYY-MM-DD, not a full ISO timestamp.
       dateOfBirth: member.dateOfBirth.slice(0, 10),
-      cityId: member.cityId,
+      cityId: member.cityId ?? '',
       contactMethod: member.contactMethod,
       marketingOptIn: member.marketingOptIn,
       emailBounced: member.emailBounced,
@@ -125,7 +126,7 @@ export default function MemberDetailPage() {
       <BackLink href="/admin/members">Back to members</BackLink>
       <h1 className="mb-1 text-2xl font-extrabold text-ink">{member.name}</h1>
       <p className="mb-6 text-sm text-ink/60">
-        {member.email} · {member.mobile} · {member.city?.name} · {age} years old
+        {[member.email, member.mobile || 'No mobile', member.city?.name ?? 'No city', `${age} years old`].join(' · ')}
         {!member.agreedTerms && <span className="ml-2 font-bold text-coral">(T&Cs not yet accepted)</span>}
       </p>
 
@@ -161,7 +162,8 @@ export default function MemberDetailPage() {
           <form onSubmit={handleSave}>
             <Field label="Name"><Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
             <Field label="Email"><Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-            <Field label="Mobile"><Input required title={AU_MOBILE_MESSAGE} value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} /></Field>
+            {/* Required, unless the member has none yet (imported from the old site). */}
+            <Field label="Mobile"><Input required={!!member.mobile} title={AU_MOBILE_MESSAGE} value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} /></Field>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Gender">
                 <Select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
@@ -174,6 +176,7 @@ export default function MemberDetailPage() {
             </div>
             <Field label="City">
               <Select value={form.cityId} onChange={(e) => setForm({ ...form, cityId: e.target.value })}>
+                {!form.cityId && <option value="">No city</option>}
                 {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </Select>
             </Field>

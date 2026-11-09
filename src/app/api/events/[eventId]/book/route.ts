@@ -119,7 +119,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
 
   const friendCount = prepared.friends.length;
   // The event's local time, noted if the member's own clock reads differently.
-  const memberCity = await prisma.city.findUnique({ where: { id: member.cityId } });
+  const memberCity = member.cityId ? await prisma.city.findUnique({ where: { id: member.cityId } }) : null;
   const when = eventTimeFor(event.startsAt, event.city.name, memberCity?.name);
   const picture = checkoutPicture(event, event.venue);
   let session;

@@ -110,6 +110,18 @@ function VerifyMobileInner() {
   const codeWaiting = codeSent || (!!me.mobileVerificationExpires && new Date(me.mobileVerificationExpires) > new Date());
   const askFirst = !me.mobileVerified && !smsFailed && !codeWaiting;
 
+  // No mobile on the account yet (members imported from the old site):
+  // there's nothing to text a code to until one is added.
+  if (!me.mobile.trim()) {
+    return (
+      <SplitLayout title="Add your mobile" lead="Your account doesn't have a mobile number yet. Add one in your profile, and we'll text you a code to confirm it.">
+        <FormCard>
+          <ButtonLink href="/account/edit-profile" block>Add your mobile number</ButtonLink>
+        </FormCard>
+      </SplitLayout>
+    );
+  }
+
   return (
     <SplitLayout
       title="Verify your mobile"

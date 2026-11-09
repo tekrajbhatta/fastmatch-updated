@@ -69,7 +69,9 @@ export default function MemberEventsBrowser({ showBookedList, splitByAge = false
       if (me?.member) {
         setAge(calculateAge(new Date(me.member.dateOfBirth)));
         setHomeCityId(me.member.cityId);
-        setCityId(me.member.cityId);
+        // No city of their own (imported from the old site): every location.
+        // (null here means "still loading", so it used to load for good.)
+        setCityId(me.member.cityId ?? '');
         if (showBookedList) {
           fetch('/api/account/bookings').then((r) => (r.ok ? r.json() : [])).then((b) => setBooked(Array.isArray(b) ? b : [])).catch(() => {});
         }

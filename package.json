@@ -13,7 +13,7 @@
     "dummy-data": "tsx prisma/dummy-data.ts",
     "calculate-matches": "tsx src/scripts/calculateMatches.ts",
     "process-campaign-sends": "tsx src/scripts/processCampaignSends.ts",
-    "import-members": "tsx src/scripts/importMembers.ts",
+    "import-members": "tsx members-import/import-members.ts",
     "send-reminders": "tsx src/scripts/sendReminders.ts",
     "delete-members": "tsx src/scripts/deleteMembers.ts",
     "test": "vitest run"

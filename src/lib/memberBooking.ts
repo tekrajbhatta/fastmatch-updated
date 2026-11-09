@@ -430,7 +430,7 @@ async function notifyFriend(bookingId: string, bookedByName: string): Promise<vo
     eventName: eventLabel(b.event),
     venue: venueLine(b.event.venue),
     startsAt: b.event.startsAt,
-    ...eventTimeFor(b.event.startsAt, b.event.city.name, b.member.city.name),
+    ...eventTimeFor(b.event.startsAt, b.event.city.name, b.member.city?.name),
     setPasswordUrl,
     checkInUrl: `${process.env.APP_URL}/events/${b.eventId}/checkin`,
   });

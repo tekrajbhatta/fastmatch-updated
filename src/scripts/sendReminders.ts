@@ -51,7 +51,7 @@ async function run() {
         eventName: eventLabel(booking.event),
         startsAt: booking.event.startsAt,
         venue: venueLine(booking.event.venue),
-        ...eventTimeFor(booking.event.startsAt, booking.event.city.name, booking.member.city.name),
+        ...eventTimeFor(booking.event.startsAt, booking.event.city.name, booking.member.city?.name),
         // The same shared check-in link as the booking email.
         checkInUrl: `${process.env.APP_URL}/events/${booking.eventId}/checkin`,
       });

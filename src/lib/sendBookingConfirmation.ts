@@ -27,7 +27,7 @@ export async function sendBookingConfirmation(bookingId: string, opts: { registe
     eventName: eventLabel(booking.event),
     venue: venueLine(booking.event.venue),
     startsAt: booking.event.startsAt,
-    ...eventTimeFor(booking.event.startsAt, booking.event.city.name, booking.member.city.name),
+    ...eventTimeFor(booking.event.startsAt, booking.event.city.name, booking.member.city?.name),
     checkInUrl,
     ...(opts.registered ? { registered: registeredLinks(booking.member) } : {}),
   });

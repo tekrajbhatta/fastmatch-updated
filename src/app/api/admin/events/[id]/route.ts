@@ -104,7 +104,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
     for (const booking of bookings) {
       // Times are the event's local time; an attendee registered somewhere
       // the clock reads differently is told whose time it is.
-      const theirs = { ...change, ...eventTimeFor(new Date(event.startsAt), event.city.name, booking.member.city.name) };
+      const theirs = { ...change, ...eventTimeFor(new Date(event.startsAt), event.city.name, booking.member.city?.name) };
       const { subject, html } = eventChangeEmail({ ...theirs, memberName: booking.member.name });
       try {
         await sendEmail({ to: booking.member.email, subject, html });
@@ -112,6 +112,8 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
         console.error(`Event ${event.id}: change email to ${booking.member.email} failed`, err);
         notifyFailures.push({ member: booking.member.name, channel: 'email' });
       }
+      // No mobile yet (imported from the old site, booked in by the admin): email only.
+      if (!booking.member.mobile.trim()) continue;
       try {
         await sendSms({ to: booking.member.mobile, body: eventChangeSms(theirs) });
       } catch (err) {

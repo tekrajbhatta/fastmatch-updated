@@ -33,7 +33,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
       // Date of birth is a calendar date, saved as such. "Registered" is the
       // day the account was made on Sydney's calendar (FastMatch's own), not
       // UTC's: an early-morning sign-up used to show as the day before.
-      [m.name, m.email, m.gender, m.city.name, m.mobile, m.dateOfBirth.toISOString().slice(0, 10), dateIn(m.createdAt, EVENT_TIME_ZONE)]
+      [m.name, m.email, m.gender, m.city?.name ?? '', m.mobile, m.dateOfBirth.toISOString().slice(0, 10), dateIn(m.createdAt, EVENT_TIME_ZONE)]
         .map(csvCell)
         .join(',')
     )

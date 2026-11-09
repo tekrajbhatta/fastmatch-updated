@@ -14,6 +14,10 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (member.mobileVerified) {
     return NextResponse.json({ error: 'Your mobile is already verified.' }, { status: 400 });
   }
+  // Imported from the old site without one: nothing to text yet.
+  if (!member.mobile.trim()) {
+    return NextResponse.json({ error: 'Please add your mobile number in your profile first.' }, { status: 400 });
+  }
 
   // Each resend is a paid text.
   const resends = await hitRateLimit(rateKey('resend-code', member.id), LIMITS.codeResends.limit, LIMITS.codeResends.windowMs);

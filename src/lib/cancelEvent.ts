@@ -34,7 +34,7 @@ const REFUND_REASON = 'event_cancelled';
 const AT_ONCE = 5;
 
 type FullEvent = Event & { venue: Venue; theme: EventTheme; city: City };
-type Attendee = Booking & { member: Member & { city: City } };
+type Attendee = Booking & { member: Member & { city: City | null } };
 
 export interface CancelOutcome {
   /** People emailed and texted. */
@@ -226,7 +226,7 @@ async function tellCancelled(event: FullEvent, b: Attendee, refunded: number | n
     oldStartsAt: event.startsAt, newStartsAt: event.startsAt,
     venueChanged: false, timeChanged: false, cancelled: true,
     // Times are the event's local time; someone registered elsewhere is told whose.
-    ...eventTimeFor(event.startsAt, event.city.name, b.member.city.name),
+    ...eventTimeFor(event.startsAt, event.city.name, b.member.city?.name),
   };
   if (outcome) outcome.notified++;
   try {
@@ -236,6 +236,8 @@ async function tellCancelled(event: FullEvent, b: Attendee, refunded: number | n
     console.error(`Event ${event.id}: cancellation email to ${b.member.email} failed`, err);
     outcome?.notifyFailures.push({ member: b.member.name, channel: 'email' });
   }
+  // No mobile yet (imported from the old site, booked in by the admin): email only.
+  if (!b.member.mobile.trim()) return;
   try {
     await sendSms({ to: b.member.mobile, body: eventChangeSms(change) });
   } catch (err) {
