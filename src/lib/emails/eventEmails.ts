@@ -38,6 +38,10 @@ export function checkInStepsHtml(checkInUrl: string): string {
  * at an event — it also says FastMatch has registered them: log in with the
  * password they were given, or choose their own. One email, not two (the
  * user, 6 Oct).
+ *
+ * `bookedByName`: another member booked this place for them, as a friend on
+ * their booking. Anyone can type anyone's email address as a friend's, so
+ * the email says who did, and how to have it cancelled if it's unexpected.
  */
 export function bookingConfirmationEmail(opts: {
   memberName: string;
@@ -51,6 +55,7 @@ export function bookingConfirmationEmail(opts: {
   /** "Perth time" when the recipient's own clock reads differently — see zoneNote. */
   zoneNote?: string | null;
   registered?: RegisteredLinks;
+  bookedByName?: string | null;
 }) {
   const dateStr = opts.startsAt.toLocaleDateString('en-AU', {
     weekday: 'long',
@@ -67,6 +72,7 @@ export function bookingConfirmationEmail(opts: {
     <p>Hi ${escapeHtml(opts.memberName)},</p>
     <p>You're confirmed for <strong>${escapeHtml(opts.eventName)}</strong> at ${escapeHtml(opts.venue)}.</p>
     <p><strong>${dateStr}</strong><br>${timeStr}</p>
+    ${opts.bookedByName ? `<p>${escapeHtml(opts.bookedByName)} booked this place for you. Not expecting this? Email <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a> and we'll cancel it.</p>` : ''}
     ${opts.registered ? `<h2 style="${EMAIL_SUBHEADING}color:${BRAND_COLORS.plum};">Your FastMatch account</h2>${registeredAccountHtml(opts.registered)}` : ''}
     ${checkInStepsHtml(opts.checkInUrl)}
     <p>If for whatever reason you can't make it, please let us know as soon as you can at
@@ -219,10 +225,18 @@ export function eventChangeEmail(c: EventChange & { memberName: string; refunded
 }
 
 /**
- * A member paid for a friend who was already booked into the event (they
- * booked themselves in the meantime): the friend's share went back to the
- * member's card. Their own booking, and any other friends', stand.
- * `refunded` null: Stripe wouldn't refund it, so Gil will.
+ * A friend on a member's booking couldn't be added to it, so their share went
+ * back to the member's card (`refunded`; null when Stripe wouldn't refund it
+ * and Gil will). With nothing paid for their place (`amount` 0: a free
+ * booking), there's nothing to refund and the email just says so.
+ *
+ * One wording whatever the reason: the friend was booked already, had a
+ * cancelled booking or their own payment page open, or (by their own
+ * account) is registered as the other gender or outside the ages. It used to
+ * say "was already booked into this event", and the booking form named the
+ * other reasons, which told anyone who typed an email address whether that
+ * person was on FastMatch, their gender and roughly their age. Only the name
+ * the member typed is used, never anything from the friend's own account.
  */
 export function friendShareRefundEmail(opts: {
   memberName: string;
@@ -236,18 +250,23 @@ export function friendShareRefundEmail(opts: {
 }) {
   const dateStr = opts.startsAt.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: opts.timeZone });
   const P = 'margin:0 0 16px;';
-  const money = opts.refunded != null
-    ? `So we've refunded <strong>${formatPrice(opts.refunded)}</strong> for their place to your card. Depending on your bank, it can take 5 to 10 business days to show.`
-    : `So the <strong>${formatPrice(opts.amount)}</strong> for their place will be refunded to your card.`;
+  const name = escapeHtml(opts.friendName);
+  const what = `${name} couldn't be added to your booking for <strong>${escapeHtml(opts.eventName)}</strong> on ${dateStr}`;
+  const money = opts.amount <= 0
+    ? `${what}.`
+    : opts.refunded != null
+      ? `${what}, so their share (<strong>${formatPrice(opts.refunded)}</strong>) has been refunded to your card. Depending on your bank, it can take 5 to 10 business days to show.`
+      : `${what}, so their share (<strong>${formatPrice(opts.amount)}</strong>) will be refunded to your card.`;
   const html = emailLayout(`
-    <h1 style="${EMAIL_HEADING}">A refund for ${escapeHtml(opts.friendName)}'s place</h1>
+    <h1 style="${EMAIL_HEADING}">${name} couldn't be added to your booking</h1>
     <p style="${P}">Hi ${escapeHtml(opts.memberName)},</p>
-    <p style="${P}">${escapeHtml(opts.friendName)} was already booked into <strong>${escapeHtml(opts.eventName)}</strong> on ${dateStr}, so they didn't need the place you paid for. ${money}</p>
+    <p style="${P}">${money}</p>
+    <p style="${P}">If they'd still like to come, they can book themselves.</p>
     <p style="${P}">Your own booking is confirmed, and your booking confirmation email has everything you need for the event.</p>
     <p style="${P}">If you have any questions, please contact <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>
     <p style="${P}">The FastMatch Team</p>
   `);
-  return { subject: oneLine(`A refund for ${opts.friendName}'s place`), html };
+  return { subject: oneLine(`${opts.friendName} couldn't be added to your booking`), html };
 }
 
 /**

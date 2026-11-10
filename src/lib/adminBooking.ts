@@ -4,7 +4,7 @@ import { prisma } from './prisma';
 import { sendBookingConfirmation } from './sendBookingConfirmation';
 import { closeCheckout, releasePendingBooking } from './pendingBooking';
 import { confirmBookingGroup } from './memberBooking';
-import { refundFriendsAlreadyBooked } from './friendShareRefund';
+import { refundFriendsNotAdded } from './friendShareRefund';
 import { placesTaken, countHeld, capacityProblem, holdCutoff } from './capacity';
 
 /**
@@ -158,16 +158,15 @@ export async function confirmPendingByAdmin(bookingId: string, payment: AdminBoo
       ...(paidOnline ? {} : { paidAmount: payment.paidAmount, paymentMethod: payment.method }),
     },
   });
-  // Friends on it who were booked already weren't added again. Paid online,
-  // their shares go back to the card, as when the payment confirms it.
-  const already = result.friendsAlreadyBooked ?? [];
-  if (paidOnline && already.length && b.stripePaymentIntentId) await refundFriendsAlreadyBooked(b.id, b.stripePaymentIntentId, already);
-  const names = already.map((f) => f.name);
+  // Friends on it who couldn't be added (already booked, a cancelled or
+  // unpaid booking of their own, or their own record doesn't fit the event).
+  // Paid online, their shares go back to the card, as when the payment
+  // confirms it. This notice is the admin's only, so it gives each reason.
+  const notAdded = result.friendsNotAdded ?? [];
+  if (paidOnline && notAdded.length && b.stripePaymentIntentId) await refundFriendsNotAdded(b.id, b.stripePaymentIntentId, notAdded);
   const notices = [
     ...(paidOnline ? [`${b.member.name} had just paid online by card, so it's recorded as an online payment.`] : []),
-    ...(names.length
-      ? [`${names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`} ${names.length === 1 ? 'was' : 'were'} already booked into this event, so ${names.length === 1 ? 'wasn’t' : 'weren’t'} added again${paidOnline ? ' (their share has been refunded to the card)' : ''}.`]
-      : []),
+    ...notAdded.map((f) => `${f.name} couldn’t be added to this booking: ${f.reason}${paidOnline ? ' (their share has been refunded to the card)' : ''}.`),
   ];
   return {
     ok: true,

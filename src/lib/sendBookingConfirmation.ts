@@ -10,12 +10,21 @@ import { eventLabel } from './eventLabel';
  * The "You're booked in!" email. `registered`: the admin has just added them
  * at the event ("Add a new member"), so the same email also tells them how to
  * log in with the password they were given, or choose their own.
+ *
+ * A place another member booked for them (as a friend on their booking) says
+ * who, and "Not expecting this?": a member with an account can be booked by
+ * anyone who types their email address.
  */
 export async function sendBookingConfirmation(bookingId: string, opts: { registered?: boolean } = {}) {
   const booking = await prisma.booking.findUniqueOrThrow({
     where: { id: bookingId },
-    include: { member: { include: { city: true } }, event: { include: { venue: true, city: true, theme: true } } },
+    include: {
+      member: { include: { city: true } },
+      event: { include: { venue: true, city: true, theme: true } },
+      bookedBy: { select: { memberId: true, member: { select: { name: true } } } },
+    },
   });
+  const bookedBy = booking.bookedBy && booking.bookedBy.memberId !== booking.memberId ? booking.bookedBy.member.name : null;
 
   const appUrl = (process.env.APP_URL ?? '').replace(/\/+$/, '');
   // The shared per-event QR/link — logging in identifies the attendee, so
@@ -30,6 +39,7 @@ export async function sendBookingConfirmation(bookingId: string, opts: { registe
     ...eventTimeFor(booking.event.startsAt, booking.event.city.name, booking.member.city?.name),
     checkInUrl,
     ...(opts.registered ? { registered: registeredLinks(booking.member) } : {}),
+    ...(bookedBy ? { bookedByName: bookedBy } : {}),
   });
 
   await sendEmail({ to: booking.member.email, subject, html });

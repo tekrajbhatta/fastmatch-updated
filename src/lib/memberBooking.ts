@@ -10,9 +10,9 @@ import { calculateAge } from './age';
 import { venueLine } from './venue';
 import { priceBooking, MAX_FRIENDS_PER_GENDER, type PriceQuote } from './bookingPrice';
 import { validateFriends, parseDateOfBirth, type FriendInput, type FriendFieldError } from './friendBooking';
-import { releasePendingBooking, closeCheckout, dropUnpaidBooking, closeLapsedCheckouts, type ReopenedFrom } from './pendingBooking';
+import { releaseAbandonedBooking, closeCheckout, dropUnpaidBooking, closeLapsedCheckouts, type ReopenedFrom } from './pendingBooking';
 import { sendBookingConfirmation } from './sendBookingConfirmation';
-import { refundFriendsAlreadyBooked, type FriendAlreadyBooked } from './friendShareRefund';
+import { refundFriendsNotAdded, type FriendNotAdded } from './friendShareRefund';
 import { sendEmail } from './emails/send';
 import { friendWelcomeEmail } from './emails/friendEmail';
 import { eventTimeFor } from './timezone';
@@ -101,10 +101,6 @@ export type Prepared =
   | { ok: false; status: number; error: string; fieldErrors?: FriendFieldError[] }
   | { ok: true; quote: PriceQuote; discount: DiscountCode | null; friends: FriendInput[] };
 
-/** Why a friend who is a member can't be added, without saying which reason it is (Gil, 7 Oct). */
-export const FRIEND_CANT_BE_ADDED =
-  'Sorry, this friend can’t be added to your booking. Please check their details, or ask them to book their own place. If you need a hand, contact gil@fastmatch.com.au.';
-
 export async function prepareMemberBooking(
   member: Pick<Member, 'id' | 'name' | 'email' | 'gender'>,
   event: Event,
@@ -134,35 +130,17 @@ export async function prepareMemberBooking(
     return { ok: false, status: 400, error: `You can bring up to ${MAX_FRIENDS_PER_GENDER} male and ${MAX_FRIENDS_PER_GENDER} female friends.` };
   }
 
+  // Only what the member typed is checked here: nothing about anyone who
+  // already has an account. A friend who has one is booked on it when the
+  // payment comes through, and only then does their own record decide whether
+  // they can come (friendCantComeReason, confirmBookingGroup). If they can't,
+  // their share is refunded and the member is told they "couldn't be added".
+  // Checking their record here, before paying, told anyone who typed an email
+  // address whether that person is on FastMatch, their gender and roughly
+  // their age (one general message for every reason, as before, still did:
+  // the refusal itself said they were a member). This answer is now the same
+  // whoever's address it is.
   const fieldErrors = validateFriends(friends, { ageMin: event.ageMin, ageMax: event.ageMax, memberEmail: member.email });
-
-  // A friend who already has an account is booked on that account, and their
-  // real record — not what was typed — decides whether they can come. One
-  // general message whatever the reason (Gil, 7 Oct): a message for each
-  // ("already booked", "registered as female", "date of birth on file…")
-  // told any member who is on FastMatch, their gender and roughly their age.
-  const emails = friends.map((f) => f.email.trim().toLowerCase()).filter(Boolean);
-  const existing = emails.length ? await prisma.member.findMany({ where: { email: { in: emails } } }) : [];
-  const byEmail = new Map(existing.map((m) => [m.email.toLowerCase(), m]));
-  const theirBookings = existing.length
-    ? await prisma.booking.findMany({ where: { eventId: event.id, memberId: { in: existing.map((m) => m.id) } } })
-    : [];
-
-  friends.forEach((f, index) => {
-    const m = byEmail.get(f.email.trim().toLowerCase());
-    if (!m || fieldErrors.some((e) => e.index === index && e.field === 'email')) return;
-    const b = theirBookings.find((x) => x.memberId === m.id);
-    // An unpaid booking of theirs doesn't count — it's released when this
-    // one is paid.
-    const age = calculateAge(m.dateOfBirth);
-    const cantCome =
-      b?.status === 'CONFIRMED' || // already booked
-      (b && b.status !== 'PENDING') || // an earlier booking was cancelled (Gil rebooks those)
-      m.gender !== f.gender || // registered as the other gender
-      age < event.ageMin || age > event.ageMax; // outside the age range, by their date of birth on file
-    if (cantCome) fieldErrors.push({ index, field: 'email', message: FRIEND_CANT_BE_ADDED });
-  });
-
   if (fieldErrors.length > 0) {
     return { ok: false, status: 400, error: 'Please check your friends’ details.', fieldErrors };
   }
@@ -338,9 +316,52 @@ export async function discardMemberBooking(bookingId: string): Promise<void> {
 }
 
 /**
+ * Why a friend who already has an account can't be booked on it, or null if
+ * they can. Their own record decides, not what the member typed: booked
+ * already, a cancelled or refunded booking for the event (Gil rebooks those),
+ * their own booking waiting for payment, registered as the other gender, or
+ * outside the ages by their date of birth on file.
+ *
+ * Asked only once the booking is paid for (confirmBookingGroup), never
+ * before: asked at the booking form, it told anyone who typed an email
+ * address whether that person is on FastMatch, their gender and roughly
+ * their age. The reason is for Gil's email only; the member who brought them
+ * is told just that they "couldn't be added" (src/lib/friendShareRefund.ts).
+ */
+export function friendCantComeReason(
+  account: { gender: string; dateOfBirth: Date },
+  theirBooking: { status: string } | null | undefined,
+  typed: { gender: string },
+  event: { ageMin: number; ageMax: number },
+  now: Date = new Date(),
+): string | null {
+  if (theirBooking?.status === 'CONFIRMED') return 'they were already booked into this event';
+  if (theirBooking?.status === 'CANCELLED' || theirBooking?.status === 'REFUNDED') {
+    return 'they have a cancelled or refunded booking for this event (book them in yourself if they are coming)';
+  }
+  if (theirBooking) return 'they have their own booking for this event, waiting for its payment';
+  if (account.gender !== typed.gender) return `they're registered as ${genderWord(account.gender)}, but were booked as ${genderWord(typed.gender)}`;
+  const age = calculateAge(account.dateOfBirth, now);
+  if (age < event.ageMin || age > event.ageMax) {
+    return `their date of birth on file makes them ${age}, outside this event's ages (${event.ageMin} to ${event.ageMax})`;
+  }
+  return null;
+}
+
+const genderWord = (g: string) => (g === 'MALE' ? 'male' : 'female');
+
+/** A friend's address as stored on a booking, for comparing ("Tom@Example.com " is tom@example.com). */
+const emailKey = (email: string) => email.trim().toLowerCase();
+
+/**
  * Payment succeeded (or nothing was owed). Confirms the member's booking,
  * creates each friend's account (if they don't have one) and booking, counts
  * the discount code once, and emails everyone.
+ *
+ * A friend who already has an account and can't come (friendCantComeReason)
+ * isn't booked and takes no place: paid online, their share is refunded and
+ * the member told (refundFriendsNotAdded); otherwise the caller deals with
+ * them (`friendsNotAdded`).
  *
  * Safe to call twice — Stripe retries webhooks. Only a PENDING booking is
  * confirmed, inside one transaction with the friends, so a retry neither
@@ -375,7 +396,12 @@ export async function discardMemberBooking(bookingId: string): Promise<void> {
 export async function confirmBookingGroup(
   bookingId: string,
   opts: { sessionId?: string; expectTotalCents?: number } = {},
-): Promise<{ confirmed: boolean; notifyFailures: string[]; full?: boolean; amountMismatch?: boolean; discountReused?: boolean; friendsAlreadyBooked?: FriendAlreadyBooked[] }> {
+): Promise<{
+  confirmed: boolean; notifyFailures: string[]; full?: boolean; amountMismatch?: boolean; discountReused?: boolean;
+  friendsNotAdded?: FriendNotAdded[];
+  /** The same list, by its old name: src/lib/adminBooking.ts reads it. */
+  friendsAlreadyBooked?: FriendNotAdded[];
+}> {
   const lead = await prisma.booking.findUnique({
     where: { id: bookingId },
     include: { member: true, event: { include: { venue: true } } },
@@ -391,14 +417,16 @@ export async function confirmBookingGroup(
   const pending = (Array.isArray(lead.pendingFriends) ? lead.pendingFriends : []) as unknown as PendingFriend[];
 
   // A friend's own unpaid booking for this event would block theirs (one per
-  // member per event): clear it first, outside the transaction because it may
-  // need to close a Stripe checkout.
+  // member per event): cleared first if it's abandoned, outside the
+  // transaction because Stripe is asked. One whose payment page could still
+  // be paid is theirs, and left alone: they aren't added to this booking. It
+  // used to be closed, by someone else's booking, while they might be paying.
   const friendMembers = pending.length
     ? await prisma.member.findMany({ where: { email: { in: pending.map((f) => f.email) } } })
     : [];
   for (const m of friendMembers) {
     const theirs = await prisma.booking.findUnique({ where: { eventId_memberId: { eventId: lead.eventId, memberId: m.id } } });
-    if (theirs?.status === 'PENDING') await releasePendingBooking(theirs);
+    if (theirs?.status === 'PENDING') await releaseAbandonedBooking(theirs);
   }
   // bcrypt is slow on purpose; do it before the transaction's clock starts.
   const hashes = await Promise.all(pending.map(() => bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12)));
@@ -421,11 +449,27 @@ export async function confirmBookingGroup(
       if (owed !== bookingTotalCents(lead) || friendsKey(current.pendingFriends) !== friendsKey(lead.pendingFriends)) return 'mismatch' as const;
       if (opts.expectTotalCents !== undefined && owed !== opts.expectTotalCents) return 'mismatch' as const;
 
+      // Friends who already have an account: now that it's paid for, their own
+      // record decides whether they can come (never before payment: see
+      // prepareMemberBooking). Those who can't aren't booked below, and need
+      // no place.
+      const accounts = pending.length ? await tx.member.findMany({ where: { email: { in: pending.map((f) => f.email) } } }) : [];
+      const theirBookings = accounts.length
+        ? await tx.booking.findMany({ where: { eventId: lead.eventId, memberId: { in: accounts.map((m) => m.id) } }, select: { memberId: true, status: true } })
+        : [];
+      const cantCome = new Map<string, string>();
+      for (const f of pending) {
+        const account = accounts.find((m) => emailKey(m.email) === emailKey(f.email));
+        if (!account) continue;
+        const why = friendCantComeReason(account, theirBookings.find((b) => b.memberId === account.id), f, lead.event);
+        if (why) cantCome.set(emailKey(f.email), why);
+      }
+
       // Room for everyone on it: paid places, and places other unpaid bookings
       // still hold, counted as when they booked (prepareMemberBooking): not its
       // own, and not the member again as a friend on someone else's. A friend
-      // who has booked themselves since isn't booked again below, so needs no
-      // second place.
+      // who can't come (booked themselves since, say) isn't booked below, so
+      // needs no place.
       // Paid while its own hold still runs: holds made after it don't count
       // (they were made in the moment the places looked free, two people
       // booking the last place at once), so it isn't refunded for them.
@@ -433,14 +477,7 @@ export async function confirmBookingGroup(
       const taken = await placesTaken(lead.eventId, {
         db: tx, excludeBookingId: lead.id, excludeEmail: lead.member.email, ...(ownHoldRunning ? { heldBefore: lead.createdAt } : {}),
       });
-      const bookedAlready = pending.length
-        ? await tx.booking.findMany({
-            where: { eventId: lead.eventId, status: 'CONFIRMED', member: { email: { in: pending.map((f) => f.email) } } },
-            select: { member: { select: { email: true } } },
-          })
-        : [];
-      const booked = new Set(bookedAlready.map((x) => x.member.email.toLowerCase()));
-      const coming = pending.filter((f) => !booked.has(f.email.toLowerCase()));
+      const coming = pending.filter((f) => !cantCome.has(emailKey(f.email)));
       if (capacityProblem(taken, lead.event, countHeld([{ member: lead.member, pendingFriends: coming as unknown as Prisma.JsonValue }]))) return 'full' as const;
 
       // Never for an event that has been cancelled: a payment completing
@@ -454,10 +491,15 @@ export async function confirmBookingGroup(
       const highest = await tx.booking.aggregate({ where: { eventId: lead.eventId }, _max: { badge: true } });
       let badge = (highest._max.badge ?? 0) + 1;
       const friendBookingIds: string[] = [];
-      // Friends booked already (by themselves, since): their places weren't used.
-      const alreadyBooked: FriendAlreadyBooked[] = [];
+      // Friends who couldn't be added: their places weren't used.
+      const notAdded: FriendNotAdded[] = [];
 
       for (const [i, f] of pending.entries()) {
+        const why = cantCome.get(emailKey(f.email));
+        if (why) {
+          notAdded.push({ name: f.name, email: f.email, amount: Number(f.paidAmount ?? 0), reason: why });
+          continue;
+        }
         let friend = await tx.member.findUnique({ where: { email: f.email } });
         if (!friend) {
           friend = await tx.member.create({
@@ -471,12 +513,13 @@ export async function confirmBookingGroup(
             },
           });
         }
+        // Never someone's own booking replaced: one there now (made since the
+        // check above) means they're not added either.
         const theirs = await tx.booking.findUnique({ where: { eventId_memberId: { eventId: lead.eventId, memberId: friend.id } } });
-        if (theirs && theirs.status !== 'PENDING') {
-          alreadyBooked.push({ name: f.name, email: f.email, amount: Number(f.paidAmount ?? 0) });
+        if (theirs) {
+          notAdded.push({ name: f.name, email: f.email, amount: Number(f.paidAmount ?? 0), reason: 'they had their own booking for this event by the time the payment came through' });
           continue;
         }
-        if (theirs) await tx.booking.delete({ where: { id: theirs.id } });
         const fb = await tx.booking.create({
           data: { eventId: lead.eventId, memberId: friend.id, badge: badge++, status: 'CONFIRMED', paidAmount: f.paidAmount, bookedById: lead.id },
         });
@@ -494,7 +537,7 @@ export async function confirmBookingGroup(
         })) > 0;
         await tx.discountCode.update({ where: { id: lead.discountCodeId }, data: { usedCount: { increment: 1 } } });
       }
-      return { friendBookingIds, alreadyBooked, discountReused };
+      return { friendBookingIds, notAdded, discountReused };
     },
     { timeout: 20_000 },
   );
@@ -518,13 +561,14 @@ export async function confirmBookingGroup(
   };
   if (firstTime) await attempt(lead.id, () => sendBookingConfirmation(lead.id));
   for (const id of created.friendBookingIds) await attempt(id, () => notifyFriend(id, lead.member.name));
-  // Paid online for friends who were booked already: their shares go back.
-  // (Confirmed by the admin instead, the caller deals with it.)
-  if (opts.sessionId) await refundFriendsAlreadyBooked(lead.id, opts.sessionId, created.alreadyBooked);
+  // Paid online for friends who couldn't be added: their shares go back, and
+  // the member is told (in the same words whatever the reason). Confirmed by
+  // the admin, or with nothing to pay, the caller deals with them.
+  if (opts.sessionId) await refundFriendsNotAdded(lead.id, opts.sessionId, created.notAdded);
   // Places just taken: payment pages whose hold ran out, and that no longer
   // fit, are closed.
   await closeLapsedCheckouts(lead.eventId);
-  return { confirmed: true, notifyFailures, discountReused: created.discountReused, friendsAlreadyBooked: created.alreadyBooked };
+  return { confirmed: true, notifyFailures, discountReused: created.discountReused, friendsNotAdded: created.notAdded, friendsAlreadyBooked: created.notAdded };
 }
 
 /**

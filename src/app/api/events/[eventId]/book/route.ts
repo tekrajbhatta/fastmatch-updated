@@ -16,6 +16,7 @@ import {
   attachCheckout,
 } from '@/lib/memberBooking';
 import { releasePendingBooking, closeLapsedCheckouts } from '@/lib/pendingBooking';
+import { refundFriendsNotAdded } from '@/lib/friendShareRefund';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { eventAvailability, NOT_BOOKABLE } from '@/lib/eventAvailability';
 import { CHECKOUT_MINUTES, holdCutoff } from '@/lib/capacity';
@@ -146,6 +147,10 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
       await discardMemberBooking(bookingId);
       return NextResponse.json({ error: 'This event is full for your gender.' }, { status: 409 });
     }
+    // Friends who couldn't be added (by their own accounts, checked only now):
+    // nothing was paid for them, so nothing to refund; the member is told, in
+    // the same words whatever the reason.
+    if (done.confirmed && done.friendsNotAdded?.length) await refundFriendsNotAdded(bookingId, null, done.friendsNotAdded);
     return NextResponse.json({ bookingId, checkoutUrl: null });
   }
 
@@ -194,7 +199,9 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
       // the webhook, which removes the unpaid booking. A few seconds over, so
       // Stripe never refuses it as too short.
       expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_MINUTES * 60 + 30,
-      success_url: `${process.env.APP_URL}/events/${event.id}/booked?session_id={CHECKOUT_SESSION_ID}`,
+      // How many friends they brought, so the booked page can say if any
+      // couldn't be added (it only counts who was).
+      success_url: `${process.env.APP_URL}/events/${event.id}/booked?session_id={CHECKOUT_SESSION_ID}${friendCount ? `&friends=${friendCount}` : ''}`,
       cancel_url: `${process.env.APP_URL}/events/${event.id}`,
     });
   } catch (err) {

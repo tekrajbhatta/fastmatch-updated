@@ -94,7 +94,7 @@ vi.mock('../paymentAlerts', () => ({
   notifyAutoRefund: vi.fn(),
 }));
 vi.mock('../sendBookingConfirmation', () => ({ sendBookingConfirmation: vi.fn(async () => {}) }));
-vi.mock('../friendShareRefund', () => ({ refundFriendsAlreadyBooked: vi.fn(async () => {}) }));
+vi.mock('../friendShareRefund', () => ({ refundFriendsNotAdded: vi.fn(async () => {}), refundFriendsAlreadyBooked: vi.fn(async () => {}) }));
 vi.mock('../emails/send', () => ({ sendEmail: vi.fn(async () => {}) }));
 vi.mock('../auth', () => ({ getSessionMember: vi.fn(async () => h.member) }));
 vi.mock('../rateLimit', async (orig) => {

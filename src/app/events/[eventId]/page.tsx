@@ -242,7 +242,9 @@ export default function EventDetailPage() {
     if (data.checkoutUrl) {
       window.location.href = data.checkoutUrl;
     } else {
-      router.push(`/events/${eventId}/booked`);
+      // How many friends they brought, so the booked page can say if any
+      // couldn't be added (as Stripe's return address does for a payment).
+      router.push(`/events/${eventId}/booked${friends.length ? `?friends=${friends.length}` : ''}`);
     }
   }
 

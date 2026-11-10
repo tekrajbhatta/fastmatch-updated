@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import type { Booking } from '@prisma/client';
 import { prisma } from './prisma';
 import { getStripe } from './stripe';
-import { placesTaken, countHeld, capacityProblem, holdCutoff } from './capacity';
+import { placesTaken, countHeld, capacityProblem, holdCutoff, payableCutoff } from './capacity';
 
 /**
  * Gil's rule: a booking isn't a booking until it's paid. An unpaid (PENDING)
@@ -25,6 +25,43 @@ export async function releasePendingBooking(
   if (booking.status !== 'PENDING') return 'not-pending';
   if ((await closeCheckout(booking)) === 'paid') return 'paid';
   await dropUnpaidBooking(booking.id);
+  return 'released';
+}
+
+/**
+ * A member someone else is bringing as a friend has an unpaid booking of
+ * their own for the event. It's cleared out of the way only if it's
+ * abandoned: past the time its payment page could last, and that page no
+ * longer open (expired, or one Stripe doesn't know). A page still open, or
+ * paid a moment ago, is left alone ('kept'), and so is a booking confirmed
+ * before (set back to unpaid by the admin: a booking, not a payment page).
+ * The friend then isn't added to the other booking (confirmBookingGroup).
+ *
+ * It used to be closed whatever its state (releasePendingBooking): a member
+ * paying for their own place could have their payment page shut by someone
+ * else's booking, and learn from that that someone had tried to book them.
+ */
+export async function releaseAbandonedBooking(
+  booking: Pick<Booking, 'id' | 'status' | 'stripePaymentIntentId' | 'createdAt' | 'confirmedAt'>,
+  now: Date = new Date(),
+): Promise<'released' | 'kept' | 'not-pending'> {
+  if (booking.status !== 'PENDING') return 'not-pending';
+  if (booking.confirmedAt) return 'kept';
+  // Its page may still be paid (30 minutes, src/lib/capacity.ts).
+  if (booking.createdAt >= payableCutoff(now)) return 'kept';
+  if (booking.stripePaymentIntentId) {
+    // Older than that, but a booking pressed again carries its first press's
+    // time, so its page can be younger: Stripe is asked. Only looked at,
+    // never closed.
+    let status: string | null = null;
+    try {
+      status = (await getStripe().checkout.sessions.retrieve(booking.stripePaymentIntentId)).status ?? null;
+    } catch (err) {
+      if (!isMissing(err)) throw err;
+    }
+    if (status === 'open' || status === 'complete') return 'kept';
+  }
+  await dropUnpaidBooking(booking.id, booking.stripePaymentIntentId ?? undefined);
   return 'released';
 }
 

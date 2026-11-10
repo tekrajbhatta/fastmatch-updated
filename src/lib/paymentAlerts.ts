@@ -20,6 +20,8 @@ export async function alertRefundNeeded(opts: {
   eventName?: string | null;
   amount?: number | null;
   reason: string;
+  /** More for Gil, in the email only, never the log (it can describe a member's own record). */
+  detail?: string;
 }): Promise<void> {
   const amount = opts.amount != null ? formatPrice(opts.amount) : 'the amount paid';
   // Ids, not names: the checkout and booking find everything, and the
@@ -37,6 +39,7 @@ export async function alertRefundNeeded(opts: {
         <strong>Event:</strong> ${escapeHtml(opts.eventName ?? 'unknown')}<br>
         <strong>Amount:</strong> ${escapeHtml(amount)}<br>
         <strong>Why:</strong> ${escapeHtml(opts.reason)}<br>
+        ${opts.detail ? `<strong>Details:</strong> ${escapeHtml(opts.detail)}<br>` : ''}
         <strong>Stripe checkout:</strong> ${escapeHtml(opts.sessionId)}</p>
         <p style="margin:0 0 16px;">Find the payment in the Stripe dashboard (Payments, search for the member's email) and refund it.</p>
       `),
@@ -90,9 +93,15 @@ const AUTO_REFUND = {
     subject: 'FastMatch: a payment was refunded automatically (event cancelled)',
     what: 'A card payment came through after the event was cancelled, so it was refunded automatically.',
   },
-  friendBooked: {
-    subject: 'FastMatch: part of a payment was refunded automatically (friend already booked)',
-    what: 'A member paid for a friend who was already booked into the event, so that friend\'s share was refunded to the member\'s card automatically. The member is booked in as usual.',
+  // Every reason a friend can't be added (already booked, a cancelled booking,
+  // their own payment page open, registered as the other gender, or outside
+  // the ages by their date of birth on file) is this one notice: the member
+  // who brought them is only ever told the friend "couldn't be added", so
+  // nobody learns anything about a member by booking them. Gil's email says
+  // which reason (only he reads it, and it's what he needs if they ask).
+  friendNotAdded: {
+    subject: 'FastMatch: part of a payment was refunded automatically (a friend couldn\'t be added)',
+    what: 'A member paid for a friend who couldn\'t be added to their booking, so that friend\'s share was refunded to the member\'s card automatically. The member is booked in as usual, and was told only that their friend couldn\'t be added, not why.',
   },
 } as const;
 
@@ -100,7 +109,7 @@ const AUTO_REFUND = {
  * A payment refunded automatically because, by the time it came through, the
  * event was full (src/lib/fullEventRefund.ts) or cancelled
  * (src/lib/cancelEvent.ts); or one friend's share of a group payment, when
- * the friend was already booked (src/lib/friendShareRefund.ts). Nothing for
+ * the friend couldn't be added (src/lib/friendShareRefund.ts). Nothing for
  * Gil to do: the member has been told
  * and the money is on its way back. He asked to hear about each one all the
  * same (the user, 6 Oct). Never throws.
@@ -112,8 +121,8 @@ export async function notifyAutoRefund(opts: {
   memberEmail: string;
   eventName: string;
   amount: number;
-  /** For a friend's share: who it was for. */
-  friend?: { name: string; email: string };
+  /** For a friend's share: who it was for (as the member typed them), and why they weren't added. */
+  friend?: { name: string; email: string; reason?: string };
 }): Promise<void> {
   const { subject, what } = AUTO_REFUND[opts.why];
   try {
@@ -123,7 +132,8 @@ export async function notifyAutoRefund(opts: {
       html: emailLayout(`
         <p style="margin:0 0 16px;">${what} They've been emailed. There's nothing you need to do.</p>
         <p style="margin:0 0 16px;"><strong>Member:</strong> ${escapeHtml(opts.memberName)} (${escapeHtml(opts.memberEmail)})<br>
-        ${opts.friend ? `<strong>Friend already booked:</strong> ${escapeHtml(opts.friend.name)} (${escapeHtml(opts.friend.email)})<br>` : ''}
+        ${opts.friend ? `<strong>Friend not added:</strong> ${escapeHtml(opts.friend.name)} (${escapeHtml(opts.friend.email)})<br>` : ''}
+        ${opts.friend?.reason ? `<strong>Why:</strong> ${escapeHtml(opts.friend.reason)}<br>` : ''}
         <strong>Event:</strong> ${escapeHtml(opts.eventName)}<br>
         <strong>Refunded:</strong> ${escapeHtml(formatPrice(opts.amount))}<br>
         <strong>Stripe checkout:</strong> ${escapeHtml(opts.sessionId)}</p>

@@ -18,12 +18,25 @@ import { Button, ButtonLink } from '@/components/site/button';
  *     hold ran out, or was cancelled, as they paid): says so, and that their
  *     money is going back;
  *   - no booking (or a cancelled one): back to the event page.
+ *
+ * With friends: how many are booked in with them, and how many couldn't be
+ * added (a friend who already has an account, and can't come, isn't booked:
+ * their share is refunded and the member emailed). Only counts: nothing
+ * about a friend's own account is shown.
  */
 const CHECK_EVERY_MS = 2000;
 const GIVE_UP_AFTER_MS = 30_000;
 
 type State = 'loading' | 'confirmed' | 'waiting' | 'not-confirmed' | 'refunded';
 interface Refunded { reason: 'full' | 'cancelled'; refunded: boolean }
+/** Friends booked in with them, and how many they brought (from the address; null if not given). */
+interface Friends { booked: number; brought: number | null }
+
+/** How many friends they brought: the event page and Stripe's return address carry it. */
+function friendsBrought(): number | null {
+  const n = Number(new URLSearchParams(window.location.search).get('friends'));
+  return Number.isInteger(n) && n > 0 && n <= 10 ? n : null;
+}
 
 export default function BookedPage() {
   const { eventId } = useParams<{ eventId: string }>();
@@ -31,6 +44,7 @@ export default function BookedPage() {
   const [state, setState] = useState<State>('loading');
   const [round, setRound] = useState(0); // "Check again" starts a new round
   const [refunded, setRefunded] = useState<Refunded | null>(null);
+  const [friends, setFriends] = useState<Friends | null>(null);
 
   useEffect(() => {
     let stopped = false;
@@ -43,7 +57,10 @@ export default function BookedPage() {
       const data = r?.ok ? await r.json().catch(() => null) : null;
       if (stopped) return;
       const status: string = data?.status ?? 'UNKNOWN';
-      if (status === 'CONFIRMED') return setState('confirmed');
+      if (status === 'CONFIRMED') {
+        setFriends({ booked: Math.max(0, Number(data?.friendsBooked) || 0), brought: friendsBrought() });
+        return setState('confirmed');
+      }
       if (data?.refundedPayment) { setRefunded(data.refundedPayment); return setState('refunded'); }
       if (status === 'NONE' || status === 'CANCELLED' || status === 'REFUNDED') return router.replace(`/events/${eventId}`);
       if (Date.now() - started >= GIVE_UP_AFTER_MS) return setState('not-confirmed');
@@ -72,6 +89,7 @@ export default function BookedPage() {
               A confirmation email is on its way. On the day of the event, check in from an hour before the start: open the
               check-in link in that email, or scan the QR code at the venue.
             </p>
+            {friends && <FriendsNote {...friends} />}
           </>
         )}
         {state === 'waiting' && (
@@ -114,4 +132,34 @@ export default function BookedPage() {
       </div>
     </Container>
   );
+}
+
+/**
+ * "Your 2 friends are booked in with you too." and, when some of those they
+ * brought aren't, "We couldn't add one of the friends you brought to this
+ * booking: we've emailed you the details." The same words whatever the
+ * reason, as in that email.
+ */
+function FriendsNote({ booked, brought }: Friends) {
+  const notAdded = brought != null ? Math.max(0, brought - booked) : 0;
+  if (booked === 0 && notAdded === 0) return null;
+  return (
+    <p className="relative max-w-[460px] text-[17px] leading-normal text-plum-200 text-pretty">
+      {booked > 0 && bookedWho(booked, notAdded > 0)}
+      {booked > 0 && notAdded > 0 && ' '}
+      {notAdded > 0 && `We couldn’t add ${notAddedWho(notAdded, brought!)} to this booking: we’ve emailed you the details.`}
+    </p>
+  );
+}
+
+/** "Your 2 friends are booked in with you too.", or "One of your friends…" when not all of them are. */
+function bookedWho(booked: number, someNotAdded: boolean): string {
+  if (someNotAdded) return booked === 1 ? 'One of your friends is booked in with you too.' : `${booked} of your friends are booked in with you too.`;
+  return booked === 1 ? 'Your friend is booked in with you too.' : `Your ${booked} friends are booked in with you too.`;
+}
+
+/** "your friend", "your friends", "one of the friends you brought", "2 of the friends you brought". */
+function notAddedWho(notAdded: number, brought: number): string {
+  if (notAdded === brought) return brought === 1 ? 'your friend' : 'your friends';
+  return notAdded === 1 ? 'one of the friends you brought' : `${notAdded} of the friends you brought`;
 }
