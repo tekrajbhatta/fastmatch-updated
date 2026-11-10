@@ -97,23 +97,23 @@ describe('eventChangeSms — Gil\'s approved wording', () => {
  */
 describe('withOptOut — marketing SMS only', () => {
   it('appends the opt-out line: a short link, as texts come from a name that can\'t be replied to (Gil, Q16)', () => {
-    process.env.APP_URL = 'https://5minutedating.com.au/';
-    expect(smsOptOutLine()).toBe('Opt out: 5minutedating.com.au/optout');
-    expect(withOptOut('Speed dating this Friday!')).toBe('Speed dating this Friday!\nOpt out: 5minutedating.com.au/optout');
+    process.env.APP_URL = 'https://fastmatch.com.au/';
+    expect(smsOptOutLine()).toBe('Opt out: fastmatch.com.au/optout');
+    expect(withOptOut('Speed dating this Friday!')).toBe('Speed dating this Friday!\nOpt out: fastmatch.com.au/optout');
     // The admin's own words are never changed, only added to.
-    expect(withOptOut('  Speed dating this Friday!\nBook now ')).toBe('Speed dating this Friday!\nBook now\nOpt out: 5minutedating.com.au/optout');
+    expect(withOptOut('  Speed dating this Friday!\nBook now ')).toBe('Speed dating this Friday!\nBook now\nOpt out: fastmatch.com.au/optout');
   });
 
   it('doesn\'t add a second link to a text that already has it', () => {
-    const body = 'Speed dating Friday! Opt out: 5minutedating.com.au/optout';
+    const body = 'Speed dating Friday! Opt out: fastmatch.com.au/optout';
     expect(withOptOut(body)).toBe(body);
   });
 
   it('still adds the link when the text asks for a STOP reply: nobody can reply to Fastmatch (the user, 6 Oct)', () => {
     const body = 'Speed dating Friday! Text STOP to unsubscribe';
-    expect(withOptOut(body)).toBe(`${body}\nOpt out: 5minutedating.com.au/optout`);
+    expect(withOptOut(body)).toBe(`${body}\nOpt out: fastmatch.com.au/optout`);
     // Before, any "stop" at all, as in "don't stop now", left a text with no opt-out.
-    expect(withOptOut("Don't stop now, book Friday!")).toBe("Don't stop now, book Friday!\nOpt out: 5minutedating.com.au/optout");
+    expect(withOptOut("Don't stop now, book Friday!")).toBe("Don't stop now, book Friday!\nOpt out: fastmatch.com.au/optout");
   });
 
   it('a STOP reply is pointed out to the admin, an ordinary "stop" isn\'t', () => {

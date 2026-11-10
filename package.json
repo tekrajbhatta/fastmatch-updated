@@ -16,6 +16,7 @@
     "import-members": "tsx members-import/import-members.ts",
     "send-reminders": "tsx src/scripts/sendReminders.ts",
     "delete-members": "tsx src/scripts/deleteMembers.ts",
+    "rewrite-site-address": "tsx src/scripts/rewriteSiteAddress.ts",
     "test": "vitest run"
   },
   "prisma": {

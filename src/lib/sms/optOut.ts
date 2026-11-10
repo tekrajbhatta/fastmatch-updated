@@ -8,7 +8,7 @@
  * (the user, 6 Oct).
  *
  * The line is a short link to the opt-out page, "Opt out:
- * 5minutedating.com.au/optout", where they unsubscribe with a tap (signed in)
+ * fastmatch.com.au/optout", where they unsubscribe with a tap (signed in)
  * or by entering their mobile. It used to be "Reply STOP to opt out", but
  * texts come from the name "Fastmatch", which can't be replied to, and a STOP
  * reply was never recorded on the site anyway (Gil, Q16). It's one link for
@@ -35,7 +35,7 @@ function siteHost(): string {
   }
 }
 
-/** "Opt out: 5minutedating.com.au/optout" */
+/** "Opt out: fastmatch.com.au/optout" */
 export function smsOptOutLine(host: string = siteHost()): string {
   return `Opt out: ${host}/optout`;
 }

@@ -4,6 +4,7 @@ import { getSessionMember } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { toPublicEvent } from '@/lib/publicEvent';
 import { placesTaken } from '@/lib/capacity';
+import { publicUpcomingWhere } from '@/lib/eventAvailability';
 
 // GET /api/events?cityId=&themeId= — public browse list: upcoming, public
 // events only, with a live count of PAID bookings per gender (used for "Sold out").
@@ -21,10 +22,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const events = await prisma.event.findMany({
     where: {
-      visibility: 'PUBLIC',
-      status: 'UPCOMING',
-      draft: false,
-      startsAt: { gte: new Date() },
+      ...publicUpcomingWhere(),
       ...(cityId ? { cityId } : {}),
       ...(themeId ? { themeId } : {}),
     },

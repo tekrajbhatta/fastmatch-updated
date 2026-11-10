@@ -52,8 +52,8 @@ describe('"Book Now goes to" an event (item 19)', () => {
   const blank = { subject: '', heading: ' ', eventDetailsText: '' };
 
   it('links Book Now to the event, and fills an empty subject, heading and event details', () => {
-    expect(bookNowFill(ev, 'https://5minutedating.com.au/', blank)).toEqual({
-      bookingLink: 'https://5minutedating.com.au/events/ev1',
+    expect(bookNowFill(ev, 'https://fastmatch.com.au/', blank)).toEqual({
+      bookingLink: 'https://fastmatch.com.au/events/ev1',
       subject: 'Cocktail speed dating, Ages 25 to 45 years',
       heading: 'Cocktail speed dating',
       // As "Create blast for this event" fills them (the user, 6 Oct): the event's own clock.
@@ -73,8 +73,8 @@ describe('"Book Now goes to" an event (item 19)', () => {
   });
 
   it('recognises the event an existing link goes to', () => {
-    expect(bookNowEventId('https://5minutedating.com.au/events/ev2/', ['ev1', 'ev2'])).toBe('ev2');
-    expect(bookNowEventId('https://5minutedating.com.au/events', ['ev1'])).toBe('');
+    expect(bookNowEventId('https://fastmatch.com.au/events/ev2/', ['ev1', 'ev2'])).toBe('ev2');
+    expect(bookNowEventId('https://fastmatch.com.au/events', ['ev1'])).toBe('');
     expect(bookNowEventId('', ['ev1'])).toBe('');
   });
 });

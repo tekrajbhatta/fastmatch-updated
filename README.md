@@ -107,8 +107,8 @@ Real answer to "how do we avoid being labeled as spam" — mostly DNS/provider
 setup, not app code, but worth having written down:
 
 - **Authenticate the sending domain**: SPF, DKIM, and DMARC DNS records for the
-  Mailgun sending domain (currently `mg.fastmatch.live`; a `mg.fastmatch.com.au`
-  subdomain is planned before launch). Mailgun provides the exact records.
+  Mailgun sending domain, `mg.fastmatch.com.au` (its records live in the
+  fastmatch.com.au DNS zone). Mailgun provides the exact records.
   Without these, mail providers distrust the sender by default. The sender
   address must always match a Mailgun-verified domain — it is read from
   `EMAIL_FROM_ADDRESS`, never hard-coded.

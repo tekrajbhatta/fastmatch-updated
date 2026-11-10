@@ -3,7 +3,7 @@ import { smsLength } from '@/lib/sms/smsLength';
 import { smsOptOutLine } from '@/lib/sms/send';
 
 // The site's address, as on the live site (the line is built from APP_URL).
-process.env.APP_URL = 'https://5minutedating.com.au';
+process.env.APP_URL = 'https://fastmatch.com.au';
 const optOut = smsOptOutLine().length + 1; // plus the newline before it
 
 describe('smsLength', () => {

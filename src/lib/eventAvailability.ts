@@ -34,3 +34,12 @@ export const NOT_BOOKABLE: Record<Exclude<EventAvailability, 'open'>, string> = 
   cancelled: 'This event was cancelled.',
   'not-open': 'This event is not open for booking.',
 };
+
+/**
+ * The events anyone may see listed: public, upcoming, not a draft and not
+ * started yet. The Upcoming Events list (/api/events) and the sitemap use
+ * this same rule, so the sitemap can never list a hidden event.
+ */
+export function publicUpcomingWhere(now: Date = new Date()) {
+  return { visibility: 'PUBLIC' as const, status: 'UPCOMING' as const, draft: false, startsAt: { gte: now } };
+}
