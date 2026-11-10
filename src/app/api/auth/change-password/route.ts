@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { getSessionMember, signSession, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
+import { getSessionMember, signSession, SESSION_COOKIE_OPTIONS, rememberDevice } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { hitRateLimit, LIMITS, rateKey } from '@/lib/rateLimit';
 import { passwordToCheck, PASSWORD_MAX, PASSWORD_TOO_LONG, TYPED_PASSWORD_MAX } from '@/lib/tokens';
@@ -60,5 +60,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // device. This one gets a fresh session and stays logged in.
   const res = NextResponse.json({ ok: true });
   res.cookies.set('fm_session', signSession(updated), SESSION_COOKIE_OPTIONS);
+  // The password was just typed in this browser (see fm_device in src/lib/auth.ts).
+  rememberDevice(res, req, updated.id);
   return res;
 });

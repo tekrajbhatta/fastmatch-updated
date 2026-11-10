@@ -13,6 +13,7 @@ import { nameProblemSentence } from '@/lib/personName';
 import { hitRateLimit, LIMITS, rateKey } from '@/lib/rateLimit';
 import { isAustralianMobile } from '@/lib/mobile';
 import { maskEmail } from '@/lib/logMask';
+import { allowSiteEmail } from '@/lib/emailVolume';
 
 const bodySchema = z.object({
   email: z.string().trim().max(254, 'Please enter your friend’s email address.').email('Please enter your friend’s email address.'),
@@ -23,9 +24,17 @@ const bodySchema = z.object({
   age: z.coerce.number().int('Please enter their age in whole years.').min(18, 'FastMatch is for over-18s only.').max(99, 'Please check their age.'),
 });
 
+/**
+ * Why an invitation can't be sent yet; the page shows it with a link to
+ * confirm the mobile. (Not exported: a route file may only export its
+ * handlers, or the build fails.)
+ */
+const CONFIRM_MOBILE_FIRST = 'Please confirm your mobile number before inviting friends.';
+
 // POST /api/tell-a-friend — "Register friend". Creates an account for the
-// friend and emails them "<member> has registered you with FastMatch", with a
-// link to set their password and complete their profile (/set-password).
+// friend and emails them "You've been invited to join FastMatch" ("<member>
+// has registered you with FastMatch" inside), with a link to set their
+// password and complete their profile (/set-password).
 //
 // Until they do, nothing else goes to them: the account is created with no
 // marketing consent (they haven't given any — the inviter can't give it for
@@ -33,6 +42,14 @@ const bodySchema = z.object({
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const member = await getSessionMember(req);
   if (!member) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+
+  // Only from a member whose mobile is confirmed: signing up needs nothing but
+  // an email address, so a throwaway account could otherwise send FastMatch
+  // invitations to any inbox. A confirmed mobile is what a member needs to
+  // book anyway. `unfinished` lets the page link to the step, as booking does.
+  if (!member.mobileVerified) {
+    return NextResponse.json({ error: CONFIRM_MOBILE_FIRST, unfinished: ['mobile'] }, { status: 403 });
+  }
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
@@ -106,6 +123,13 @@ async function inviteFriend(
       inviterName: inviter.name,
       setPasswordUrl: `${process.env.APP_URL}/set-password?token=${setPasswordToken(friend)}`,
     });
+    // The site-wide hourly ceiling on emails to addresses people type in
+    // (src/lib/emailVolume.ts). Past it nothing is sent, and the account goes
+    // again, as when an email fails; the member had the usual reply already.
+    if (!(await allowSiteEmail('invite'))) {
+      await prisma.member.delete({ where: { id: friend.id } });
+      return;
+    }
     try {
       await sendEmail({ to: friend.email, subject, html });
     } catch (err) {

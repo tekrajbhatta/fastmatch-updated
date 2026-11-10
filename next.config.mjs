@@ -3,15 +3,33 @@
  *
  * - No other site may show FastMatch in a frame, so nobody can lay a fake
  *   page over a real one and trick a click (clickjacking). frame-ancestors is
- *   the modern form; X-Frame-Options covers older browsers. This is the only
- *   rule in the Content-Security-Policy: it doesn't restrict scripts or styles.
+ *   the modern form; X-Frame-Options covers older browsers.
+ * - The rest of the Content-Security-Policy closes three doors the site never
+ *   uses, which an injected bit of HTML could otherwise open: no plug-ins
+ *   (<object>/<embed>: object-src 'none'), no <base href> sending the page's
+ *   relative links elsewhere (base-uri 'self'), and no form posting what's
+ *   typed into it to another site (form-action 'self'; every form here is
+ *   sent by the page's own script to /api, and Stripe's payment page is
+ *   reached by a link, not a form). Scripts and styles aren't restricted. The
+ *   admin's email previews (a sandboxed srcDoc frame) carry these rules too:
+ *   their <base target="_blank"> has no href, so base-uri doesn't touch it,
+ *   and the sandbox already stops their forms and plug-ins. The YouTube video
+ *   on the home page is a frame, which none of these rules cover.
+ * - Strict-Transport-Security: once a browser has seen the site over HTTPS,
+ *   it only ever uses HTTPS for it for a year, so nobody on a café's wifi can
+ *   quietly serve the plain-HTTP version. Deliberately NOT includeSubDomains
+ *   or preload: other names under the domain (Mailgun's link-tracking host,
+ *   say) may only work over plain HTTP, and preloading can't easily be undone.
+ *   Browsers ignore it over plain HTTP, so local testing on http://localhost
+ *   is unaffected.
  * - nosniff: a file is only ever treated as the type the server says (an
  *   uploaded image can't be read as a page or a script).
  * - Other sites are only told a visitor came from FastMatch, never the page:
  *   reset, sign-up and unsubscribe links carry tokens in their address.
  */
 const securityHeaders = [
-  { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+  { key: 'Content-Security-Policy', value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'" },
+  { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },

@@ -101,8 +101,9 @@ describe('friend emails', () => {
     const opts = { friendName: evil('friend'), inviterName: evil('inviter'), setPasswordUrl: 'https://fastmatch.test/set-password?token=abc' };
     const { html, subject } = tellAFriendEmail(opts);
     expectEscaped(html, 'friend', 'inviter');
-    expect(subject).toBe(`${evil('inviter')} has registered you with FastMatch`);
-    expect(tellAFriendEmail({ ...opts, inviterName: HEADER_TRICK }).subject).not.toMatch(/[\r\n]/);
+    // A fixed subject: the inviter's name (which they chose themselves) is only in the body, escaped.
+    expect(subject).toBe("You've been invited to join FastMatch");
+    expect(tellAFriendEmail({ ...opts, inviterName: HEADER_TRICK }).subject).toBe("You've been invited to join FastMatch");
   });
 });
 

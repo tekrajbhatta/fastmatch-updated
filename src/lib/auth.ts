@@ -1,9 +1,9 @@
 import { cache } from 'react';
-import { NextRequest } from 'next/server';
+import type { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { prisma } from './prisma';
-import { readSessionToken, sessionStillValid, signSessionToken, SESSION_DAYS } from './tokens';
+import { readSessionToken, sessionStillValid, signSessionToken, signValue, signatureMatches, SESSION_DAYS } from './tokens';
 
 // Admin accounts are just Members with isAdmin = true (kept simple; a
 // separate admin table isn't needed for a single-operator business).
@@ -23,6 +23,64 @@ export const SESSION_COOKIE_OPTIONS = {
   sameSite: 'lax' as const,
   maxAge: 60 * 60 * 24 * SESSION_DAYS,
 };
+
+// ---- "this browser has logged in to this account" (the fm_device cookie) ----
+//
+// Logging in is limited per account from ANY address (LIMITS.loginEmail), so
+// passwords can't be guessed from many machines at once. That also let a
+// stranger lock someone out — Gil included — by typing wrong passwords for
+// their email from a handful of addresses. So a browser that has logged in to
+// the account before carries fm_device, and is let past that one limit (the
+// per-address limits still apply to it). It is set wherever a session starts
+// after the password was typed in that browser, and stays after logging out:
+// it isn't a login, only "this browser has been trusted before".
+//
+// The value is "<memberId>.<signature>" for each account used in this browser
+// (a shared computer: a few at most), newest first, joined by "~". Only the
+// site can make the signature (src/lib/tokens.ts, signValue), so it can't be
+// made up for someone else's account.
+
+export const DEVICE_COOKIE = 'fm_device';
+const DEVICE_LABEL = 'device';
+/** Accounts one browser remembers (a household's shared computer). */
+const DEVICE_ACCOUNTS_MAX = 5;
+
+export const DEVICE_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'lax' as const,
+  path: '/',
+  maxAge: 60 * 60 * 24 * 365,
+};
+
+/** The accounts in an fm_device cookie whose signatures are the site's own. */
+function deviceAccounts(cookie: string | null | undefined): string[] {
+  if (!cookie || cookie.length > 1000) return [];
+  const ids: string[] = [];
+  for (const entry of cookie.split('~').slice(0, DEVICE_ACCOUNTS_MAX)) {
+    const dot = entry.lastIndexOf('.');
+    if (dot < 1) continue;
+    const memberId = entry.slice(0, dot);
+    if (signatureMatches(DEVICE_LABEL, memberId, entry.slice(dot + 1)) && !ids.includes(memberId)) ids.push(memberId);
+  }
+  return ids;
+}
+
+/** Has this browser logged in to this account before? */
+export function deviceKnowsMember(cookie: string | null | undefined, memberId: string): boolean {
+  return deviceAccounts(cookie).includes(memberId);
+}
+
+/** The fm_device value once this account is added (first) to what the browser already had. */
+export function deviceCookieWith(cookie: string | null | undefined, memberId: string): string {
+  const ids = [memberId, ...deviceAccounts(cookie).filter((id) => id !== memberId)].slice(0, DEVICE_ACCOUNTS_MAX);
+  return ids.map((id) => `${id}.${signValue(DEVICE_LABEL, id)}`).join('~');
+}
+
+/** Remembers on the response that this browser has now logged in to this account. */
+export function rememberDevice(res: NextResponse, req: NextRequest, memberId: string): void {
+  res.cookies.set(DEVICE_COOKIE, deviceCookieWith(req.cookies.get(DEVICE_COOKIE)?.value, memberId), DEVICE_COOKIE_OPTIONS);
+}
 
 // The session token, from the cookie only. (An "Authorization: Bearer"
 // header was also accepted; nothing in the site used it, and it let any

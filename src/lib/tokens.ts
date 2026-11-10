@@ -31,6 +31,25 @@ export const SIGN_OPTIONS = { algorithm: ALGORITHM } as const;
 export const VERIFY_OPTIONS = { algorithms: [ALGORITHM] };
 
 /**
+ * A signature for a small value the site hands out and later checks, such as
+ * a cookie. Each use has its own label, and its own key worked out from
+ * JWT_SECRET with that label, so a signature made for one use (say, "this
+ * browser has logged in to this account") is never accepted for another.
+ * URL- and cookie-safe.
+ */
+export function signValue(label: string, value: string): string {
+  const key = crypto.createHmac('sha256', secret()).update(`fastmatch-signed-value:${label}`).digest();
+  return crypto.createHmac('sha256', key).update(value).digest('base64url');
+}
+
+/** Does `signature` match signValue(label, value)? Compared in constant time. */
+export function signatureMatches(label: string, value: string, signature: string): boolean {
+  const expected = Buffer.from(signValue(label, value));
+  const given = Buffer.from(signature);
+  return given.length === expected.length && crypto.timingSafeEqual(given, expected);
+}
+
+/**
  * A short fingerprint of a member's password hash. Tokens carry it so they
  * stop working once the password changes: a used reset link can't be used
  * again, and a password change logs out every other device. Never the hash

@@ -32,7 +32,14 @@ export const LIMITS = {
   resetEmail: { limit: 3, windowMs: HOUR },
   /** Set-password links emailed when a friend-made account tries to log in (it has no password yet). */
   welcomeLinkOnLogin: { limit: 3, windowMs: HOUR },
-  resetIp: { limit: 20, windowMs: HOUR },
+  /**
+   * Reset emails asked for from one visitor address. 60, not 20: mobile
+   * networks put many phones behind one address, and once Gil asks the
+   * imported members to reset their passwords many will do it at once. The
+   * per-address-asked-for limits above (3 an hour, 5 a day) still protect
+   * each inbox, and the site-wide ceiling (src/lib/emailVolume.ts) the rest.
+   */
+  resetIp: { limit: 60, windowMs: HOUR },
   /** Contact Us messages per visitor address. */
   contactIp: { limit: 5, windowMs: HOUR },
   /** Sign-ups per visitor address (every valid sign-up counts, whatever the email). */

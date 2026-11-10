@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FormCard, SplitLayout } from '@/components/site/layout';
-import { Button } from '@/components/site/button';
+import { Button, ButtonLink } from '@/components/site/button';
 import { Field, FormError, FormSuccess, RadioCards, TextInput } from '@/components/site/form';
 import SessionExpired from '@/components/site/SessionExpired';
+import { verifyMobileHref } from '@/lib/accountSetup';
 
 const EMPTY = { email: '', name: '', mobile: '', gender: '', age: '' };
 
@@ -20,6 +21,21 @@ export default function TellAFriendPage() {
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<{ name: string; email: string } | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
+  // Invitations need a confirmed mobile (the API says why). Known from the
+  // member's details as the page opens, so they aren't asked to fill in the
+  // form first; and from the API's answer, if that changed since.
+  const [needsMobile, setNeedsMobile] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.member) setNeedsLogin(true);
+        else if (!d.member.mobileVerified) setNeedsMobile(true);
+      })
+      // Couldn't tell: the form stays, and the API still checks.
+      .catch(() => {});
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,6 +50,7 @@ export default function TellAFriendPage() {
     setSending(false);
     // Logged out since the page opened: say so, rather than "Not authenticated".
     if (res?.status === 401) { setNeedsLogin(true); return; }
+    if (res?.status === 403 && Array.isArray(data.unfinished) && data.unfinished.includes('mobile')) { setNeedsMobile(true); return; }
     if (!res?.ok) { setError(typeof data.error === 'string' ? data.error : 'Sorry, something went wrong. Please try again.'); return; }
     setSent({ name: data.name, email: data.email });
     setForm(EMPTY);
@@ -58,7 +75,13 @@ export default function TellAFriendPage() {
           </FormSuccess>
         )}
 
-        {needsLogin ? <FormCard><SessionExpired next="/tell-a-friend" /></FormCard> : (
+        {needsLogin ? <FormCard><SessionExpired next="/tell-a-friend" /></FormCard> : needsMobile ? (
+          // In place of the form, like SessionExpired: back here once it's confirmed.
+          <FormCard>
+            <p className="text-base leading-relaxed text-ink-600">Please confirm your mobile number before inviting friends.</p>
+            <ButtonLink href={verifyMobileHref('/tell-a-friend')} block>Confirm your mobile</ButtonLink>
+          </FormCard>
+        ) : (
         <FormCard>
           <h2 className="font-display text-2xl font-extrabold leading-tight tracking-[-0.02em] text-ink-900">Friend&apos;s information</h2>
           {/* autoComplete off: otherwise the browser offers the MEMBER's own details. */}

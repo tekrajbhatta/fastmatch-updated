@@ -23,6 +23,7 @@ export function finishSignupEmail(opts: { name: string; finishUrl: string }) {
     <p style="${PARA_BUTTON}">Thanks for signing up. Please confirm your email address to finish creating your account:</p>
     <p style="${PARA_BUTTON}"><a href="${opts.finishUrl}" style="${BUTTON}">Confirm my email</a></p>
     <p style="${PARA}">Then we'll text a code to your mobile, and once that's entered you can book events straight away.</p>
+    <p style="${PARA}">Opening this on a different phone or computer from the one you signed up on? We'll ask for the password you chose, to be sure it's you.</p>
     <p style="${PARA}">This link works for ${PENDING_SIGNUP_DAYS} days. If you didn't sign up to FastMatch, just ignore this email: no account has been made.</p>
     <p style="${PARA}">The FastMatch Team</p>
   `);

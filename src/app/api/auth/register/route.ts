@@ -9,7 +9,11 @@ import { nameProblemSentence } from '@/lib/personName';
 import { calculateAge } from '@/lib/age';
 import { parseDateOfBirth } from '@/lib/friendBooking';
 import { setPasswordUrl } from '@/lib/welcomeLink';
-import { newSignupToken, signupNext, PENDING_SIGNUP_DAYS, type PendingSignupData } from '@/lib/pendingSignup';
+import {
+  newSignupToken, signupNext, signupCookieWith, throwawaySignupHash,
+  PENDING_SIGNUP_DAYS, SIGNUP_COOKIE, SIGNUP_COOKIE_OPTIONS, type PendingSignupData,
+} from '@/lib/pendingSignup';
+import { allowSiteEmail } from '@/lib/emailVolume';
 import { hitRateLimit, rateKey, clientIp, LIMITS } from '@/lib/rateLimit';
 import { isAustralianMobile, AU_MOBILE_MESSAGE } from '@/lib/mobile';
 import { PASSWORD_MAX, PASSWORD_TOO_LONG } from '@/lib/tokens';
@@ -96,6 +100,10 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const next = signupNext(data.next);
 
   let email: { subject: string; html: string } | null = null;
+  // The sign-up this browser is making, if any, for the fm_signup cookie
+  // (src/lib/pendingSignup.ts): only then does the link work here without
+  // asking for the password again.
+  let signupHash: string | null = null;
   if (existing) {
     // Their own name, not the one typed in.
     email = existing.awaitingPasswordSetup
@@ -110,6 +118,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // Expired sign-ups go whenever a new one comes in.
     await prisma.pendingSignup.deleteMany({ where: { expiresAt: { lt: now } } });
     const { token, tokenHash } = newSignupToken();
+    signupHash = tokenHash;
     const details: PendingSignupData = {
       name: data.name,
       gender: data.gender,
@@ -131,7 +140,10 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     email = finishSignupEmail({ name: data.name, finishUrl: `${appUrl}/complete-signup?token=${token}` });
   }
 
-  if (email && mayEmail) {
+  // Within the site-wide hourly ceiling on emails to typed-in addresses
+  // (src/lib/emailVolume.ts); past it nothing is sent and the reply is the
+  // usual one.
+  if (email && mayEmail && (await allowSiteEmail('signup'))) {
     try {
       // A member's own address as saved, not as typed here: the lookup above
       // ignores capitals (and the database treats some other differences as
@@ -148,5 +160,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     }
   }
 
-  return NextResponse.json({ ok: true });
+  const res = NextResponse.json({ ok: true });
+  // Set on every sign-up, real or not, with a signature that looks the same
+  // either way, so the reply still says nothing about the address.
+  res.cookies.set(SIGNUP_COOKIE, signupCookieWith(req.cookies.get(SIGNUP_COOKIE)?.value, signupHash ?? throwawaySignupHash()), SIGNUP_COOKIE_OPTIONS);
+  return res;
 });

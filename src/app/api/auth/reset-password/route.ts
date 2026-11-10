@@ -73,8 +73,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const { member } = link;
 
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
-  // Their own now, whoever set the old one.
-  await prisma.member.update({ where: { id: member.id }, data: { passwordHash, passwordSetByAdmin: false } });
+  // Their own now, whoever set the old one. And their email is confirmed:
+  // the link only works from the address on the account (it's tied to it),
+  // so using it proves they read that inbox — members imported from the old
+  // site with an unconfirmed address no longer have to confirm it separately.
+  await prisma.member.update({ where: { id: member.id }, data: { passwordHash, passwordSetByAdmin: false, emailVerified: true } });
   // "Too many attempts… or use Forgot password?": the new password works straight away.
   await clearLoginLock(member.email, clientIp(req));
 

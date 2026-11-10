@@ -5,6 +5,8 @@ import { SplitLayout, FormCard } from '@/components/site/layout';
 import { Field, TextInput, FormSuccess } from '@/components/site/form';
 import { Button } from '@/components/site/button';
 
+const SENDER_NOTE = 'The email comes from FastMatch (no-reply@mg.fastmatch.com.au). We never ask for your password by email.';
+
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
@@ -35,6 +37,9 @@ export default function ForgotPasswordPage() {
             <Button type="submit" disabled={sending} loading={sending} block className="mt-1">Send reset link</Button>
           </form>
         )}
+        {/* So a look-alike email asking for a password is easier to spot. The
+            address must match EMAIL_FROM_ADDRESS on the server. */}
+        <p className="text-[15px] leading-normal text-ink-600">{SENDER_NOTE}</p>
       </FormCard>
     </SplitLayout>
   );

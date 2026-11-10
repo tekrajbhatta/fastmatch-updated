@@ -6,6 +6,7 @@ import { checkInState, checkInWindow } from '@/lib/eventNight';
 import { formatEventWhen } from '@/lib/datetime';
 import { timeZoneForCity } from '@/lib/timezone';
 import { canRate } from '@/lib/ratingAudience';
+import { shortName } from '@/lib/personName';
 
 // POST /api/events/:eventId/checkin
 // Scanning/tapping the event's single shared QR hits this — since the
@@ -66,6 +67,12 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
 // A member sees only the people they can rate: on an "Opposite gender only"
 // night (the default), men see the women and women the men
 // (src/lib/ratingAudience.ts). The admin sees everyone.
+//
+// And a member sees each of them by first name and last initial ("Anna S.",
+// shortName in src/lib/personName.ts): plenty to find the person they just
+// met, without the full name of everyone in the room. Their own entry, and
+// everything the admin sees, keeps the full name. A mutual match gets the
+// full name afterwards, with the contact details, as before.
 export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ eventId: string }> }) => {
   const params = await ctx.params;
   const member = await getSessionMember(req);
@@ -93,6 +100,10 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     : roster.filter((b) => b.member.id === member.id || canRate(event.ratingAudience, member.gender, b.member.gender));
 
   return NextResponse.json(
-    shown.map((b) => ({ badge: b.badge, memberId: b.member.id, name: b.member.name }))
+    shown.map((b) => ({
+      badge: b.badge,
+      memberId: b.member.id,
+      name: member.isAdmin || b.member.id === member.id ? b.member.name : shortName(b.member.name),
+    }))
   );
 });

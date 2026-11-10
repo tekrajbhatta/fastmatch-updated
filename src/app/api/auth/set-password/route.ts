@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { readPurposeToken, PASSWORD_MAX, PASSWORD_TOO_LONG } from '@/lib/tokens';
-import { signSession, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
+import { signSession, SESSION_COOKIE_OPTIONS, rememberDevice } from '@/lib/auth';
 import { calculateAge } from '@/lib/age';
 import { parseDateOfBirth } from '@/lib/friendBooking';
 import { sendMobileVerification } from '@/lib/memberVerification';
@@ -149,5 +149,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const res = NextResponse.json({ ok: true, name: updated.name, mobileVerified: updated.mobileVerified, smsSent });
   res.cookies.set('fm_session', signSession(updated), SESSION_COOKIE_OPTIONS);
+  // The password was just typed in this browser (see fm_device in src/lib/auth.ts).
+  rememberDevice(res, req, updated.id);
   return res;
 });

@@ -44,7 +44,7 @@ export function friendWelcomeEmail(opts: {
     <p style="${PARA_BUTTON}"><a href="${opts.setPasswordUrl}" style="${BUTTON}">Set your password</a></p>
     ${checkInStepsHtml(opts.checkInUrl)}
     <p style="${PARA}">Can't make it, or not expecting this? Let us know at
-      <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>
+      <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a> and we'll cancel it.</p>
     <p style="${PARA}">See you there!<br>The FastMatch Team</p>
   `);
   return { subject: `${oneLine(opts.bookedByName)} has booked you into FastMatch speed dating`, html };
@@ -54,7 +54,15 @@ export function friendWelcomeEmail(opts: {
  * "Tell A Friend": a member has registered this person with FastMatch. Says
  * who, and asks them to set a password and complete their profile. Nothing
  * else is sent to them — no blasts — unless they accept and opt in.
+ *
+ * The subject is always the same. It used to start with the inviter's name,
+ * which any member chooses for themselves, so anyone signing up could have
+ * FastMatch's own address send the line of their choice ("Claim your prize at
+ * …") to any inbox, as the first thing it shows. Inside, the name is still
+ * there (escaped), as who invited them.
  */
+export const TELL_A_FRIEND_SUBJECT = "You've been invited to join FastMatch";
+
 export function tellAFriendEmail(opts: { friendName: string; inviterName: string; setPasswordUrl: string }) {
   const html = emailLayout(`
     <h1 style="${EMAIL_HEADING}">Hi ${escapeHtml(opts.friendName)}, you've been invited to FastMatch!</h1>
@@ -66,5 +74,5 @@ export function tellAFriendEmail(opts: { friendName: string; inviterName: string
     <p style="${PARA}">Not interested? Just ignore this email. We won't contact you again unless you complete your registration.</p>
     <p style="${PARA}">The FastMatch Team</p>
   `);
-  return { subject: `${oneLine(opts.inviterName)} has registered you with FastMatch`, html };
+  return { subject: TELL_A_FRIEND_SUBJECT, html };
 }

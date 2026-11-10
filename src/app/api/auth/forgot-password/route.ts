@@ -8,6 +8,7 @@ import { clientIp, hitRateLimit, LIMITS, rateKey } from '@/lib/rateLimit';
 import { signPasswordResetToken, RESET_LINK_MINUTES } from '@/lib/tokens';
 import { finishInvitationEmail } from '@/lib/emails/signupEmails';
 import { setPasswordUrl } from '@/lib/welcomeLink';
+import { allowSiteEmail } from '@/lib/emailVolume';
 
 
 const bodySchema = z.object({ email: z.string().max(254).email() });
@@ -33,6 +34,10 @@ async function emailResetLink(email: string): Promise<void> {
           resetUrl: `${process.env.APP_URL}/reset-password?token=${signPasswordResetToken(member)}`,
           validMinutes: RESET_LINK_MINUTES,
         });
+    // The site-wide hourly ceiling on emails to typed-in addresses
+    // (src/lib/emailVolume.ts): past it, nothing is sent. The visitor already
+    // has the usual reply.
+    if (!(await allowSiteEmail('reset'))) return;
     try {
       await sendEmail({ to: member.email, subject, html });
     } catch (err) {

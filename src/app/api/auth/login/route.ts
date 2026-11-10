@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { z } from 'zod';
-import { signSession, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
+import { signSession, SESSION_COOKIE_OPTIONS, DEVICE_COOKIE, deviceKnowsMember, rememberDevice } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { clientIp, clearLoginLock, hitRateLimit, isRateLimited, LIMITS, loginKeys, rateKey } from '@/lib/rateLimit';
 import { unfinishedSteps } from '@/lib/accountSetup';
@@ -56,9 +56,18 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // so a burst of guesses sent at once can't all be checked before any is
   // counted (a successful login clears these counts again).
   if (!(await hitRateLimit(emailIpKey, LIMITS.loginEmailIp.limit, LIMITS.loginEmailIp.windowMs)).allowed) return tooMany();
-  if (!(await hitRateLimit(emailKey, LIMITS.loginEmail.limit, LIMITS.loginEmail.windowMs)).allowed) return tooMany();
 
   const member = await prisma.member.findUnique({ where: { email: parsed.data.email } });
+
+  // The account's cap from ANY address, also before the password check. A
+  // browser that has logged in to this account before (fm_device, see
+  // src/lib/auth.ts) is let past it, so strangers typing wrong passwords for
+  // someone's email from many addresses can't lock the owner out. Every other
+  // limit above still applies to it. An unknown address does the same work
+  // as a member's without that cookie (a look-up, then the count), so this
+  // tells nobody whether an address is a member's.
+  const knownDevice = !!member && deviceKnowsMember(req.cookies.get(DEVICE_COOKIE)?.value, member.id);
+  if (!knownDevice && !(await hitRateLimit(emailKey, LIMITS.loginEmail.limit, LIMITS.loginEmail.windowMs)).allowed) return tooMany();
 
   // Same error message whether the email doesn't exist or the password is
   // wrong — don't reveal which one, so this can't be used to enumerate emails.
@@ -90,5 +99,6 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const unfinished = !member.isAdmin && (unfinishedSteps(member).length > 0 || member.passwordSetByAdmin);
   const res = NextResponse.json({ id: member.id, name: member.name, isAdmin: member.isAdmin, unfinished });
   res.cookies.set('fm_session', token, SESSION_COOKIE_OPTIONS);
+  rememberDevice(res, req, member.id);
   return res;
 });
