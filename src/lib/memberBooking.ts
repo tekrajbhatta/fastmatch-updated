@@ -17,7 +17,8 @@ import { sendEmail } from './emails/send';
 import { friendWelcomeEmail } from './emails/friendEmail';
 import { eventTimeFor } from './timezone';
 import { eventLabel } from './eventLabel';
-import { placesTaken, countHeld, capacityProblem, holdCutoff } from './capacity';
+import { placesTaken, countHeld, capacityProblem, holdCutoff, payableCutoff } from './capacity';
+import { alertDiscountReused } from './paymentAlerts';
 import { eventAvailability, NOT_BOOKABLE } from './eventAvailability';
 
 /**
@@ -78,16 +79,19 @@ export async function lookupDiscount(
     return { ok: false, error: 'This discount code is not valid for this event.' };
   }
   // One use per member. A CONFIRMED booking counts — an abandoned checkout
-  // mustn't burn someone's code — and so does one being paid for right now
-  // on another event's payment page (still within its hold): two pages open
-  // at once used to get the discount twice. This event's own earlier attempt
-  // doesn't, as this booking replaces it.
+  // mustn't burn someone's code — and so does one on another event's payment
+  // page that could still be paid: two pages open at once used to get the
+  // discount twice. That used to count only for the page's 10-minute hold,
+  // but the page can be paid for 30, so a second page opened after the hold
+  // got the discount again and both could be paid. Once that page closes
+  // unpaid, Stripe tells us and the booking (and its claim on the code) goes.
+  // This event's own earlier attempt doesn't count, as this booking replaces it.
   const alreadyUsed =
     (await prisma.booking.count({
       where: {
         memberId: member.id,
         discountCodeId: discount.id,
-        OR: [{ status: 'CONFIRMED' }, { status: 'PENDING', createdAt: { gte: holdCutoff() }, eventId: { not: event.id } }],
+        OR: [{ status: 'CONFIRMED' }, { status: 'PENDING', createdAt: { gte: payableCutoff() }, eventId: { not: event.id } }],
       },
     })) > 0;
   return { ok: true, discount, alreadyUsed };
@@ -195,13 +199,18 @@ export async function prepareMemberBooking(
  * made (one booking row per member per event), keeping its badge, and what it
  * was is kept too: if this payment never comes, it goes back to exactly that
  * (dropUnpaidBooking) instead of the refund record disappearing.
+ *
+ * null: another Book press for the same event got there first (or someone
+ * else took the next badge number in the same moment). Two presses at once
+ * used to both reopen the same booking, each writing its own friends, so the
+ * friends of one could end up on the other's (cheaper) payment page.
  */
 export async function createMemberBooking(
   member: Pick<Member, 'id'>,
   event: Pick<Event, 'id'>,
   prepared: Extract<Prepared, { ok: true }>,
   opts: { holdSince?: Date } = {},
-): Promise<string> {
+): Promise<string | null> {
   const pending: PendingFriend[] = prepared.friends.map((f) => ({
     gender: f.gender,
     name: f.name.trim(),
@@ -234,8 +243,10 @@ export async function createMemberBooking(
       confirmedAt: old.confirmedAt?.toISOString() ?? null,
       createdAt: old.createdAt.toISOString(),
     };
-    await prisma.booking.update({
-      where: { id: old.id },
+    // Only while it's still what was read just now: a second press reopening
+    // it at the same moment finds it changed, and stops.
+    const reopened = await prisma.booking.updateMany({
+      where: { id: old.id, status: old.status },
       data: {
         ...fresh,
         // A new booking in all but its badge number.
@@ -245,13 +256,80 @@ export async function createMemberBooking(
         reopenedFrom: was as unknown as Prisma.InputJsonValue,
       },
     });
-    return old.id;
+    return reopened.count === 1 ? old.id : null;
   }
   const highest = await prisma.booking.aggregate({ where: { eventId: event.id }, _max: { badge: true } });
-  const booking = await prisma.booking.create({
-    data: { eventId: event.id, memberId: member.id, badge: (highest._max.badge ?? 0) + 1, ...fresh, ...(opts.holdSince ? { createdAt: opts.holdSince } : {}) },
+  try {
+    const booking = await prisma.booking.create({
+      data: { eventId: event.id, memberId: member.id, badge: (highest._max.badge ?? 0) + 1, ...fresh, ...(opts.holdSince ? { createdAt: opts.holdSince } : {}) },
+    });
+    return booking.id;
+  } catch (err) {
+    // This member's booking for the event was made by another press a moment
+    // ago, or the badge number was just taken: it used to be "Something went wrong".
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return null;
+    throw err;
+  }
+}
+
+/** Amounts in a booking's own records, in cents: the member's place and each friend's. */
+const toCents = (value: unknown) => Math.round(Number(value ?? 0) * 100);
+
+/**
+ * What an unpaid booking is for, in cents: the member's place plus each
+ * friend's on it. Its payment page was opened for exactly this, so a payment
+ * of any other amount, or in another currency, doesn't confirm it.
+ */
+export function bookingTotalCents(b: { paidAmount: unknown; pendingFriends: Prisma.JsonValue | null }): number {
+  const friends = Array.isArray(b.pendingFriends) ? b.pendingFriends : [];
+  let total = toCents(b.paidAmount);
+  for (const f of friends) {
+    if (f && typeof f === 'object' && !Array.isArray(f)) total += toCents((f as Record<string, unknown>).paidAmount);
+  }
+  return total;
+}
+
+/** Who the friends on a booking are, in any order (the database may reorder what's stored). */
+function friendsKey(friends: unknown): string {
+  const list = Array.isArray(friends) ? friends : [];
+  return list
+    .map((f) => (f && typeof f === 'object' && typeof (f as Record<string, unknown>).email === 'string' ? ((f as Record<string, unknown>).email as string).trim().toLowerCase() : ''))
+    .sort()
+    .join('|');
+}
+
+/**
+ * Is this unpaid booking still exactly the one this Book press priced: no
+ * payment page yet, the same discount code, the same friends, the same total?
+ */
+export function isSameAttempt(
+  row: { status: string; stripePaymentIntentId: string | null; discountCodeId: string | null; paidAmount: unknown; pendingFriends: Prisma.JsonValue | null },
+  prepared: Extract<Prepared, { ok: true }>,
+): boolean {
+  return (
+    row.status === 'PENDING' &&
+    !row.stripePaymentIntentId &&
+    (row.discountCodeId ?? null) === (prepared.discount?.id ?? null) &&
+    bookingTotalCents(row) === Math.round(prepared.quote.total * 100) &&
+    friendsKey(row.pendingFriends) === friendsKey(prepared.friends)
+  );
+}
+
+/**
+ * Records the payment page just opened for this booking, only if the booking
+ * still holds what that page charges for. Otherwise (another Book press
+ * changed it in the meantime) false, and the caller closes the page. The
+ * page used to be recorded whatever the booking held by then, so the friends
+ * of one press could be confirmed by paying the other press's cheaper page.
+ */
+export async function attachCheckout(bookingId: string, sessionId: string, prepared: Extract<Prepared, { ok: true }>): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM \`Booking\` WHERE id = ${bookingId} FOR UPDATE`;
+    const row = await tx.booking.findUnique({ where: { id: bookingId } });
+    if (!row || !isSameAttempt(row, prepared)) return false;
+    await tx.booking.update({ where: { id: bookingId }, data: { stripePaymentIntentId: sessionId } });
+    return true;
   });
-  return booking.id;
 }
 
 /** Undo createMemberBooking when the payment page couldn't be opened. */
@@ -281,11 +359,23 @@ export async function discardMemberBooking(bookingId: string): Promise<void> {
  *
  * A booking confirmed before (set back to unpaid by the admin, then marked
  * paid again) isn't emailed again, and its discount code isn't counted twice.
+ *
+ * `expectTotalCents`: what was actually paid (the Stripe webhook), or 0 for a
+ * booking with nothing to pay. Confirmed only if the booking is still for
+ * exactly that much, checked with the booking locked: otherwise
+ * `amountMismatch`, and nothing changes. Two Book presses at once could leave
+ * one press's friends on the other's cheaper payment page, or on a free
+ * booking, and paying that page booked them all.
+ *
+ * A once-per-member discount code this member has already used on another
+ * paid booking (two pages paid at the same moment, say) still confirms the
+ * place, which was paid for, and Gil is emailed (`discountReused`) to decide
+ * whether to ask for the difference.
  */
 export async function confirmBookingGroup(
   bookingId: string,
-  opts: { sessionId?: string } = {},
-): Promise<{ confirmed: boolean; notifyFailures: string[]; full?: boolean; friendsAlreadyBooked?: FriendAlreadyBooked[] }> {
+  opts: { sessionId?: string; expectTotalCents?: number } = {},
+): Promise<{ confirmed: boolean; notifyFailures: string[]; full?: boolean; amountMismatch?: boolean; discountReused?: boolean; friendsAlreadyBooked?: FriendAlreadyBooked[] }> {
   const lead = await prisma.booking.findUnique({
     where: { id: bookingId },
     include: { member: true, event: { include: { venue: true } } },
@@ -318,6 +408,19 @@ export async function confirmBookingGroup(
       // One confirmation at a time for this event, until this one commits,
       // so the check below can't pass for two payments for one place.
       await tx.$queryRaw`SELECT id FROM \`Event\` WHERE id = ${lead.eventId} FOR UPDATE`;
+      // And this booking, so another Book press can't change what's on it
+      // between this check and the confirmation (attachCheckout and the
+      // reopen in createMemberBooking wait for it, then find it confirmed).
+      await tx.$queryRaw`SELECT id FROM \`Booking\` WHERE id = ${lead.id} FOR UPDATE`;
+      const current = await tx.booking.findUnique({ where: { id: lead.id } });
+      if (!current || current.status !== 'PENDING') return null;
+      if (opts.sessionId && current.stripePaymentIntentId !== opts.sessionId) return null;
+      // Still the friends and amounts read above (they're who gets booked below),
+      // and still what was paid.
+      const owed = bookingTotalCents(current);
+      if (owed !== bookingTotalCents(lead) || friendsKey(current.pendingFriends) !== friendsKey(lead.pendingFriends)) return 'mismatch' as const;
+      if (opts.expectTotalCents !== undefined && owed !== opts.expectTotalCents) return 'mismatch' as const;
+
       // Room for everyone on it: paid places, and places other unpaid bookings
       // still hold, counted as when they booked (prepareMemberBooking): not its
       // own, and not the member again as a friend on someone else's. A friend
@@ -380,15 +483,28 @@ export async function confirmBookingGroup(
         friendBookingIds.push(fb.id);
       }
 
+      let discountReused = false;
       if (lead.discountCodeId && firstTime) {
+        // One member's confirmations one at a time (they may be for different
+        // events, so the event lock doesn't cover it), then: is this code
+        // already on another of their paid bookings?
+        await tx.$queryRaw`SELECT id FROM \`Member\` WHERE id = ${lead.memberId} FOR UPDATE`;
+        discountReused = (await tx.booking.count({
+          where: { memberId: lead.memberId, discountCodeId: lead.discountCodeId, status: 'CONFIRMED', id: { not: lead.id } },
+        })) > 0;
         await tx.discountCode.update({ where: { id: lead.discountCodeId }, data: { usedCount: { increment: 1 } } });
       }
-      return { friendBookingIds, alreadyBooked };
+      return { friendBookingIds, alreadyBooked, discountReused };
     },
     { timeout: 20_000 },
   );
   if (created === null) return { confirmed: false, notifyFailures: [] };
   if (created === 'full') return { confirmed: false, notifyFailures: [], full: true };
+  if (created === 'mismatch') {
+    console.error(`Booking ${lead.id}: not confirmed — it no longer matches what was paid (${opts.expectTotalCents ?? 'unknown'} cents).`);
+    return { confirmed: false, notifyFailures: [], amountMismatch: true };
+  }
+  if (created.discountReused) await tellGilDiscountReused(lead);
 
   const confirmedMen = await prisma.booking.count({ where: { eventId: lead.eventId, status: 'CONFIRMED', member: { gender: 'MALE' } } });
   const confirmedWomen = await prisma.booking.count({ where: { eventId: lead.eventId, status: 'CONFIRMED', member: { gender: 'FEMALE' } } });
@@ -408,7 +524,34 @@ export async function confirmBookingGroup(
   // Places just taken: payment pages whose hold ran out, and that no longer
   // fit, are closed.
   await closeLapsedCheckouts(lead.eventId);
-  return { confirmed: true, notifyFailures, friendsAlreadyBooked: created.alreadyBooked };
+  return { confirmed: true, notifyFailures, discountReused: created.discountReused, friendsAlreadyBooked: created.alreadyBooked };
+}
+
+/**
+ * Gil is told about a once-per-member code used a second time. The place is
+ * booked (it was paid for); whether to ask for the difference is his call.
+ * Never throws.
+ */
+async function tellGilDiscountReused(lead: {
+  id: string; stripePaymentIntentId: string | null; paidAmount: unknown; discountCodeId: string | null;
+  member: Pick<Member, 'name' | 'email'>; event: Event;
+}): Promise<void> {
+  try {
+    const code = lead.discountCodeId ? await prisma.discountCode.findUnique({ where: { id: lead.discountCodeId }, select: { code: true } }) : null;
+    const theme = await prisma.eventTheme.findUnique({ where: { id: lead.event.themeId }, select: { name: true } });
+    const extra = Math.max(0, Number(lead.event.cost) - Number(lead.paidAmount));
+    await alertDiscountReused({
+      sessionId: lead.stripePaymentIntentId,
+      bookingId: lead.id,
+      memberName: lead.member.name,
+      memberEmail: lead.member.email,
+      eventName: eventLabel({ name: lead.event.name, theme: { name: theme?.name ?? '' } }),
+      code: code?.code ?? '',
+      discountGiven: extra,
+    });
+  } catch (err) {
+    console.error(`Booking ${lead.id}: couldn't tell Gil about a discount code used twice`, err);
+  }
 }
 
 /**
@@ -445,5 +588,5 @@ async function notifyFriend(bookingId: string, bookedByName: string): Promise<vo
 export function setPasswordToken(member: { id: string; email: string }): string {
   // Tied to the address it was sent to: a friend's mistyped email, corrected
   // by Gil, mustn't leave a working link in a stranger's inbox.
-  return jwt.sign({ memberId: member.id, purpose: 'set_password', email: member.email.toLowerCase() }, process.env.JWT_SECRET as string, { expiresIn: '60d' });
+  return jwt.sign({ memberId: member.id, purpose: 'set_password', email: member.email.toLowerCase() }, process.env.JWT_SECRET as string, { expiresIn: '60d', algorithm: 'HS256' });
 }

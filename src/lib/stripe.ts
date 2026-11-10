@@ -65,16 +65,15 @@ export function checkoutPicture(
 }
 
 /**
- * Is this Checkout Session one this site opened? Tagged, or (for sessions
- * opened before the tag existed) sending the member back to this site.
+ * Is this Checkout Session one this site opened? Only if it carries the tag.
+ * Every session the site has opened since 4 Oct carries it, and each closed
+ * within 30 minutes. Sessions were also accepted, untagged, when they sent
+ * the member back to this site's address; once the site moves to
+ * fastmatch.com.au, the old site's own sessions do that too, and each one
+ * would have emailed Gil to refund a payment that was perfectly fine.
  */
-export function isOurCheckoutSession(
-  session: { metadata?: Record<string, string> | null; success_url?: string | null },
-  appUrl: string | undefined = process.env.APP_URL,
-): boolean {
-  if (session.metadata?.site === STRIPE_SITE_TAG) return true;
-  const app = (appUrl ?? '').replace(/\/+$/, '');
-  return !!app && (session.success_url ?? '').startsWith(`${app}/`);
+export function isOurCheckoutSession(session: { metadata?: Record<string, string> | null }): boolean {
+  return session.metadata?.site === STRIPE_SITE_TAG;
 }
 
 // Read at call time, not module load, for the same reason as above.

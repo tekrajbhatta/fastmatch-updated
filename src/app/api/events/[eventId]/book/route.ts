@@ -13,6 +13,7 @@ import {
   createMemberBooking,
   discardMemberBooking,
   confirmBookingGroup,
+  attachCheckout,
 } from '@/lib/memberBooking';
 import { releasePendingBooking, closeLapsedCheckouts } from '@/lib/pendingBooking';
 import { withErrorHandling } from '@/lib/withErrorHandling';
@@ -21,12 +22,28 @@ import { CHECKOUT_MINUTES, holdCutoff } from '@/lib/capacity';
 import { hitRateLimit, rateKey, LIMITS } from '@/lib/rateLimit';
 import { unfinishedSteps, bookingRefusal } from '@/lib/accountSetup';
 
+/** Two presses of Book at the same moment (two tabs, a double tap): one goes ahead. */
+const BOOKED_TWICE = 'Your booking for this event changed while it was being made (it may be open in another tab). Please try again.';
+
 // POST /api/events/:eventId/book — a member books themselves, plus any
 // friends they're bringing (paying for all of them, less the group discount).
 export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ eventId: string }> }) => {
   const params = await ctx.params;
   const member = await getSessionMember(req);
   if (!member) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+
+  // Every press of Book counts, before any check: the friend checks say
+  // whether an email belongs to a member (and roughly who), and they used to
+  // be answerable as often as anyone liked. Thirty an hour is far more than
+  // anyone fixing typos needs. (The tighter limit below still counts only
+  // the attempts that hold places.)
+  const tries = await hitRateLimit(rateKey('book-try', `${member.id}|${params.eventId}`), LIMITS.bookingTries.limit, LIMITS.bookingTries.windowMs);
+  if (!tries.allowed) {
+    return NextResponse.json(
+      { error: 'You’ve tried to book this event many times in the last hour. Please try again later, or contact gil@fastmatch.com.au.' },
+      { status: 429 },
+    );
+  }
 
   // Email and mobile confirmed, and the Terms accepted (imported members were
   // never asked to agree to this site's; new registrants agree at sign-up).
@@ -71,6 +88,16 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   const parsed = bookingBodySchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: 'Please check your booking details.' }, { status: 400 });
 
+  // A code tried here counts against the same limit as checking one on the
+  // event page (/api/events/:id/discount): booking with a guess each time
+  // used to try codes without any limit at all.
+  if (parsed.data.discountCode?.trim()) {
+    const checks = await hitRateLimit(rateKey('discount-check', member.id), LIMITS.discountChecks.limit, LIMITS.discountChecks.windowMs);
+    if (!checks.allowed) {
+      return NextResponse.json({ error: 'You’ve tried a lot of codes just now. Please wait a few minutes and try again.' }, { status: 429 });
+    }
+  }
+
   // Discount code, friends, and capacity for everyone. Only PAID places count
   // — per the old site's note, a place isn't reserved until the money is in.
   const prepared = await prepareMemberBooking(member, event, parsed.data);
@@ -105,10 +132,15 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   // otherwise keep an event looking full indefinitely.
   const holdSince = existing?.status === 'PENDING' && existing.createdAt >= holdCutoff() ? existing.createdAt : undefined;
   const bookingId = await createMemberBooking(member, event, prepared, { holdSince });
+  // Another press of Book for this event got there first.
+  if (!bookingId) return NextResponse.json({ error: BOOKED_TWICE }, { status: 409 });
 
-  // Nothing to pay (e.g. a free code, booking alone): confirm straight away.
+  // Nothing to pay (e.g. a free code, booking alone): confirm straight away,
+  // as long as the booking is still for nothing (another press may have just
+  // put friends on it).
   if (prepared.quote.total === 0) {
-    const done = await confirmBookingGroup(bookingId);
+    const done = await confirmBookingGroup(bookingId, { expectTotalCents: 0 });
+    if (done.amountMismatch) return NextResponse.json({ error: BOOKED_TWICE }, { status: 409 });
     if (done.full) {
       // The last place went to someone else in the moment since the check above.
       await discardMemberBooking(bookingId);
@@ -171,7 +203,17 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
     throw err;
   }
 
-  await prisma.booking.update({ where: { id: bookingId }, data: { stripePaymentIntentId: session.id } });
+  // Only if the booking still holds what this page charges for: another press
+  // of Book may have changed it while the page was being opened. Then this
+  // page is closed, so it can never be paid.
+  if (!(await attachCheckout(bookingId, session.id, prepared))) {
+    try {
+      await getStripe().checkout.sessions.expire(session.id);
+    } catch (err) {
+      console.error(`Booking ${bookingId}: couldn't close the payment page ${session.id} it no longer matches`, err);
+    }
+    return NextResponse.json({ error: BOOKED_TWICE }, { status: 409 });
+  }
   // These places are held now: older payment pages whose hold ran out, and
   // that no longer fit, are closed (Gil, Q1).
   await closeLapsedCheckouts(event.id);

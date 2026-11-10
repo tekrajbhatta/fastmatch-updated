@@ -6,15 +6,15 @@ describe('isOurCheckoutSession', () => {
   // The Stripe account may also take FastmatchLive's payments, whose sessions
   // carry a bookingId too; only this site's are acted on.
   it('is ours when tagged', () => {
-    expect(isOurCheckoutSession({ metadata: { bookingId: 'b1', site: STRIPE_SITE_TAG } }, 'https://fastmatch.test')).toBe(true);
+    expect(isOurCheckoutSession({ metadata: { bookingId: 'b1', site: STRIPE_SITE_TAG } })).toBe(true);
   });
-  it('is ours, untagged, when it sends the member back to this site (sessions opened before the tag)', () => {
-    expect(isOurCheckoutSession({ metadata: { bookingId: 'b1' }, success_url: 'https://fastmatch.test/events/e1/booked?session_id={CHECKOUT_SESSION_ID}' }, 'https://fastmatch.test/')).toBe(true);
-  });
-  it('isn’t ours otherwise', () => {
-    expect(isOurCheckoutSession({ metadata: { bookingId: 'b1' }, success_url: 'https://live.fastmatch.test/x' }, 'https://fastmatch.test')).toBe(false);
-    expect(isOurCheckoutSession({ metadata: { bookingId: 'b1' }, success_url: 'https://fastmatch.test.evil.example/x' }, 'https://fastmatch.test')).toBe(false);
-    expect(isOurCheckoutSession({ metadata: { bookingId: 'b1', site: 'other' } }, '')).toBe(false);
+  // Untagged sessions sending the member back to this site's address used to
+  // count too. Once the site moves to fastmatch.com.au, the old site's own
+  // sessions do that, and each would have emailed Gil to refund a good payment.
+  it('isn’t ours untagged, even when it sends the member back to this site', () => {
+    expect(isOurCheckoutSession({ metadata: { bookingId: 'b1' }, success_url: 'https://fastmatch.test/events/e1/booked?session_id={CHECKOUT_SESSION_ID}' } as never)).toBe(false);
+    expect(isOurCheckoutSession({ metadata: { bookingId: 'b1', site: 'other' } })).toBe(false);
+    expect(isOurCheckoutSession({ metadata: null })).toBe(false);
   });
 });
 

@@ -92,7 +92,17 @@ export async function closeCheckout(booking: Pick<Booking, 'stripePaymentIntentI
   const sessionId = booking.stripePaymentIntentId;
   if (!sessionId) return 'closed';
   const stripe = getStripe();
-  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  let session;
+  try {
+    session = await stripe.checkout.sessions.retrieve(sessionId);
+  } catch (err) {
+    // A page Stripe doesn't know: one from the test account, left on a
+    // booking after the switch to the live keys. It can't be paid, so it's
+    // as good as closed. Throwing here used to stop that member booking the
+    // event again, and stop the other lapsed pages being closed.
+    if (isMissing(err)) return 'closed';
+    throw err;
+  }
   if (session.status === 'complete') return 'paid';
   if (session.status === 'open') {
     try {
@@ -105,6 +115,11 @@ export async function closeCheckout(booking: Pick<Booking, 'stripePaymentIntentI
     }
   }
   return 'closed';
+}
+
+/** Stripe's "No such checkout.session": the id isn't one this account has. */
+function isMissing(err: unknown): boolean {
+  return !!err && typeof err === 'object' && (err as { code?: unknown }).code === 'resource_missing';
 }
 
 /**

@@ -76,8 +76,17 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
  * (Gil, Q1: no bookings taken if the event is full).
  */
 async function confirmPaid(bookingId: string, session: Stripe.Checkout.Session) {
-  // Only the payment page the booking is waiting on confirms it.
-  const result = await confirmBookingGroup(bookingId, { sessionId: session.id });
+  // Only the payment page the booking is waiting on confirms it, and only for
+  // what the booking costs, in Australian dollars. The page was opened for
+  // exactly that amount, so anything else means the booking changed under it
+  // (two presses of Book at once) or the page wasn't opened by this site's
+  // booking: the money is flagged for Gil instead. (With Stripe's Adaptive
+  // Pricing, a member paying in their own currency still shows here in AUD:
+  // amount_total and currency are always the site's own.)
+  const inAud = session.currency?.toLowerCase() === 'aud' && session.amount_total != null;
+  const result = inAud
+    ? await confirmBookingGroup(bookingId, { sessionId: session.id, expectTotalCents: session.amount_total! })
+    : { confirmed: false, amountMismatch: true as const, full: undefined };
   if (result.confirmed) return;
 
   const b = await prisma.booking.findUnique({ where: { id: bookingId }, include: { member: true, event: { include: { theme: true } } } });
@@ -86,6 +95,15 @@ async function confirmPaid(bookingId: string, session: Stripe.Checkout.Session) 
   if (b?.status === 'CONFIRMED' && !b.paymentMethod && b.stripePaymentIntentId === session.id) return;
   if (b?.event.status === 'CANCELLED' && b.stripePaymentIntentId === session.id) {
     await refundPaymentForCancelledEvent(b.id, session.id);
+    return;
+  }
+  if (result.amountMismatch && b?.status === 'PENDING' && b.stripePaymentIntentId === session.id) {
+    // Not confirmed, and not refunded automatically either: Gil looks at it.
+    const paid = session.amount_total != null ? `${(session.amount_total / 100).toFixed(2)} ${(session.currency ?? '').toUpperCase()}` : 'an unknown amount';
+    await alertRefundNeeded({
+      sessionId: session.id, bookingId, memberName: b.member.name, eventName: eventLabel(b.event), amount,
+      reason: `${paid} was paid, which isn't what this booking costs, so it wasn't confirmed. Check the booking and the payment in Stripe, then refund it or mark the booking paid`,
+    });
     return;
   }
   if (b && b.stripePaymentIntentId === session.id) {

@@ -6,13 +6,18 @@ import { withErrorHandling } from '@/lib/withErrorHandling';
 import { choicesOpen } from '@/lib/eventNight';
 import { canRate } from '@/lib/ratingAudience';
 
+// Bounded: a night has a few dozen people, and each choice is a database
+// write in one transaction, so an unbounded list could tie the database up.
+// Ids are cuids (25 characters).
 const bodySchema = z.object({
-  ratings: z.array(
-    z.object({
-      ratedMemberId: z.string(),
-      choice: z.enum(['NO', 'FRIEND', 'DATE']),
-    })
-  ),
+  ratings: z
+    .array(
+      z.object({
+        ratedMemberId: z.string().max(40),
+        choice: z.enum(['NO', 'FRIEND', 'DATE']),
+      })
+    )
+    .max(200),
 });
 
 // POST /api/events/:eventId/ratings — "Submit Matches"
@@ -66,7 +71,10 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
       .filter((b) => canRate(event.ratingAudience, member.gender, b.member.gender))
       .map((b) => b.memberId),
   );
-  const valid = parsed.data.ratings.filter((r) => present.has(r.ratedMemberId));
+  // One choice per person: the same person twice in one list (the last one
+  // counts, as if it had been changed) used to be two writes to the same row.
+  const latest = new Map(parsed.data.ratings.map((r) => [r.ratedMemberId, r]));
+  const valid = [...latest.values()].filter((r) => present.has(r.ratedMemberId));
 
   await prisma.$transaction(
     valid.map((r) =>

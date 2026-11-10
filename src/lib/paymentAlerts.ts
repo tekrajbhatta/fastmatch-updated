@@ -2,6 +2,7 @@ import { sendEmail } from './emails/send';
 import { escapeHtml } from './escapeHtml';
 import { emailLayout } from './emails/layout';
 import { formatPrice } from './price';
+import { maskEmail } from './logMask';
 
 /** Where payment problems that need a person go: the same inbox as Contact Us. */
 const ADMIN_EMAIL = 'gil@fastmatch.com.au';
@@ -21,7 +22,11 @@ export async function alertRefundNeeded(opts: {
   reason: string;
 }): Promise<void> {
   const amount = opts.amount != null ? formatPrice(opts.amount) : 'the amount paid';
-  console.error(`REFUND NEEDED: Stripe checkout ${opts.sessionId} for booking ${opts.bookingId} (${opts.memberName ?? 'unknown member'}, ${opts.eventName ?? 'unknown event'}): ${opts.reason}. Refund ${amount} in Stripe.`);
+  // Ids, not names: the checkout and booking find everything, and the
+  // member's name stays out of a log kept for weeks (it's in the email to Gil
+  // below). A reason can quote a friend's address: masked here only.
+  const reasonForLog = opts.reason.replace(/[^\s<>"'(),;:]+@[^\s<>"'(),;:]+/g, (a) => maskEmail(a));
+  console.error(`REFUND NEEDED: Stripe checkout ${opts.sessionId} for booking ${opts.bookingId}: ${reasonForLog}. Refund ${amount} in Stripe.`);
   try {
     await sendEmail({
       to: ADMIN_EMAIL,
@@ -38,6 +43,41 @@ export async function alertRefundNeeded(opts: {
     });
   } catch (err) {
     console.error('Could not email the refund alert', err);
+  }
+}
+
+/**
+ * A "once per member" discount code went through on a second paid booking:
+ * two payment pages paid at about the same time can both carry it. The place
+ * is booked (the member paid what the page asked), so nothing needs
+ * refunding; Gil hears about it in case he wants to follow it up. Ids in the
+ * log, names only in the email. Never throws.
+ */
+export async function alertDiscountReused(opts: {
+  sessionId: string | null;
+  bookingId: string;
+  memberName: string;
+  memberEmail: string;
+  eventName: string;
+  code: string;
+  discountGiven: number;
+}): Promise<void> {
+  console.error(`DISCOUNT USED TWICE: booking ${opts.bookingId} (checkout ${opts.sessionId ?? 'none'}) used a once-per-member code a second time.`);
+  try {
+    await sendEmail({
+      to: ADMIN_EMAIL,
+      subject: 'FastMatch: a discount code was used twice by one member',
+      html: emailLayout(`
+        <p style="margin:0 0 16px;">A member used a "once per member" discount code on a second booking (two payment pages were paid at about the same time). Their place is booked and nothing needs refunding. This is only so you know, in case you want to follow it up.</p>
+        <p style="margin:0 0 16px;"><strong>Member:</strong> ${escapeHtml(opts.memberName)} (${escapeHtml(opts.memberEmail)})<br>
+        <strong>Event:</strong> ${escapeHtml(opts.eventName)}<br>
+        <strong>Code:</strong> ${escapeHtml(opts.code)}<br>
+        <strong>Discount given the second time:</strong> ${escapeHtml(formatPrice(opts.discountGiven))}<br>
+        <strong>Stripe checkout:</strong> ${escapeHtml(opts.sessionId ?? 'none (nothing was paid online)')}</p>
+      `),
+    });
+  } catch (err) {
+    console.error('Could not email the discount-used-twice notice', err);
   }
 }
 

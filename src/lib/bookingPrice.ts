@@ -56,6 +56,11 @@ export function priceBooking(input: PriceInput): PriceQuote {
     if (coupon.type === 'PERCENT_OFF') couponDiscount = cents((cost * (coupon.amount ?? 0)) / 100);
     if (coupon.type === 'FIXED_REDUCTION') couponDiscount = Math.min(cost, coupon.amount ?? 0);
     if (coupon.type === 'FREE') couponDiscount = cost;
+    // Never more than the ticket, never less than nothing. The admin's form
+    // only allows 1-100% and amounts over $0, but a code saved before those
+    // checks (say 150% off) mustn't make the member's own ticket negative,
+    // which would quietly take money off their friends' tickets too.
+    couponDiscount = Math.min(Math.max(cost, 0), Math.max(0, couponDiscount));
   }
   const memberAmount = cents(cost - couponDiscount);
 
@@ -64,7 +69,9 @@ export function priceBooking(input: PriceInput): PriceQuote {
   // negative booking. Floored at zero for (unlikely) events under $10.
   const friendAmount = cents(Math.max(0, cost - GROUP_DISCOUNT_PER_FRIEND));
   const groupDiscount = cents(friends.length * (cost - friendAmount));
-  const total = cents(memberAmount + friendAmount * friends.length);
+  // Floored at zero too: Stripe can't take a negative payment, and nothing
+  // should ever come out below free.
+  const total = cents(Math.max(0, memberAmount + friendAmount * friends.length));
 
   const lines: PriceLine[] = [{ label: input.memberName, amount: cents(cost) }];
   const count = { MALE: 0, FEMALE: 0 };

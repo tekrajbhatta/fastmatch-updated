@@ -66,6 +66,21 @@ export function holdCutoff(now: Date = new Date()): Date {
 }
 
 /**
+ * The oldest an unpaid booking can be while its payment page might still be
+ * paid: the page's 30 minutes (plus the 30 seconds it's given over that,
+ * rounded up to a minute). Longer than the hold: a page whose hold has run
+ * out can still be paid while there's room. A once-per-member discount code
+ * on such a page is still in use (src/lib/memberBooking.ts lookupDiscount);
+ * it used to count only for the 10-minute hold, so a second page opened after
+ * that got the discount again, and both could be paid.
+ */
+export const PAYABLE_MINUTES = CHECKOUT_MINUTES + 1;
+
+export function payableCutoff(now: Date = new Date()): Date {
+  return new Date(now.getTime() - PAYABLE_MINUTES * 60 * 1000);
+}
+
+/**
  * Places taken at an event, by gender: every paid booking, plus everyone on
  * an unpaid booking whose payment page is still open.
  *
