@@ -23,6 +23,21 @@ describe('checkImportRow', () => {
     expect(checkImportRow({ ...base, dateOfBirth: '1990-02-31' }, cities, NOW).ok).toBe(false);
   });
 
+  it('leaves out a name the site\'s forms would refuse: an address, a link, no letters, over 100 characters', () => {
+    for (const name of ['anna@example.com', 'Visit http://spam.example', 'www.spam.example', '12345', 'A'.repeat(101)]) {
+      const r = checkImportRow({ ...base, name }, cities, NOW);
+      expect(r.ok, name).toBe(false);
+      expect(!r.ok && r.reason).toMatch(/^Name "/);
+    }
+    // Long names are quoted only in part in the skipped list.
+    const long = checkImportRow({ ...base, name: 'A'.repeat(101) }, cities, NOW);
+    expect(!long.ok && long.reason).toContain('…');
+    // Ordinary names, in any alphabet, with apostrophes and hyphens, still go in.
+    for (const name of ["Anna O'Brien", 'Jean-Luc Picard', 'Zoë Ng', '李 小龍', 'A'.repeat(100)]) {
+      expect(checkImportRow({ ...base, name }, cities, NOW).ok, name).toBe(true);
+    }
+  });
+
   it('takes a member with no mobile and no city of ours', () => {
     const r = checkImportRow({ ...base, mobile: '', city: 'Darwin' }, cities, NOW);
     expect(r.ok && r.member).toMatchObject({ mobile: '', mobileVerified: false, cityId: null });

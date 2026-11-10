@@ -13,11 +13,85 @@ import { z } from 'zod';
 
 const say = (message: string) => ({ required_error: message, invalid_type_error: message });
 
+/*
+ * Addresses an admin types or uploads: event and venue pictures, blast photos
+ * and banners, a blast's Book Now link, a venue's website. They end up in
+ * <img src> and <a href> on the site and in emails, so only real web
+ * addresses get in, never javascript:, data: or the like. The emails were
+ * already safe (safeHref/safeSrc drop anything else when they're built);
+ * this stops such a value being saved at all, with a message saying why.
+ *
+ * Shared by the event, venue and blast forms' API routes. No Prisma import:
+ * the forms can use these in the browser too.
+ */
+
+/** An http(s) address that really parses as one. */
+const isWebAddress = (v: string) => {
+  if (!/^https?:\/\//i.test(v)) return false;
+  try {
+    new URL(v);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * A path on this site ("/api/uploads/…" for an upload, "/photos/…" for the
+ * site's own pictures, "/events/…" for a booking link). Not "//host" or
+ * "/\host", which browsers read as another site, and no spaces or
+ * backslashes: the same rule the emails apply (safeSrc).
+ */
+const isSitePath = (v: string) => /^\/(?![/\\])[^\s\\]*$/.test(v);
+
+/** "www.bar.com.au" or "bar.com.au/whats-on": a website typed without https://. */
+const isBareDomain = (v: string) => /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,}(?::\d{1,5})?(?:[/?#][^\s"'<>\\]*)?$/i.test(v);
+
+/** A picture's address: an upload or other page-relative path on this site, or an http(s) address. Blank is fine. */
+export function pictureUrlProblem(v: string | null | undefined): string | null {
+  const s = v?.trim();
+  if (!s || isWebAddress(s) || isSitePath(s)) return null;
+  return 'Please upload the picture again, or use a web address starting with https://.';
+}
+
+/**
+ * A link (a blast's Book Now): an http(s) address or a page on this site. One
+ * typed without https:// ("fastmatch.com.au/events") gets it added, as the
+ * admin plainly meant that site: the email used to drop such a link silently
+ * and send Book Now to the events page instead.
+ */
+export function normaliseLink(v: string | null | undefined): { ok: true; value: string | null | undefined } | { ok: false; error: string } {
+  if (v == null) return { ok: true, value: v };
+  const s = v.trim();
+  if (!s || isWebAddress(s) || isSitePath(s)) return { ok: true, value: v };
+  if (isBareDomain(s) && isWebAddress(`https://${s}`)) return { ok: true, value: `https://${s}` };
+  return { ok: false, error: 'Please enter the link as a web address, like https://fastmatch.com.au/events.' };
+}
+
+/**
+ * A venue's website: shown as text (in the venue list and a blast's event
+ * details), so it's kept exactly as typed. Admins usually type it without
+ * https:// ("ggbar.com.au"), which is fine; only something that isn't a web
+ * address at all is refused.
+ */
+export function websiteProblem(v: string | null | undefined): string | null {
+  const s = v?.trim();
+  if (!s || isWebAddress(s) || isBareDomain(s)) return null;
+  return 'Please enter the venue’s website as a web address, like ggbar.com.au.';
+}
+
+/** zod: a picture's address (see pictureUrlProblem), unchanged. */
+export const pictureUrl = <T extends z.ZodTypeAny>(schema: T) =>
+  schema.superRefine((v: unknown, ctx) => {
+    const problem = typeof v === 'string' ? pictureUrlProblem(v) : null;
+    if (problem) ctx.addIssue({ code: z.ZodIssueCode.custom, message: problem });
+  });
+
 export const eventFieldsSchema = z.object({
   themeId: z.string(say('Please choose an event type.')).min(1, 'Please choose an event type.'),
   name: z.string(say('Please give the event a name.')).trim().min(1, 'Please give the event a name.').max(200, 'Please keep the name under 200 characters.'),
   description: z.string().max(20_000).nullable().optional().transform((v) => v || null),
-  photoUrl: z.string().max(2_000).nullable().optional().transform((v) => v || null),
+  photoUrl: pictureUrl(z.string().max(2_000).nullable().optional()).transform((v) => v || null),
   startsAt: z.string(say('Please enter the start date and time.')).refine((v) => !Number.isNaN(Date.parse(v)), 'Please enter a valid start date and time.'),
   cityId: z.string(say('Please choose a city.')).min(1, 'Please choose a city.'),
   venueId: z.string(say('Please choose a venue.')).min(1, 'Please choose a venue.'),

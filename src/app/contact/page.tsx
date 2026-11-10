@@ -40,14 +40,15 @@ export default function ContactPage() {
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <Field label="Name">
-              <TextInput required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <TextInput required maxLength={100} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </Field>
             <Field label="Email">
-              <TextInput type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <TextInput type="email" required maxLength={254} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
             </Field>
             <Field label="Message">
               <TextArea
                 required
+                maxLength={5000}
                 value={form.message}
                 onChange={(e) => setForm({ ...form, message: e.target.value })}
                 rows={5}

@@ -4,10 +4,15 @@ import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { oneLine } from '@/lib/escapeHtml';
-import { blastContentProblem, BLAST_PROBLEM_ON_SAVE } from '@/lib/campaigns/fields';
+import {
+  blastContentProblem, BLAST_PROBLEM_ON_SAVE, blastText, blastPicture, blastLink, blastSubject, blastFilterSchema, BAD_FILTER,
+} from '@/lib/campaigns/fields';
 
+// The same rules as Edit Blast (campaignPatchSchema in fields.ts): this used
+// to take any length of anything, and any object as the filter.
+const text = blastText;
 const campaignSchema = z.object({
-  title: z.string().min(1),
+  title: z.string().trim().min(1, 'Please give the blast a title.').max(200),
   templateId: z.string().optional(),
   automated: z.boolean().default(false),
   ignorePreference: z.boolean().default(false),
@@ -15,24 +20,24 @@ const campaignSchema = z.object({
   excludeBookedEventId: z.string().min(1).nullable().optional(),
 
   sendEmail: z.boolean().default(true),
-  fromName: z.string().default('FastMatch'),
+  fromName: z.string().min(1).max(100).default('FastMatch'),
   fromEmail: z.string().email().default('donotreply@fastmatch.com.au'),
   // One line, as in campaignPatchSchema: a subject is an email header.
-  subject: z.string().transform(oneLine).optional(),
-  heading: z.string().optional(),
-  freeText: z.string().optional(),
-  eventDetailsText: z.string().optional(),
-  bookingLink: z.string().optional(),
-  photoUrl: z.string().optional(),
-  bannerImageUrl: z.string().optional(),
-  venueLogoUrl: z.string().optional(),
-  emailBody: z.string().optional(),
+  subject: blastSubject.optional(),
+  heading: text,
+  freeText: text,
+  eventDetailsText: text,
+  bookingLink: blastLink,
+  photoUrl: blastPicture,
+  bannerImageUrl: blastPicture,
+  venueLogoUrl: blastPicture,
+  emailBody: text,
 
   sendSms: z.boolean().default(false),
-  smsFromNumber: z.string().optional(),
-  smsBody: z.string().optional(),
+  smsFromNumber: text,
+  smsBody: text,
 
-  filter: z.record(z.any()).default({}),
+  filter: blastFilterSchema.default({}),
 });
 
 // GET /api/admin/campaigns — the Blasts list. Each row includes its most
@@ -68,9 +73,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
-  const body = await req.json();
-  const parsed = campaignSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  const parsed = campaignSchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return NextResponse.json({ error: issue?.path[0] === 'filter' ? BAD_FILTER : issue?.message ?? 'Please check the blast details.' }, { status: 400 });
+  }
   const data = parsed.data;
 
   let seeded: Partial<typeof data> = {};

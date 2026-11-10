@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
-import { campaignPatchSchema, blastContentProblem, BLAST_PROBLEM_ON_SAVE } from '@/lib/campaigns/fields';
+import { campaignPatchSchema, blastContentProblem, BLAST_PROBLEM_ON_SAVE, BAD_FILTER } from '@/lib/campaigns/fields';
 
 // GET /api/admin/campaigns/:id — the "Details" tab
 export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
@@ -37,7 +37,8 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
 
   const parsed = campaignPatchSchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Please check the blast details.' }, { status: 400 });
+    const issue = parsed.error.issues[0];
+    return NextResponse.json({ error: issue?.path[0] === 'filter' ? BAD_FILTER : issue?.message ?? 'Please check the blast details.' }, { status: 400 });
   }
   const { filter, ...content } = parsed.data;
 

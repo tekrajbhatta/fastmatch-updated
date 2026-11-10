@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/prisma';
-import { getCurrentMember } from '@/lib/auth';
+import { getCurrentAdmin } from '@/lib/auth';
 import { eventLabel } from '@/lib/eventLabel';
 import { formatEventWhen, EVENT_TIME_ZONE } from '@/lib/datetime';
 import { timeZoneForCity, zoneNote } from '@/lib/timezone';
@@ -12,9 +12,11 @@ import { resultsState, RESULTS_SENT_MESSAGE, RESULTS_NOT_ALL_EMAILED_MESSAGE } f
 export const metadata: Metadata = { title: 'Dashboard' };
 
 export default async function AdminDashboard() {
-  // The admin layout has already turned away anyone who isn't an admin.
-  const member = await getCurrentMember();
-  const comingUp = member?.isAdmin ? await comingUpEvents() : [];
+  // The admin layout shows anyone who isn't an admin the staff card instead,
+  // but this page still runs for them, so it checks for itself before reading
+  // anything (the rule in src/app/admin/layout.tsx). Not requireAdminPage:
+  // that would turn their staff card into "not found".
+  const comingUp = (await getCurrentAdmin()) ? await comingUpEvents() : [];
 
   return (
     <div>

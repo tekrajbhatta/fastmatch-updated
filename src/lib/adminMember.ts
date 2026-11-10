@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PASSWORD_MAX, PASSWORD_TOO_LONG } from './tokens';
 import type { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import { calculateAge } from './age';
@@ -12,14 +13,14 @@ import { nameProblemSentence } from './personName';
  * both, so they can't drift apart.
  */
 export const newMemberFields = {
-  password: z.string().min(8, 'The password must be at least 8 characters.'),
-  name: z.string().trim().min(1, 'Please enter a name.'),
+  password: z.string().min(8, 'The password must be at least 8 characters.').max(PASSWORD_MAX, PASSWORD_TOO_LONG),
+  name: z.string().trim().min(1, 'Please enter a name.').max(100, 'Please keep the name to 100 characters.'),
   gender: z.enum(['MALE', 'FEMALE']),
-  email: z.string().trim().email('Please enter a valid email address.'),
-  dateOfBirth: z.string().min(1, 'Please enter a date of birth.'),
+  email: z.string().trim().max(254, 'Please enter a valid email address.').email('Please enter a valid email address.'),
+  dateOfBirth: z.string().min(1, 'Please enter a date of birth.').max(30, 'Please enter a valid date of birth.'),
   // Australian mobiles only (Gil, Q21).
-  mobile: z.string().trim().min(1, 'Please enter a mobile number.').refine(isAustralianMobile, AU_MOBILE_MESSAGE),
-  cityId: z.string().min(1, 'Please select a location.'),
+  mobile: z.string().trim().min(1, 'Please enter a mobile number.').max(30, AU_MOBILE_MESSAGE).refine(isAustralianMobile, AU_MOBILE_MESSAGE),
+  cityId: z.string().min(1, 'Please select a location.').max(100, 'Please select a valid location.'),
   confirmation: z.enum(['CONFIRMED', 'EMAIL', 'PHONE', 'UNCONFIRMED']),
   contactMethod: z.enum(['EMAIL_AND_SMS', 'EMAIL', 'SMS', 'DO_NOT_CONTACT']),
   marketingOptIn: z.boolean(),

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { pictureUrlProblem, websiteProblem } from '@/lib/eventInput';
 
 const blankToNull = z
   .string()
@@ -11,14 +12,21 @@ const blankToNull = z
   .nullable()
   .optional();
 
+/** A field check from src/lib/eventInput.ts, as a zod refinement with its message. */
+const checkWith = (problem: (v: string | null | undefined) => string | null) => (v: string | null | undefined, ctx: z.RefinementCtx) => {
+  const message = problem(v);
+  if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+};
+
 const venueSchema = z.object({
   name: z.string().trim().min(1),
   cityId: z.string().min(1),
   address: blankToNull,
   phone: blankToNull,
-  websiteUrl: blankToNull,
-  logoUrl: blankToNull,
-  imageUrl: blankToNull,
+  websiteUrl: blankToNull.superRefine(checkWith(websiteProblem)),
+  // An upload (or another picture on this site), or an http(s) address.
+  logoUrl: blankToNull.superRefine(checkWith(pictureUrlProblem)),
+  imageUrl: blankToNull.superRefine(checkWith(pictureUrlProblem)),
   description: z.string().max(5000).transform((v) => v.trim() || null).nullable().optional(),
 });
 
@@ -48,7 +56,11 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
   const parsed = venueSchema.safeParse(await req.json());
-  if (!parsed.success) return NextResponse.json({ error: 'Please check the venue details.' }, { status: 400 });
+  // A web address's own message says what to fix; anything else, the general one.
+  if (!parsed.success) {
+    const custom = parsed.error.issues.find((i) => i.code === z.ZodIssueCode.custom);
+    return NextResponse.json({ error: custom?.message ?? 'Please check the venue details.' }, { status: 400 });
+  }
   const data = parsed.data;
 
   const city = await prisma.city.findUnique({ where: { id: data.cityId } });

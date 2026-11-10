@@ -6,7 +6,19 @@ import crypto from 'crypto';
 // See https://documentation.mailgun.com/docs/mailgun/user-manual/tracking-messages/
 
 /** Older than this, a report is refused even if correctly signed (stops replays). */
-const MAX_AGE_SECONDS = 15 * 60;
+export const MAX_AGE_SECONDS = 15 * 60;
+
+/**
+ * The signature's token, once it has been checked: each report Mailgun
+ * signs carries a fresh random one, so seeing it a second time within the
+ * 15 minutes above means the same report sent again (a replay). The route
+ * remembers tokens for a little longer than that (src/app/api/webhooks/email-bounce).
+ */
+export function signatureToken(sig: unknown): string | null {
+  if (!sig || typeof sig !== 'object') return null;
+  const { token } = sig as Record<string, unknown>;
+  return typeof token === 'string' && token ? token : null;
+}
 
 /**
  * Is this report really from Mailgun? Mailgun signs `timestamp + token` with

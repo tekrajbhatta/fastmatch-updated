@@ -12,7 +12,10 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
   const params = req.nextUrl.searchParams;
-  const page = Math.max(1, Number(params.get('page') ?? 1) || 1);
+  // A whole page number from 1; anything else (junk, 1.5, 1e400) is page 1,
+  // rather than a database error from an impossible offset.
+  const asked = Number(params.get('page') ?? 1);
+  const page = Number.isSafeInteger(asked) && asked >= 1 && asked <= 1_000_000 ? asked : 1;
   const eventId = params.get('eventId') || undefined;
   const where = eventId ? { eventId } : {};
 

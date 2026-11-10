@@ -18,7 +18,7 @@ const schema = z.object({
   // The member: the same fields and rules as the Members page's "Add member".
   ...newMemberFields,
   paymentMethod: z.enum(PAYMENT_METHOD_VALUES),
-  paidAmount: z.number().nonnegative(),
+  paidAmount: z.number().finite().nonnegative().max(100_000), // same bound as the bookings editor
   checkedIn: z.boolean().default(true),
 });
 

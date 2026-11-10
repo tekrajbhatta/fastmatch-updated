@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
-import { sendEmail } from '@/lib/emails/send';
+import { sendEmail, providerMessage } from '@/lib/emails/send';
 import { sendSms, withOptOut } from '@/lib/sms/send';
 import { resolveCampaignEmailHtml } from '@/lib/emails/campaignEmail';
 import { oneLine } from '@/lib/escapeHtml';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { hitRateLimit, rateKey, LIMITS } from '@/lib/rateLimit';
+import { maskEmail, maskMobile } from '@/lib/logMask';
 
 const text = z.string().max(20_000).nullable().optional();
 
@@ -27,7 +29,13 @@ const bodySchema = z
   })
   .refine((b) => b.email || b.mobile, { message: 'Enter an email address or a mobile number to send the test to.' });
 
-const reason = (err: unknown) => (err instanceof Error ? err.message : String(err));
+// Shown to the admin who typed the address, so the mail server's answer is
+// given as it came (src/lib/emails/send.ts masks it everywhere else).
+const reason = (err: unknown) => {
+  const raw = providerMessage(err);
+  if (raw) return `Email send failed: ${raw}`;
+  return err instanceof Error ? err.message : String(err);
+};
 
 // POST /api/admin/campaigns/:id/test-send — "Send test email" / "Send test
 // SMS". A test email goes to an email address and a test SMS to a mobile;
@@ -47,6 +55,17 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   }
   const { email, mobile, content } = parsed.data;
 
+  // A test goes to any address or number typed in, and each text is paid
+  // for: plenty for checking a blast over and over, but a cap if an admin
+  // login were ever misused to send messages to strangers.
+  const tests = await hitRateLimit(rateKey('test-send', admin.id), LIMITS.testSend.limit, LIMITS.testSend.windowMs);
+  if (!tests.allowed) {
+    return NextResponse.json(
+      { error: 'You’ve sent a lot of tests in the last hour. Please wait a while and try again.' },
+      { status: 429 },
+    );
+  }
+
   const saved = await prisma.campaign.findUniqueOrThrow({ where: { id: params.id } });
   const c = { ...saved, ...(content ?? {}) };
 
@@ -65,7 +84,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
       await sendEmail({ to: email, subject: `[TEST] ${oneLine(c.subject ?? '')}`, html });
       result.email = `Test email sent to ${email}.`;
     } catch (err) {
-      console.error(`Test email for blast ${params.id} to ${email} failed`, err);
+      console.error(`Test email for blast ${params.id} to ${maskEmail(email)} failed`, err);
       errors.push(`The test email to ${email} wasn’t sent: ${reason(err)}`);
     }
   }
@@ -80,7 +99,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
         await sendSms({ to: mobile, body: `[TEST] ${withOptOut(body)}` });
         result.sms = `Test SMS sent to ${mobile}.`;
       } catch (err) {
-        console.error(`Test SMS for blast ${params.id} to ${mobile} failed`, err);
+        console.error(`Test SMS for blast ${params.id} to ${maskMobile(mobile)} failed`, err);
         errors.push(`The test SMS to ${mobile} wasn’t sent: ${reason(err)}`);
       }
     }

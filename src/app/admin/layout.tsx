@@ -24,6 +24,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
   // A member, not an admin: say so. Sending them to login used to loop —
   // logging in again just brought them back here.
+  //
+  // THE RULE: this card is not a lock. Next renders this layout and its page
+  // side by side, so a page's own server code runs (and anything it fetches
+  // can reach the browser) whoever asks. Any admin server page or
+  // generateMetadata that reads data must check for itself, with
+  // getCurrentAdmin() or requireAdminPage() (src/lib/auth.ts). Client pages
+  // are covered by their API routes' requireAdmin.
   if (!member.isAdmin) {
     return (
       <div className="flex flex-1 items-start justify-center px-4 py-[clamp(40px,7.2vw,104px)]">

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { oneLine } from '../escapeHtml';
+import { normaliseLink, pictureUrl } from '../eventInput';
+import { CONTACT_METHODS } from './sendTabFilter';
 
 /**
  * A blast's editable content, as accepted by PATCH /api/admin/campaigns/:id
@@ -30,21 +32,64 @@ export const CONTENT_FIELDS = [
   'fromEmail',
 ] as const;
 
-const text = z.string().max(20_000).nullable().optional();
+/** A blast's text field: shared by Create (POST) and Edit (PATCH), so their limits can't drift. */
+export const blastText = z.string().max(20_000).nullable().optional();
+
+/** A blast picture (photo, banner, venue logo): an upload, a picture on this site, or an http(s) address (src/lib/eventInput.ts). */
+export const blastPicture = pictureUrl(blastText);
+
+/** Book Now's link: an http(s) address or a page on this site; one typed without https:// gets it. */
+export const blastLink = blastText.transform((v, ctx) => {
+  const checked = normaliseLink(v);
+  if (checked.ok) return checked.value;
+  ctx.addIssue({ code: z.ZodIssueCode.custom, message: checked.error });
+  return z.NEVER;
+});
+
+/** A blast's subject, kept to one line: a subject is an email header (see oneLine). */
+export const blastSubject = z.string().max(20_000).transform(oneLine);
+
+/**
+ * Who a blast goes to (Campaign.filter): the Members screen's filter
+ * (memberFilterParams.ts) and the Send tab's boxes (sendTabFilter.ts), as the
+ * admin pages send them. It's turned straight into a database query
+ * (buildMemberWhere), so only these fields, as plain values, get through: it
+ * used to take any object, so a value like { not: … } in place of a city
+ * became a query operator of its own. Anything else in it is dropped rather
+ * than refused, so a blast saved earlier with an older field still sends.
+ * Empty values ("", null) mean "not filtered on", as the pages already treat them.
+ */
+const blank = (v: unknown) => (v === '' || v === null ? undefined : v);
+export const blastFilterSchema = z.object({
+  search: z.preprocess(blank, z.string().max(200).optional()),
+  gender: z.preprocess(blank, z.enum(['MALE', 'FEMALE']).optional()),
+  cityId: z.preprocess(blank, z.string().max(50).optional()),
+  ageMin: z.preprocess(blank, z.number().finite().min(0).max(150).optional()),
+  ageMax: z.preprocess(blank, z.number().finite().min(0).max(150).optional()),
+  contactMethods: z.preprocess(blank, z.array(z.enum(CONTACT_METHODS)).max(CONTACT_METHODS.length).optional()),
+  // Saved by older blasts. Every send is opted-in members only anyway (recipientFilter).
+  marketingOptInOnly: z.preprocess(blank, z.boolean().optional()),
+});
+export type BlastFilter = z.infer<typeof blastFilterSchema>;
+
+/** The message when a filter isn't one the pages could have sent. */
+export const BAD_FILTER = 'Please check the filter: something in it isn’t one of the choices on the page.';
+
+const text = blastText;
 
 export const campaignPatchSchema = z
   .object({
     title: z.string().trim().min(1, 'Please give the blast a title.').max(200).optional(),
     // Kept to one line: a subject is an email header (see oneLine). The form's
     // single-line box can't hold a line break, but the API would accept one.
-    subject: z.string().max(20_000).transform(oneLine).nullable().optional(),
+    subject: blastSubject.nullable().optional(),
     heading: text,
     freeText: text,
     eventDetailsText: text,
-    bookingLink: text,
-    photoUrl: text,
-    bannerImageUrl: text,
-    venueLogoUrl: text,
+    bookingLink: blastLink,
+    photoUrl: blastPicture,
+    bannerImageUrl: blastPicture,
+    venueLogoUrl: blastPicture,
     emailBody: text,
     smsFromNumber: text,
     smsBody: text,
@@ -57,7 +102,7 @@ export const campaignPatchSchema = z
     fromName: z.string().min(1).max(100).optional(),
     fromEmail: z.string().email().optional(),
     // Who the next send goes to — see Campaign.filter.
-    filter: z.record(z.any()).optional(),
+    filter: blastFilterSchema.optional(),
   })
   .strict();
 

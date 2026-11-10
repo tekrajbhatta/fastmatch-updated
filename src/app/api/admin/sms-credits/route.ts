@@ -42,7 +42,8 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     const credits = body?.data?.sms_balance;
 
     if (typeof credits !== 'number') {
-      console.error('Cellcast account response had no numeric sms_balance:', body);
+      // The shape only, not the body: it carries the account's name and email.
+      console.error('Cellcast account response had no numeric sms_balance. Fields:', JSON.stringify({ top: Object.keys(body ?? {}), data: Object.keys(body?.data ?? {}) }));
       return NextResponse.json({ credits: null, note: 'Provider returned no balance.' });
     }
 

@@ -30,11 +30,30 @@ export interface SmsBulkResult {
   failed: SmsFailure[];
 }
 
+import { australianMobile } from '../mobile';
+import { maskMobile } from '../logMask';
+
 const DEFAULT_API_URL = 'https://api.cellcast.com/api/v1/gateway';
+
+/** Why a number was never sent to (see sendSmsBulk). */
+export const NOT_AU_MOBILE = 'Not an Australian mobile number';
+
+/**
+ * On the live site a missing Cellcast key is a mistake, not a choice: every
+ * text would silently go nowhere, and verification codes would be printed to
+ * the log. Locally and in tests (NODE_ENV isn't "production") the stub stays.
+ */
+function assertConfiguredInProduction(): void {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('SMS not sent: CELLCAST_API_KEY is not set.');
+  }
+}
 
 /** Single recipient. Throws on failure. */
 export async function sendSms({ to, body }: SendSmsArgs): Promise<void> {
+  if (!australianMobile(to)) throw new Error(`SMS not sent: ${NOT_AU_MOBILE.toLowerCase()}`);
   if (!process.env.CELLCAST_API_KEY) {
+    assertConfiguredInProduction();
     console.log(`[stub] Would SMS ${to}: "${body}"`);
     return;
   }
@@ -51,10 +70,25 @@ export async function sendSms({ to, body }: SendSmsArgs): Promise<void> {
  * campaign batch and strand the recipients after it.
  */
 export async function sendSmsBulk({ to, body }: { to: string[]; body: string }): Promise<SmsBulkResult> {
-  const recipients = to.filter(Boolean);
-  if (recipients.length === 0) return { sent: 0, failed: [] };
+  // Only Australian mobiles are ever texted (Gil, Q21). Anything else (an old
+  // landline, an overseas number, a typing slip) could be anyone's, or a
+  // premium number that costs far more per text: it's reported as failed,
+  // against the number as given, and never sent.
+  const notMobile: SmsFailure[] = [];
+  const recipients: string[] = [];
+  for (const r of to.filter(Boolean)) {
+    if (australianMobile(r)) recipients.push(r);
+    else notMobile.push({ to: r, reason: NOT_AU_MOBILE });
+  }
+  if (recipients.length === 0) return { sent: 0, failed: notMobile };
+  const result = await sendToCellcast(recipients, body);
+  return notMobile.length ? { sent: result.sent, failed: [...notMobile, ...result.failed] } : result;
+}
 
+/** The send itself, to numbers already checked to be Australian mobiles. */
+async function sendToCellcast(recipients: string[], body: string): Promise<SmsBulkResult> {
   if (!process.env.CELLCAST_API_KEY) {
+    assertConfiguredInProduction();
     for (const r of recipients) console.log(`[stub] Would SMS ${r}: "${body}"`);
     return { sent: recipients.length, failed: [] };
   }
@@ -83,7 +117,7 @@ export async function sendSmsBulk({ to, body }: { to: string[]; body: string }):
       // ORIGINAL strings the caller passed, so logs match the member records.
       body: JSON.stringify({
         message: body,
-        contacts: recipients.map(toCellcastNumber),
+        contacts: recipients.map((r) => australianMobile(r) ?? toCellcastNumber(r)),
         ...(sender ? { sender } : {}),
       }),
     });
@@ -109,7 +143,8 @@ export async function sendSmsBulk({ to, body }: { to: string[]; body: string }):
     } catch {
       /* non-JSON error body — keep the status code */
     }
-    console.error(`Cellcast rejected the request (HTTP ${res.status}):`, reason, raw.slice(0, 300));
+    // Cellcast's answer can quote the numbers sent: kept out of the log.
+    console.error(`Cellcast rejected the request (HTTP ${res.status}):`, redactNumbers(reason), redactNumbers(raw.slice(0, 300)));
     return { sent: 0, failed: recipients.map((to) => ({ to, reason })) };
   }
 
@@ -119,7 +154,7 @@ export async function sendSmsBulk({ to, body }: { to: string[]; body: string }):
   } catch {
     // 2xx but unparseable — treat as sent rather than risk re-sending later,
     // but make it loud so the response shape can be corrected.
-    console.error('Cellcast returned non-JSON on a 2xx response:', raw.slice(0, 500));
+    console.error('Cellcast returned non-JSON on a 2xx response:', redactNumbers(raw.slice(0, 500)));
     return { sent: recipients.length, failed: [] };
   }
 
@@ -158,7 +193,7 @@ export function parseCellcastResult(payload: unknown, recipients: string[]): Sms
   // in case it ever arrives on a 2xx).
   if (root.status === false) {
     const reason = String(root.error?.errorMessage ?? root.message ?? 'Cellcast reported failure');
-    console.error('Cellcast reported a failed request:', reason);
+    console.error('Cellcast reported a failed request:', redactNumbers(reason));
     return { sent: 0, failed: recipients.map((to) => ({ to, reason })) };
   }
 
@@ -167,7 +202,7 @@ export function parseCellcastResult(payload: unknown, recipients: string[]): Sms
   // comes back on a 200 it must not be mistaken for success.
   if (typeof root.code === 'number' && root.code >= 400) {
     const reason = String(root.message ?? `Cellcast error ${root.code}`);
-    console.error('Cellcast returned an error envelope:', root.code, reason);
+    console.error('Cellcast returned an error envelope:', root.code, redactNumbers(reason));
     return { sent: 0, failed: recipients.map((to) => ({ to, reason })) };
   }
 
@@ -201,7 +236,8 @@ export function parseCellcastResult(payload: unknown, recipients: string[]): Sms
   }
 
   if (failed.length > 0) {
-    console.error(`Cellcast rejected ${failed.length} of ${recipients.length} recipient(s):`, failed);
+    // Numbers masked: enough to tell the entries apart, not to text anyone.
+    console.error(`Cellcast rejected ${failed.length} of ${recipients.length} recipient(s):`, maskFailures(failed));
   }
 
   // Prefer Cellcast's own count of what it actually queued. It is the
@@ -255,6 +291,16 @@ function matchRecipient(candidate: string, recipients: string[]): string | null 
   if (!digits) return null;
   const tail = digits.slice(-8); // last 8 digits identify an AU subscriber number
   return recipients.find((r) => r.replace(/\D/g, '').endsWith(tail)) ?? null;
+}
+
+/** Failures as they may appear in a log: numbers masked ("***678"), reasons kept. */
+export function maskFailures(failed: SmsFailure[]): { to: string; reason: string }[] {
+  return failed.map((f) => ({ to: maskMobile(f.to), reason: redactNumbers(f.reason) }));
+}
+
+/** Any phone-number-like run of digits in a provider's message, masked. */
+export function redactNumbers(text: string): string {
+  return text.replace(/\+?\d[\d\s-]{6,}\d/g, (n) => maskMobile(n));
 }
 
 // Moved to ./optOut so the admin screens can count the same characters in

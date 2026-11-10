@@ -6,16 +6,19 @@ import { withErrorHandling } from '@/lib/withErrorHandling';
 import { clientIp, hitRateLimit, LIMITS, rateKey } from '@/lib/rateLimit';
 import { escapeHtml, oneLine } from '@/lib/escapeHtml';
 
+// Limits well past anything a real message needs: anyone can send this
+// form, and each one becomes an email to Gil.
 const bodySchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
-  message: z.string().min(1),
+  name: z.string().min(1, 'Please enter your name.').max(100, 'Please use a shorter name.'),
+  email: z.string().max(254, 'Please check your email address.').email('Please check your email address.'),
+  message: z.string().min(1, 'Please write your message.').max(5000, 'Please keep your message under 5,000 characters.'),
 });
 
 // POST /api/contact-us — no auth required, anyone on the site can use this
 export const POST = withErrorHandling(async (req: NextRequest) => {
-  const parsed = bodySchema.safeParse(await req.json());
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  // A body that isn't JSON is the sender's mistake (400), not the server's.
+  const parsed = bodySchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Please check your message.' }, { status: 400 });
   const data = parsed.data;
 
   const sends = await hitRateLimit(rateKey('contact-ip', clientIp(req)), LIMITS.contactIp.limit, LIMITS.contactIp.windowMs);

@@ -9,6 +9,8 @@ import { oneLine } from '../escapeHtml';
 import { australianMobile } from '../mobile';
 import jwt from 'jsonwebtoken';
 import { withMobileMatches } from '../memberSearch';
+import { maskMobile } from '../logMask';
+import { blastFilterSchema, BAD_FILTER } from './fields';
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
@@ -40,7 +42,13 @@ export async function startCampaignSend(
 ): Promise<{ ok: true; sendId: string; totalRecipients: number } | { ok: false; error: string }> {
   const campaign = await prisma.campaign.findUniqueOrThrow({ where: { id: campaignId } });
 
-  const where = buildMemberWhere(recipientFilter(await withMobileMatches(campaign.filter as MemberFilter), campaign));
+  // The saved filter goes into the recipients query, so it is checked here
+  // too: blasts saved before filters were checked on save could hold
+  // anything. Fields the page never sends are dropped, as on save.
+  const savedFilter = blastFilterSchema.safeParse(campaign.filter ?? {});
+  if (!savedFilter.success) return { ok: false, error: BAD_FILTER };
+
+  const where = buildMemberWhere(recipientFilter(await withMobileMatches(savedFilter.data as MemberFilter), campaign));
   const recipients = await prisma.member.findMany({ where, select: { id: true } });
   const recipientIds = recipients.map((r) => r.id);
 
@@ -120,7 +128,7 @@ export async function processCampaignSendBatch(sendId: string) {
         (recipient.contactMethod === 'EMAIL_AND_SMS' || recipient.contactMethod === 'EMAIL' || campaign.ignorePreference)
       ) {
         try {
-          const unsubscribeToken = jwt.sign({ memberId: recipient.id, purpose: 'unsubscribe' }, JWT_SECRET);
+          const unsubscribeToken = jwt.sign({ memberId: recipient.id, purpose: 'unsubscribe' }, JWT_SECRET, { algorithm: 'HS256' });
           const unsubscribeUrl = `${process.env.APP_URL}/unsubscribe?token=${unsubscribeToken}`;
           const html = resolveCampaignEmailHtml(
             {
@@ -174,9 +182,10 @@ export async function processCampaignSendBatch(sendId: string) {
       try {
         const result = await sendSmsBulk({ to: smsRecipients, body: withOptOut(campaign.smsBody ?? '') });
         if (result.failed.length > 0) {
+          // The numbers masked (this runs from cron, into a log kept for weeks).
           console.error(
             `Campaign send ${sendId}: ${result.failed.length} of ${smsRecipients.length} SMS recipient(s) rejected.`,
-            result.failed
+            result.failed.map((f) => ({ to: maskMobile(f.to), reason: f.reason }))
           );
           for (const f of result.failed) for (const id of byMobile.get(f.to) ?? []) failedIds.add(id);
         }

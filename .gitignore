@@ -22,3 +22,10 @@ next-env.d.ts
 # the release directory (see src/lib/uploads.ts); this covers the local
 # development fallback.
 /uploads
+
+# Member lists and import reports (names, emails, mobiles, dates of birth)
+# must never reach git, wherever they are saved: the import writes
+# <file>.skipped.csv beside its input, and members-import/data/ is only one
+# of the places a CSV can end up. No CSV is tracked on purpose.
+*.csv
+*.skipped.csv

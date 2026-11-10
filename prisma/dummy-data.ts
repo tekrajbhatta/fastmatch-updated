@@ -4,10 +4,14 @@
  * group on /admin/events, bookings with each payment method, blasts, and
  * discount codes.
  *
- *   npm run dummy-data            # remove the previous demo data, insert fresh
- *   npm run dummy-data -- --remove  # remove the demo data only
+ *   npm run dummy-data -- --local-dev            # remove the previous demo data, insert fresh
+ *   npm run dummy-data -- --local-dev --remove   # remove the demo data only
  *
- * Refuses to run against anything but a database on this machine.
+ * Refuses to run without --local-dev, unless APP_URL is this machine
+ * (localhost), and against anything but a database on this machine. On the
+ * live server the database is ALSO on "this machine", so the database check
+ * alone wouldn't stop it there: and the venues below are real ones, so a run
+ * there would delete every real event at them, with its bookings.
  *
  * Every row it creates is recognisable, so a re-run replaces exactly what it
  * made last time:
@@ -35,9 +39,28 @@ const EMAIL_DOMAIN = '@example.com';
 
 // ---------------------------------------------------------------- safety ---
 
+const HOW_TO_RUN = 'Run it on your own computer with: npm run dummy-data -- --local-dev';
+
 function assertLocalDatabase() {
+  // Asked for by name: running it by mistake (an old note, a habit, the live
+  // server's shell) does nothing.
+  if (!process.argv.includes('--local-dev')) {
+    throw new Error(`Refusing to run: this deletes and replaces demo data, and is for local development only. ${HOW_TO_RUN}`);
+  }
   if (process.env.NODE_ENV === 'production') {
     throw new Error('Refusing to run: NODE_ENV is production.');
+  }
+  // The site's own address must be this machine. The live server's database
+  // is on localhost too, so the database check below can't tell them apart;
+  // its APP_URL is the real site's address.
+  let appHost = '';
+  try {
+    appHost = new URL(process.env.APP_URL ?? '').hostname;
+  } catch {
+    throw new Error(`Refusing to run: APP_URL is missing or unreadable (it must be http://localhost:3000 or similar). ${HOW_TO_RUN}`);
+  }
+  if (!['localhost', '127.0.0.1'].includes(appHost)) {
+    throw new Error(`Refusing to run: APP_URL is "${appHost}", not this machine. This is for local development only.`);
   }
   const url = process.env.DATABASE_URL ?? '';
   let host = '';

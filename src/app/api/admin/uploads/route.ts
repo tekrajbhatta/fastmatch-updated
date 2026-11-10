@@ -6,12 +6,16 @@ import sharp from 'sharp';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { ensureUploadDir, uploadDir, uploadUrl } from '@/lib/uploads';
-import { hasTransparency } from '@/lib/imageFormat';
+import { hasTransparency, MAX_INPUT_PIXELS } from '@/lib/imageFormat';
 
 // Blast emails render at 520px wide; 1040 gives a sharp image on retina
 // screens without shipping a 4MB phone photo to every recipient's inbox.
 const MAX_WIDTH = 1040;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // what we accept BEFORE optimising
+// The whole request, read before any of it is: the image plus the form's own
+// wrapping. Checked first, so an oversized upload is turned away before the
+// server takes it all into memory to look at it.
+const MAX_REQUEST_BYTES = 10.5 * 1024 * 1024;
 const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
 // POST /api/admin/uploads — accepts one image, re-encodes it, stores it, and
@@ -27,6 +31,11 @@ const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+
+  const declared = Number(req.headers.get('content-length') ?? 0);
+  if (declared > MAX_REQUEST_BYTES) {
+    return NextResponse.json({ error: 'That image is larger than 10MB. Please use a smaller one.' }, { status: 413 });
+  }
 
   const form = await req.formData();
   const file = form.get('file');
@@ -49,7 +58,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // JPEG, which has no transparency, it came out on a black square.
     // Everything else is a JPEG, as before — much smaller for photos.
     const transparent = await hasTransparency(input);
-    const resized = sharp(input)
+    const resized = sharp(input, { limitInputPixels: MAX_INPUT_PIXELS })
       .rotate() // honour EXIF orientation before the orientation tag is stripped
       .resize({ width: MAX_WIDTH, withoutEnlargement: true });
     output = transparent

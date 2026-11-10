@@ -1,12 +1,15 @@
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/prisma';
-import { getCurrentMember } from '@/lib/auth';
+import { getCurrentAdmin } from '@/lib/auth';
 import { adminTitle, eventTitle } from '@/lib/pageTitles';
 
 // "#123 Speed Dating, 28-40 years, Sydney". Only an admin's tab gets the
 // details: anyone else sees the "for FastMatch staff" page.
 export async function generateMetadata({ params }: { params: Promise<{ eventId: string }> }): Promise<Metadata> {
-  if (!(await getCurrentMember())?.isAdmin) return { title: adminTitle('Event') };
+  // Checked here as well as in the admin layout (see getCurrentAdmin): this
+  // runs whoever asks. Not requireAdminPage: a non-admin's tab keeps a plain
+  // title over the staff card, rather than turning into "not found".
+  if (!(await getCurrentAdmin())) return { title: adminTitle('Event') };
   const { eventId } = await params;
   const event = await prisma.event.findUnique({
     where: { id: eventId },

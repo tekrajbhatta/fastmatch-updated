@@ -12,7 +12,9 @@ import { BOOKING_MEMBER_SELECT } from '@/lib/memberFields';
 
 const patchSchema = z.object({
   status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'REFUNDED']),
-  paidAmount: z.number().nonnegative(),
+  // A real amount: 1e999 arrives from JSON as Infinity, and the database
+  // column can't hold it (it used to fail as a 500). Far above any booking.
+  paidAmount: z.number().finite().nonnegative().max(100_000),
   checkedIn: z.boolean(),
   // Optional so older callers keep working; null = booked online.
   paymentMethod: z.enum(PAYMENT_METHOD_VALUES).nullable().optional(),

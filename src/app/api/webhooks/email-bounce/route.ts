@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandling } from '@/lib/withErrorHandling';
-import { verifyMailgunSignature, permanentFailure } from '@/lib/mailgunWebhook';
+import { verifyMailgunSignature, permanentFailure, signatureToken, MAX_AGE_SECONDS } from '@/lib/mailgunWebhook';
+import { hitRateLimit, clearRateLimit, rateKey } from '@/lib/rateLimit';
 
 /**
  * Mailgun's bounce reports. In the Mailgun dashboard (Sending > Webhooks),
@@ -28,13 +29,31 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
   }
 
+  // Each signed report is acted on once. A signature is good for 15 minutes,
+  // so a copied report could otherwise be sent again and again in that time;
+  // its token is remembered a minute longer than that. A repeat gets 200 and
+  // changes nothing: Mailgun treats any 2xx as delivered and stops (only 406
+  // also stops it, and anything else is retried for hours), and there's
+  // nothing left to do — the first copy did it.
+  const token = signatureToken((payload as Record<string, unknown>).signature) as string; // checked by verifyMailgunSignature
+  const tokenKey = rateKey('mg-token', token);
+  if (!(await hitRateLimit(tokenKey, 1, MAX_AGE_SECONDS * 1000 + 60_000)).allowed) {
+    return NextResponse.json({ ok: true, duplicate: true });
+  }
+
   const failure = permanentFailure(payload);
   if (failure) {
-    // Email matching ignores capitals, as everywhere else in the site.
-    await prisma.member.updateMany({
-      where: { email: failure.email },
-      data: { emailBounced: true, bounceReason: failure.reason },
-    });
+    try {
+      // Email matching ignores capitals, as everywhere else in the site.
+      await prisma.member.updateMany({
+        where: { email: failure.email },
+        data: { emailBounced: true, bounceReason: failure.reason },
+      });
+    } catch (err) {
+      // Not saved: forget the token, so Mailgun's retry of this report counts.
+      await clearRateLimit(tokenKey).catch(() => {});
+      throw err;
+    }
   }
 
   // 200 for everything else too (deliveries, temporary failures...), so

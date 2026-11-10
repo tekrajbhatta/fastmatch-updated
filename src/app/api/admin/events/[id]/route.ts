@@ -109,7 +109,8 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
       try {
         await sendEmail({ to: booking.member.email, subject, html });
       } catch (err) {
-        console.error(`Event ${event.id}: change email to ${booking.member.email} failed`, err);
+        // The member's id, not their address: this log is kept for weeks.
+        console.error(`Event ${event.id}: change email to member ${booking.member.id} failed`, err);
         notifyFailures.push({ member: booking.member.name, channel: 'email' });
       }
       // No mobile yet (imported from the old site, booked in by the admin): email only.
@@ -117,7 +118,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
       try {
         await sendSms({ to: booking.member.mobile, body: eventChangeSms(theirs) });
       } catch (err) {
-        console.error(`Event ${event.id}: change SMS to ${booking.member.mobile} failed`, err);
+        console.error(`Event ${event.id}: change SMS to member ${booking.member.id} failed`, err);
         notifyFailures.push({ member: booking.member.name, channel: 'sms' });
       }
     }

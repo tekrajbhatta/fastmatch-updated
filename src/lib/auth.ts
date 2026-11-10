@@ -1,6 +1,7 @@
 import { cache } from 'react';
 import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
+import { notFound } from 'next/navigation';
 import { prisma } from './prisma';
 import { readSessionToken, sessionStillValid, signSessionToken, SESSION_DAYS } from './tokens';
 
@@ -66,3 +67,25 @@ export const getCurrentMember = cache(async () => {
   // synchronous. This must stay awaited while the project is on Next 15.
   return memberForSessionToken((await cookies()).get('fm_session')?.value);
 });
+
+/*
+ * Admin server pages and their generateMetadata. The admin layout shows a
+ * non-admin the "for FastMatch staff" card instead of the page, but Next
+ * renders a layout and its page side by side: the page's own code still
+ * runs, and whatever it fetches can reach the browser. So every admin server
+ * page (or generateMetadata) that reads data checks for itself, with one of
+ * these two:
+ */
+
+/** The signed-in admin, or null for anyone else (when the page has its own way of saying no). */
+export async function getCurrentAdmin() {
+  const member = await getCurrentMember();
+  return member?.isAdmin ? member : null;
+}
+
+/** The signed-in admin; anyone else gets the "page not found" page, and nothing is read. */
+export async function requireAdminPage() {
+  const admin = await getCurrentAdmin();
+  if (!admin) notFound();
+  return admin;
+}

@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { csvCell } from './csv';
 import { EMAIL_RE, parseDateOfBirth } from './friendBooking';
 import { australianMobile } from './mobile';
+import { nameProblem } from './personName';
 import { instantFromWallTime } from './zonedTime';
 import { EVENT_TIME_ZONE } from './datetime';
 
@@ -135,6 +136,12 @@ export function checkImportRow(row: Record<string, string | undefined>, cityIdBy
   const name = (row.name ?? '').trim().replace(/\s+/g, ' ');
   const email = (row.email ?? '').trim();
   if (!name) return { ok: false, reason: 'No name' };
+  // The same check as every form that takes a name (src/lib/personName.ts):
+  // no email or web address, some letters, at most 100 characters. The name
+  // goes into the greeting of every email the member gets, so an old-site
+  // row holding a link or a pasted address is left out rather than imported.
+  const nameIssue = nameProblem(name, 'the member’s');
+  if (nameIssue) return { ok: false, reason: `Name "${name.slice(0, 60)}${name.length > 60 ? '…' : ''}": ${nameIssue}` };
   if (!email) return { ok: false, reason: 'No email address' };
   if (!EMAIL_RE.test(email)) return { ok: false, reason: `"${email}" isn't a valid email address` };
 

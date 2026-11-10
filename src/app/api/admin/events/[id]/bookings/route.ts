@@ -38,7 +38,9 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
 const addSchema = z.object({
   memberIds: z.array(z.string().min(1)).min(1, 'Select at least one member.').max(50, 'Add at most 50 members at a time.'),
   paymentMethod: z.enum(PAYMENT_METHOD_VALUES),
-  paidAmount: z.number().nonnegative(),
+  // A real amount: 1e999 arrives from JSON as Infinity, and the database
+  // column can't hold it (it used to fail as a 500). Far above any booking.
+  paidAmount: z.number().finite().nonnegative().max(100_000),
   checkedIn: z.boolean().default(true),
 });
 

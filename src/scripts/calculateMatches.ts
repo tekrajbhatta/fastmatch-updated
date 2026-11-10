@@ -35,7 +35,8 @@ async function run() {
       console.log(`  -> ${result.matchesCreated} matches created`);
       const emails = await sendMatchEmails(event.id);
       console.log(`  -> ${emails.sent} result email(s) sent`);
-      if (emails.failed.length) console.error(`  -> ${emails.failed.length} couldn't be emailed: ${emails.failed.map((f) => f.email || f.name).join(', ')}`);
+      // Member ids, not addresses or names: this cron log is kept for weeks.
+      if (emails.failed.length) console.error(`  -> ${emails.failed.length} couldn't be emailed: members ${emails.failed.map((f) => f.memberId).join(', ')}`);
     } catch (err) {
       failed++;
       console.error(`  -> event #${event.number} failed:`, err);
@@ -57,7 +58,7 @@ async function run() {
     try {
       const emails = await sendMatchEmails(event.id);
       console.log(`Event #${event.number}: ${emails.sent} result email(s) sent that hadn't gone before`);
-      if (emails.failed.length) console.error(`  -> still ${emails.failed.length} couldn't be emailed: ${emails.failed.map((f) => f.email || f.name).join(', ')}`);
+      if (emails.failed.length) console.error(`  -> still ${emails.failed.length} couldn't be emailed: members ${emails.failed.map((f) => f.memberId).join(', ')}`);
     } catch (err) {
       resendFailed++;
       console.error(`  -> event #${event.number}: resending results failed:`, err);

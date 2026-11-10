@@ -233,7 +233,8 @@ async function tellCancelled(event: FullEvent, b: Attendee, refunded: number | n
     const { subject, html } = eventChangeEmail({ ...change, memberName: b.member.name, refunded });
     await sendEmail({ to: b.member.email, subject, html });
   } catch (err) {
-    console.error(`Event ${event.id}: cancellation email to ${b.member.email} failed`, err);
+    // The member's id, not their address: this log is kept for weeks.
+    console.error(`Event ${event.id}: cancellation email to member ${b.member.id} failed`, err);
     outcome?.notifyFailures.push({ member: b.member.name, channel: 'email' });
   }
   // No mobile yet (imported from the old site, booked in by the admin): email only.
@@ -241,7 +242,7 @@ async function tellCancelled(event: FullEvent, b: Attendee, refunded: number | n
   try {
     await sendSms({ to: b.member.mobile, body: eventChangeSms(change) });
   } catch (err) {
-    console.error(`Event ${event.id}: cancellation SMS to ${b.member.mobile} failed`, err);
+    console.error(`Event ${event.id}: cancellation SMS to member ${b.member.id} failed`, err);
     outcome?.notifyFailures.push({ member: b.member.name, channel: 'sms' });
   }
 }

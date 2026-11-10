@@ -11,6 +11,8 @@
  * development, CI and the production build never accidentally email anyone.
  */
 import type { Transporter } from 'nodemailer';
+import { EMAIL_RE } from '../friendBooking';
+import { maskEmail } from '../logMask';
 
 interface SendEmailArgs {
   to: string;
@@ -66,13 +68,26 @@ async function getTransport(): Promise<Transporter> {
   return transporter;
 }
 
-export async function sendEmail({ to, subject, html, replyTo, listUnsubscribe }: SendEmailArgs) {
+export async function sendEmail({ to: rawTo, subject, html, replyTo, listUnsubscribe }: SendEmailArgs) {
+  // Exactly one address, of the shape every form on the site accepts (the
+  // same rule as zod's .email()). nodemailer would otherwise take "a@x.com,
+  // b@y.com" or "Name <a@x.com>" and send to all of them: a safety net in case
+  // an address ever reaches here unchecked.
+  const to = (rawTo ?? '').trim();
+  if (!EMAIL_RE.test(to)) throw new Error(`Email not sent: "${maskEmail(to)}" isn't a single email address.`);
   // An email header: never more than one line.
   const reply = replyTo?.replace(/[\r\n]+/g, '').trim() || undefined;
   const unsubscribeUrl = listUnsubscribe?.replace(/[\r\n<>]+/g, '').trim() || undefined;
   // Same stub behaviour as before, just keyed on the SMTP credentials rather
   // than an API key. Both must be present to attempt a real send.
   if (!process.env.MAILGUN_SMTP_USER || !process.env.MAILGUN_SMTP_PASS) {
+    // On the live site a missing login is a mistake, not a choice: every
+    // email (reset links included) would silently go nowhere and its
+    // recipient would land in the log. Fail like any send that didn't go.
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Email not sent: MAILGUN_SMTP_USER / MAILGUN_SMTP_PASS are not set.');
+    }
+    // Local development and tests only (NODE_ENV isn't "production").
     console.log(`[stub] Would email ${to}: "${subject}"${reply ? ` (reply-to ${reply})` : ''}${unsubscribeUrl ? ' (one-click unsubscribe)' : ''}`);
     return;
   }
@@ -94,14 +109,37 @@ export async function sendEmail({ to, subject, html, replyTo, listUnsubscribe }:
     // Log it clearly so it's visible in journalctl, then rethrow so the
     // caller's own handling still runs — campaign sends rely on this to mark
     // a recipient as bounced.
-    console.error(`Failed to send email to ${to}:`, err);
-    // Keeps the mail server's answer (responseCode 550, code EENVELOPE...)
-    // so a blast can tell a dead address from a temporary outage.
+    // The address masked and the mail server's answer in brief: the whole
+    // error object lists the recipients (rejected, envelope, the server's
+    // reply) in full, and this log is kept for weeks.
     const e = err as { responseCode?: number; code?: string; command?: string } | null;
-    throw Object.assign(new Error(`Email send failed: ${err instanceof Error ? err.message : String(err)}`, { cause: err }), {
+    console.error(
+      `Failed to send email to ${maskEmail(to)}: ${e?.code ?? 'error'}${e?.responseCode ? ` ${e.responseCode}` : ''}${e?.command ? ` (${e.command})` : ''}: ${redactAddresses(err instanceof Error ? err.message : String(err))}`,
+    );
+    // Keeps the mail server's answer (responseCode 550, code EENVELOPE...)
+    // so a blast can tell a dead address from a temporary outage. Callers log
+    // what's thrown, so it carries the answer with addresses masked, and not
+    // the original error (which lists every recipient in full). The answer as
+    // it came is kept, hidden from logs, for the admin's test send, which
+    // shows it to the person who typed the address (providerMessage).
+    const original = err instanceof Error ? err.message : String(err);
+    const failure = Object.assign(new Error(`Email send failed: ${redactAddresses(original)}`), {
       responseCode: e?.responseCode,
       code: e?.code,
       command: e?.command,
     });
+    Object.defineProperty(failure, 'providerMessage', { value: original, enumerable: false });
+    throw failure;
   }
+}
+
+/** The mail server's own answer to a failed send, unmasked (see above), or null. */
+export function providerMessage(err: unknown): string | null {
+  const m = err && typeof err === 'object' ? (err as { providerMessage?: unknown }).providerMessage : undefined;
+  return typeof m === 'string' ? m : null;
+}
+
+/** Any email address in a provider's message, masked ("550 <j***@g***.com>: no such user"). */
+function redactAddresses(text: string): string {
+  return text.replace(/[^\s<>"'(),;:]+@[^\s<>"'(),;:]+/g, (a) => maskEmail(a));
 }
