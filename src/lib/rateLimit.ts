@@ -57,6 +57,30 @@ export const LIMITS = {
    * works, which would turn up codes that were never advertised.
    */
   discountChecks: { limit: 30, windowMs: 15 * MINUTE },
+  /**
+   * EVERY press of Book per member per event, counted before any check, so
+   * the friend checks and the "places left" message can't be used over and
+   * over to learn who is a member or how full a night is. Generous: fixing a
+   * friend's details a few times is normal.
+   */
+  bookingTries: { limit: 30, windowMs: HOUR },
+  /** Reset emails per address per day, on top of the hourly limit (stops a mailbox being flooded all day). */
+  resetEmailDaily: { limit: 5, windowMs: 24 * HOUR },
+  /**
+   * Every login attempt from one address, counted BEFORE the slow password
+   * check (loginIp counts only failures, after it): a burst can't keep the
+   * server busy checking passwords. Generous for a venue's shared wifi.
+   */
+  loginIpAll: { limit: 100, windowMs: 15 * MINUTE },
+  /** Current-password guesses on Change password, per member. */
+  changePassword: { limit: 10, windowMs: 15 * MINUTE },
+  /** Feedback forms per member (each one emails Gil). */
+  feedback: { limit: 5, windowMs: HOUR },
+  /** Verification texts to one mobile number, whoever asks (each one is a paid text). */
+  smsToNumber: { limit: 3, windowMs: HOUR },
+  smsToNumberDaily: { limit: 6, windowMs: 24 * HOUR },
+  /** Admin test sends per admin (each one is a real email or paid text). */
+  testSend: { limit: 30, windowMs: HOUR },
 } as const;
 
 /**
@@ -88,7 +112,28 @@ export function rateKey(prefix: string, value: string): string {
  */
 export function clientIp(req: NextRequest): string {
   const forwarded = req.headers.get('x-forwarded-for')?.split(',').map((a) => a.trim()).filter(Boolean).pop();
-  return forwarded || req.headers.get('x-real-ip')?.trim() || 'unknown';
+  return addressBucket(forwarded || req.headers.get('x-real-ip')?.trim() || 'unknown');
+}
+
+/**
+ * The part of an address that identifies one visitor. An IPv4 address is one
+ * connection; an IPv6 connection is handed a whole /64 block (billions of
+ * addresses), so counting each IPv6 address separately let one visitor make
+ * a fresh one for every attempt and never reach a per-address limit. IPv6 is
+ * counted by its first four groups; an IPv4 address written as IPv6
+ * (::ffff:1.2.3.4) as the IPv4 address.
+ */
+export function addressBucket(address: string): string {
+  const a = address.trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/%.*$/, '');
+  const mapped = a.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if (mapped) return mapped[1];
+  if (!a.includes(':')) return a;
+  const [head, tail = ''] = a.split('::');
+  const headGroups = head ? head.split(':') : [];
+  const tailGroups = a.includes('::') ? (tail ? tail.split(':') : []) : [];
+  const missing = Math.max(0, 8 - headGroups.length - tailGroups.length);
+  const groups = a.includes('::') ? [...headGroups, ...Array(missing).fill('0'), ...tailGroups] : headGroups;
+  return `${groups.slice(0, 4).map((g) => (g.replace(/^0+(?=.)/, '') || '0')).join(':')}::/64`;
 }
 
 /**

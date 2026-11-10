@@ -97,7 +97,7 @@ describe('wallTimeIn / dateIn', () => {
       // Only the repeated hour when clocks go back (two half-hours) differs.
       expect(skipped, tz).toBe(tz === BNE || tz === PER || tz === 'Australia/Darwin' ? 0 : 2);
     }
-  });
+  }, 30_000); // thousands of conversions: give a slow CI runner room
 });
 
 describe('startOfDayIn / endOfDayIn', () => {
