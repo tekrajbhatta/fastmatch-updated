@@ -26,11 +26,32 @@ describe('session tokens', () => {
     expect(claims && sessionStillValid(claims, member)).toBe(true);
   });
 
-  it('sessions issued before this change ({ memberId } only) still work', () => {
+  it('refuses tokens from before sessions were marked ({ memberId } only)', () => {
+    // These used to be accepted; without a fingerprint one would survive a
+    // password change, and without an expiry it would work for ever.
     const legacy = jwt.sign({ memberId: 'member-1' }, SECRET, { expiresIn: '30d' });
-    const claims = readSessionToken(legacy);
-    expect(claims?.memberId).toBe('member-1');
-    expect(claims && sessionStillValid(claims, member)).toBe(true);
+    expect(readSessionToken(legacy)).toBeNull();
+  });
+
+  it('a session needs its type, a password fingerprint and an expiry', () => {
+    const pwd = passwordFingerprint(member.passwordHash);
+    expect(readSessionToken(jwt.sign({ memberId: 'member-1', typ: 'session', pwd }, SECRET, { expiresIn: '1d' }))?.memberId).toBe('member-1');
+    expect(readSessionToken(jwt.sign({ memberId: 'member-1', pwd }, SECRET, { expiresIn: '1d' }))).toBeNull();
+    expect(readSessionToken(jwt.sign({ memberId: 'member-1', typ: 'session' }, SECRET, { expiresIn: '1d' }))).toBeNull();
+    expect(readSessionToken(jwt.sign({ memberId: 'member-1', typ: 'session', pwd }, SECRET))).toBeNull(); // no expiry
+  });
+
+  it('only HS256 is accepted, and every token is signed with it', () => {
+    const pwd = passwordFingerprint(member.passwordHash);
+    const hs512 = jwt.sign({ memberId: 'member-1', typ: 'session', pwd }, SECRET, { algorithm: 'HS512', expiresIn: '1d' });
+    expect(readSessionToken(hs512)).toBeNull();
+    const unsigned = jwt.sign({ memberId: 'member-1', typ: 'session', pwd }, '', { algorithm: 'none', expiresIn: '1d' });
+    expect(readSessionToken(unsigned)).toBeNull();
+    for (const t of [signSessionToken(member), signPasswordResetToken(member), signEmailVerificationToken(member)]) {
+      expect((jwt.decode(t, { complete: true }) as { header: { alg: string } }).header.alg).toBe('HS256');
+    }
+    expect(readPurposeToken(jwt.sign({ memberId: 'member-1', purpose: 'unsubscribe' }, SECRET, { algorithm: 'HS384' }), 'unsubscribe'))
+      .toEqual({ ok: false, reason: 'invalid' });
   });
 
   it.each(['unsubscribe', 'verify_email', 'set_password', 'password_reset'])(

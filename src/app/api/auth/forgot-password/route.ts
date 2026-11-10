@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { sendEmail } from '@/lib/emails/send';
@@ -10,23 +10,16 @@ import { finishInvitationEmail } from '@/lib/emails/signupEmails';
 import { setPasswordUrl } from '@/lib/welcomeLink';
 
 
-const bodySchema = z.object({ email: z.string().email() });
+const bodySchema = z.object({ email: z.string().max(254).email() });
 
-export const POST = withErrorHandling(async (req: NextRequest) => {
-  const parsed = bodySchema.safeParse(await req.json());
-  if (!parsed.success) return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
-
-  // Past either limit, nothing is sent, but the reply is the same as always,
-  // so this still can't be used to tell which addresses are registered.
-  const perAddress = await hitRateLimit(rateKey('reset-ip', clientIp(req)), LIMITS.resetIp.limit, LIMITS.resetIp.windowMs);
-  const perEmail = await hitRateLimit(rateKey('reset-email', parsed.data.email), LIMITS.resetEmail.limit, LIMITS.resetEmail.windowMs);
-  if (!perAddress.allowed || !perEmail.allowed) return NextResponse.json({ ok: true });
-
-  const member = await prisma.member.findUnique({ where: { email: parsed.data.email } });
-
-  // Always return success, whether or not the email exists — don't let this
-  // endpoint be used to check which emails are registered.
-  if (member) {
+/**
+ * Looks the address up and, for a member, emails the link. Runs after the
+ * reply has gone (see below), so it never throws.
+ */
+async function emailResetLink(email: string): Promise<void> {
+  try {
+    const member = await prisma.member.findUnique({ where: { email } });
+    if (!member) return;
     // Someone a friend added, who has never chosen a password, gets the
     // "Welcome to FastMatch" form instead of a bare reset: a reset used to let
     // them in without ever confirming their details (their date of birth was
@@ -43,10 +36,34 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     try {
       await sendEmail({ to: member.email, subject, html });
     } catch (err) {
-      // Logged, not returned: an error here would reveal the address exists.
       console.error(`Password reset email to member ${member.id} failed`, err);
     }
+  } catch (err) {
+    console.error('Password reset: looking up the address failed', err);
   }
+}
 
+// POST /api/auth/forgot-password — always { ok: true }, whether or not the
+// address is a member's, so this can't be used to find out who's on
+// FastMatch. The look-up and the email happen AFTER the reply: sending one
+// used to hold the reply up for a member's address only (a fraction of a
+// second talking to the mail server), so timing the answer told the two
+// apart even though the words were the same.
+export const POST = withErrorHandling(async (req: NextRequest) => {
+  const parsed = bodySchema.safeParse(await req.json());
+  if (!parsed.success) return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
+
+  // Past any limit, nothing is sent, but the reply is the same as always.
+  // Per visitor address, and per address asked for: a few an hour, and a few
+  // a day on top (so a mailbox can't be sent a reset email every 20 minutes
+  // all day long).
+  const perAddress = await hitRateLimit(rateKey('reset-ip', clientIp(req)), LIMITS.resetIp.limit, LIMITS.resetIp.windowMs);
+  const perEmail = await hitRateLimit(rateKey('reset-email', parsed.data.email), LIMITS.resetEmail.limit, LIMITS.resetEmail.windowMs);
+  if (!perAddress.allowed || !perEmail.allowed) return NextResponse.json({ ok: true });
+  const perEmailToday = await hitRateLimit(rateKey('reset-email-day', parsed.data.email), LIMITS.resetEmailDaily.limit, LIMITS.resetEmailDaily.windowMs);
+  if (!perEmailToday.allowed) return NextResponse.json({ ok: true });
+
+  const email = parsed.data.email;
+  after(() => emailResetLink(email));
   return NextResponse.json({ ok: true });
 });

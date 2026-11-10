@@ -4,13 +4,13 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import type { Member } from '@prisma/client';
 import { withErrorHandling } from '@/lib/withErrorHandling';
-import { readPurposeToken, passwordFingerprint, sentToCurrentAddress } from '@/lib/tokens';
+import { readPurposeToken, passwordFingerprint, sentToCurrentAddress, PASSWORD_MAX, PASSWORD_TOO_LONG } from '@/lib/tokens';
 import { setPasswordPath } from '@/lib/welcomeLink';
 import { clearLoginLock, clientIp } from '@/lib/rateLimit';
 
 const bodySchema = z.object({
-  token: z.string(),
-  newPassword: z.string().min(8),
+  token: z.string().max(2000),
+  newPassword: z.string().min(8).max(PASSWORD_MAX, PASSWORD_TOO_LONG),
 });
 
 const INVALID = 'Reset link is invalid or has expired.';
@@ -61,7 +61,10 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const parsed = bodySchema.safeParse(await req.json());
-  if (!parsed.success) return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+  if (!parsed.success) {
+    const tooLong = parsed.error.issues.some((i) => i.path[0] === 'newPassword' && i.code === 'too_big');
+    return NextResponse.json({ error: tooLong ? PASSWORD_TOO_LONG : 'Invalid request' }, { status: 400 });
+  }
 
   const link = await checkResetLink(parsed.data.token);
   if (!link.ok) {

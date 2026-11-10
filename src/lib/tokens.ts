@@ -22,6 +22,15 @@ function secret(): string {
 }
 
 /**
+ * One signing method for every token, named outright rather than left to the
+ * library's default, and the only one a token is checked against: a token
+ * claiming any other method (including "none") is refused.
+ */
+const ALGORITHM = 'HS256' as const;
+export const SIGN_OPTIONS = { algorithm: ALGORITHM } as const;
+export const VERIFY_OPTIONS = { algorithms: [ALGORITHM] };
+
+/**
  * A short fingerprint of a member's password hash. Tokens carry it so they
  * stop working once the password changes: a used reset link can't be used
  * again, and a password change logs out every other device. Never the hash
@@ -31,6 +40,31 @@ export function passwordFingerprint(passwordHash: string): string {
   return crypto.createHash('sha256').update(passwordHash).digest('hex').slice(0, 16);
 }
 
+// ---- password lengths ------------------------------------------------------
+
+/**
+ * The longest password a new one may be. The password check (bcrypt) only
+ * ever reads a password's first 72 bytes, so anything longer adds nothing,
+ * and an unlimited box let anyone send megabytes to be processed.
+ */
+export const PASSWORD_MAX = 128;
+export const PASSWORD_TOO_LONG = `Your password can be at most ${PASSWORD_MAX} characters.`;
+
+/**
+ * A password typed to log in (or as the current password), as it is checked.
+ * Passwords used to have no upper limit, so someone may have chosen one
+ * longer than PASSWORD_MAX; refusing it would lock them out. Cutting it to
+ * PASSWORD_MAX characters changes nothing: those characters are at least 128
+ * bytes, and bcrypt reads only the first 72, so the answer is the same as for
+ * the whole thing.
+ */
+export function passwordToCheck(typed: string): string {
+  return typed.slice(0, PASSWORD_MAX);
+}
+
+/** A sanity limit on what a login form may send at all (far above any real password). */
+export const TYPED_PASSWORD_MAX = 1024;
+
 // ---- sessions (the fm_session cookie) --------------------------------------
 
 export const SESSION_DAYS = 30;
@@ -39,41 +73,47 @@ export function signSessionToken(member: { id: string; passwordHash: string }): 
   return jwt.sign(
     { memberId: member.id, typ: 'session', pwd: passwordFingerprint(member.passwordHash) },
     secret(),
-    { expiresIn: `${SESSION_DAYS}d` },
+    { ...SIGN_OPTIONS, expiresIn: `${SESSION_DAYS}d` },
   );
 }
 
 export interface SessionClaims {
   memberId: string;
-  /** Absent on sessions issued before fingerprints existed (they lapse within 30 days). */
-  pwd?: string;
+  /** Fingerprint of the password the session was issued against. */
+  pwd: string;
 }
 
 /**
  * The member a session token belongs to, or null for anything that isn't a
- * live session token. Sessions issued before this check existed carry only
- * { memberId }, so a token is accepted when it is marked as a session OR has
- * no `purpose` at all; every purpose-bound token (unsubscribe, verify_email,
- * set_password, password_reset) is refused.
+ * live session token: it must be marked as a session, carry the password
+ * fingerprint and an expiry. Every purpose-bound token (unsubscribe,
+ * verify_email, set_password, password_reset, change_email) is refused.
+ *
+ * Tokens from before sessions were marked ({ memberId } only, no fingerprint)
+ * used to be accepted too. None are still in use, and accepting them meant a
+ * token without a fingerprint or an expiry would work for ever, even after a
+ * password change.
  */
 export function readSessionToken(token: string): SessionClaims | null {
   let payload: unknown;
   try {
-    payload = jwt.verify(token, secret());
+    payload = jwt.verify(token, secret(), VERIFY_OPTIONS);
   } catch {
     return null; // expired, tampered with, or not ours
   }
   if (!payload || typeof payload !== 'object') return null;
   const p = payload as Record<string, unknown>;
   if ('purpose' in p) return null;
-  if (p.typ !== undefined && p.typ !== 'session') return null;
+  if (p.typ !== 'session') return null;
+  if (typeof p.exp !== 'number') return null;
+  if (typeof p.pwd !== 'string' || !p.pwd) return null;
   if (typeof p.memberId !== 'string' || !p.memberId) return null;
-  return { memberId: p.memberId, pwd: typeof p.pwd === 'string' ? p.pwd : undefined };
+  return { memberId: p.memberId, pwd: p.pwd };
 }
 
 /** False once the member's password has changed since the session was issued. */
 export function sessionStillValid(claims: SessionClaims, member: { passwordHash: string }): boolean {
-  return !claims.pwd || claims.pwd === passwordFingerprint(member.passwordHash);
+  return claims.pwd === passwordFingerprint(member.passwordHash);
 }
 
 // ---- emailed links ---------------------------------------------------------
@@ -91,7 +131,7 @@ export function signPasswordResetToken(member: { id: string; email: string; pass
   return jwt.sign(
     { memberId: member.id, purpose: 'password_reset', pwd: passwordFingerprint(member.passwordHash), email: member.email.toLowerCase() },
     secret(),
-    { expiresIn: `${validMinutes}m` },
+    { ...SIGN_OPTIONS, expiresIn: `${validMinutes}m` },
   );
 }
 
@@ -100,7 +140,7 @@ export function signEmailVerificationToken(member: { id: string; email: string }
   return jwt.sign(
     { memberId: member.id, purpose: 'verify_email', email: member.email.toLowerCase() },
     secret(),
-    { expiresIn: '7d' },
+    { ...SIGN_OPTIONS, expiresIn: '7d' },
   );
 }
 
@@ -122,7 +162,7 @@ export function signEmailChangeToken(member: { id: string; email: string; passwo
       pwd: passwordFingerprint(member.passwordHash),
     },
     secret(),
-    { expiresIn: `${EMAIL_CHANGE_DAYS}d` },
+    { ...SIGN_OPTIONS, expiresIn: `${EMAIL_CHANGE_DAYS}d` },
   );
 }
 
@@ -141,7 +181,7 @@ export function readPurposeToken(
 ): { ok: true; memberId: string; pwd?: string; email?: string; from?: string } | { ok: false; reason: 'invalid' | 'wrong_purpose' } {
   let payload: unknown;
   try {
-    payload = jwt.verify(token, secret());
+    payload = jwt.verify(token, secret(), VERIFY_OPTIONS);
   } catch {
     return { ok: false, reason: 'invalid' };
   }

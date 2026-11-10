@@ -31,10 +31,20 @@ export function isAustralianMobile(raw: string | null | undefined): boolean {
 /**
  * The same number, however each is written ("0412 345 678" and
  * "+61412345678"), so re-saving a form unchanged isn't a "new" number.
- * Numbers that aren't Australian mobiles are compared digit by digit.
+ *
+ * Only two Australian mobiles are compared by their digits. Anything else
+ * (an old overseas number already saved) is the same only when written
+ * exactly the same, and something with no digits at all is never "the same"
+ * as anything: comparing digits alone used to make "call me" equal to an
+ * empty number (members imported without one), so it was saved as their
+ * mobile without being checked as a new number.
  */
 export function sameMobile(a: string | null | undefined, b: string | null | undefined): boolean {
-  const ka = australianMobile(a) ?? (a ?? '').replace(/\D/g, '');
-  const kb = australianMobile(b) ?? (b ?? '').replace(/\D/g, '');
-  return ka === kb;
+  const sa = (a ?? '').trim();
+  const sb = (b ?? '').trim();
+  if (!/\d/.test(sa) || !/\d/.test(sb)) return false;
+  const ka = australianMobile(sa);
+  const kb = australianMobile(sb);
+  if (ka && kb) return ka === kb;
+  return sa === sb;
 }

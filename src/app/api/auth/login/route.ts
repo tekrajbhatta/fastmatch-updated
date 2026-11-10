@@ -8,10 +8,14 @@ import { withErrorHandling } from '@/lib/withErrorHandling';
 import { clientIp, clearLoginLock, hitRateLimit, isRateLimited, LIMITS, loginKeys, rateKey } from '@/lib/rateLimit';
 import { unfinishedSteps } from '@/lib/accountSetup';
 import { emailWelcomeLinkOnLogin } from '@/lib/welcomeLink';
+import { passwordToCheck, TYPED_PASSWORD_MAX } from '@/lib/tokens';
 
+// Anything past these gets the usual "Invalid email or password". The
+// password limit is far above any real one: a long password that worked
+// before still works (see passwordToCheck).
 const bodySchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: z.string().max(254).email(),
+  password: z.string().min(1).max(TYPED_PASSWORD_MAX),
 });
 
 // The password check is deliberately slow (about a quarter of a second), and
@@ -43,6 +47,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     { status: 429 },
   );
   if (await isRateLimited(ipKey, LIMITS.loginIp.limit)) return tooMany();
+  // Every attempt from this address, counted before the slow password check:
+  // the count above only goes up AFTER a failed check, so a burst of requests
+  // sent at once (each with a different email) all got checked before any
+  // was counted, keeping the server busy for minutes.
+  if (!(await hitRateLimit(rateKey('login-ip-all', ip), LIMITS.loginIpAll.limit, LIMITS.loginIpAll.windowMs)).allowed) return tooMany();
   // Each attempt on the account is counted BEFORE the (slow) password check,
   // so a burst of guesses sent at once can't all be checked before any is
   // counted (a successful login clears these counts again).
@@ -61,7 +70,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   };
 
   const realHash = member && isBcryptHash(member.passwordHash) ? member.passwordHash : null;
-  const ok = (await bcrypt.compare(parsed.data.password, realHash ?? (await timingHash()))) && realHash !== null;
+  const ok = (await bcrypt.compare(passwordToCheck(parsed.data.password), realHash ?? (await timingHash()))) && realHash !== null;
   if (!member) return invalid();
   if (!ok) {
     // Someone a friend booked in (or invited) has no password yet, so none

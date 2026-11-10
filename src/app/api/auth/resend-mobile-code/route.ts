@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { getSessionMember } from '@/lib/auth';
-import { sendSms } from '@/lib/sms/send';
-import { verificationCodeSms } from '@/lib/sms/verificationSms';
 import { withErrorHandling } from '@/lib/withErrorHandling';
-import { clearRateLimit, hitRateLimit, LIMITS, rateKey } from '@/lib/rateLimit';
-import { newMobileCode } from '@/lib/mobileCode';
+import { hitRateLimit, LIMITS, rateKey } from '@/lib/rateLimit';
+import { textMobileCode } from '@/lib/memberVerification';
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const member = await getSessionMember(req);
@@ -28,13 +25,17 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     );
   }
 
-  const code = newMobileCode();
-  await prisma.member.update({
-    where: { id: member.id },
-    data: { mobileVerificationCode: code, mobileVerificationExpires: new Date(Date.now() + 15 * 60 * 1000) },
-  });
-  await clearRateLimit(rateKey('mobile-code', member.id)); // a new code: five fresh guesses
-  await sendSms({ to: member.mobile, body: verificationCodeSms(code) });
+  // The same send as everywhere else (src/lib/memberVerification.ts), so the
+  // limit on texts to any one number covers this button too.
+  const sent = await textMobileCode(member);
+  if (sent === 'limited') {
+    return NextResponse.json(
+      { error: "We've sent several codes to this number recently. Please wait an hour or so and try again, or check your number in your profile." },
+      { status: 429 },
+    );
+  }
+  // As before, a text that couldn't go is a plain failure.
+  if (sent !== 'sent') return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 });
 
   return NextResponse.json({ ok: true });
 });

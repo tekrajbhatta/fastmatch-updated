@@ -32,7 +32,13 @@ describe('Australian mobiles only (Q21)', () => {
     expect(sameMobile('0412 345 678', '+61412345678')).toBe(true);
     expect(sameMobile('0412345678', '0412345679')).toBe(false);
     // An old overseas number already saved, re-saved unchanged: not a "new" number.
-    expect(sameMobile('+44 7911 123456', '+447911123456')).toBe(true);
+    expect(sameMobile('+44 7911 123456', '+44 7911 123456')).toBe(true);
+    // Written differently, it's treated as a new number (which must then be
+    // an Australian mobile): only Australian mobiles are compared by digits.
+    expect(sameMobile('+44 7911 123456', '+447911123456')).toBe(false);
+    // Nothing with no digits is "the same" as anything, empty included.
+    expect(sameMobile('', 'call me')).toBe(false);
+    expect(sameMobile('', '')).toBe(false);
   });
 
   it('applies to the friends a member books in', () => {

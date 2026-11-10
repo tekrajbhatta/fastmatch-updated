@@ -9,6 +9,7 @@ import { timeZoneForCity } from '@/lib/timezone';
 import { venueLine } from '@/lib/venue';
 import { eventLabel } from '@/lib/eventLabel';
 import { withErrorHandling } from '@/lib/withErrorHandling';
+import { hitRateLimit, LIMITS, rateKey } from '@/lib/rateLimit';
 
 /** The member's events for "My feedback is about the event" — ones they've booked, newest first. */
 async function feedbackEvents(memberId: string) {
@@ -30,7 +31,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 });
 
 const bodySchema = z.object({
-  eventId: z.string().optional(),
+  eventId: z.string().max(100).optional(),
   message: z.string().trim().min(1, 'Please write your feedback.').max(5000, 'Please keep it under 5,000 characters.'),
 });
 
@@ -44,6 +45,16 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Please check your feedback.' }, { status: 400 });
+
+  // A few an hour per member: each one is saved and emailed to Gil, so an
+  // unlimited form could fill his inbox and the Member Feedback list.
+  const sent = await hitRateLimit(rateKey('feedback', member.id), LIMITS.feedback.limit, LIMITS.feedback.windowMs);
+  if (!sent.allowed) {
+    return NextResponse.json(
+      { error: "You've sent several messages in the last hour. Please try again later, or email gil@fastmatch.com.au." },
+      { status: 429 },
+    );
+  }
 
   let event = null;
   if (parsed.data.eventId) {

@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 import { getSessionMember } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { nameProblemSentence } from '@/lib/personName';
-import { signEmailChangeToken } from '@/lib/tokens';
+import { signEmailChangeToken, passwordToCheck, TYPED_PASSWORD_MAX } from '@/lib/tokens';
 import { sendEmail } from '@/lib/emails/send';
 import { confirmEmailChangeEmail, emailAlreadyUsedEmail } from '@/lib/emails/emailChangeEmails';
 import { hitRateLimit, rateKey, LIMITS } from '@/lib/rateLimit';
@@ -13,17 +13,18 @@ import { parseDateOfBirth } from '@/lib/friendBooking';
 import { calculateAge } from '@/lib/age';
 import { sendMobileVerification } from '@/lib/memberVerification';
 import { isAustralianMobile, sameMobile, AU_MOBILE_MESSAGE } from '@/lib/mobile';
+import { ownDetails } from '../ownDetails';
 
 const schema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
-  mobile: z.string().min(1),
-  cityId: z.string(),
+  name: z.string().trim().min(1).max(100),
+  email: z.string().max(254).email(),
+  mobile: z.string().trim().min(1).max(30),
+  cityId: z.string().max(100),
   // YYYY-MM-DD. Optional so an older copy of the page that doesn't send it
   // still saves the rest. Age is always worked out from this, never stored.
-  dateOfBirth: z.string().optional(),
+  dateOfBirth: z.string().max(30).optional(),
   // Needed only to change the email address (see below).
-  currentPassword: z.string().max(200).optional(),
+  currentPassword: z.string().max(TYPED_PASSWORD_MAX).optional(),
 });
 
 // GET/PATCH /api/account/profile — a member viewing/editing their own
@@ -42,8 +43,7 @@ const schema = z.object({
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const member = await getSessionMember(req);
   if (!member) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  const { passwordHash, mobileVerificationCode, ...safe } = member;
-  return NextResponse.json(safe);
+  return NextResponse.json(ownDetails(member));
 });
 
 export const PATCH = withErrorHandling(async (req: NextRequest) => {
@@ -77,7 +77,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
   // The email address is the way into the account ("Forgot password?"), so
   // changing it needs the current password, as changing the password does:
   // someone using a phone left logged in could otherwise take the account.
-  if (emailChanged && !(data.currentPassword && (await bcrypt.compare(data.currentPassword, member.passwordHash)))) {
+  if (emailChanged && !(data.currentPassword && (await bcrypt.compare(passwordToCheck(data.currentPassword), member.passwordHash)))) {
     return NextResponse.json(
       { error: data.currentPassword ? 'That isn’t your current password.' : 'Please enter your current password to change your email address.', field: 'currentPassword' },
       { status: 400 },
@@ -90,7 +90,9 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
   // the "Resend code" limit.
   // The same number written differently ("0412 345 678", "+61412345678") isn't a change.
   const mobileChanged = !sameMobile(data.mobile, member.mobile);
-  // A new number must be an Australian mobile (Gil, Q21); one already saved is left alone.
+  // A new number must be an Australian mobile (Gil, Q21); one already saved
+  // is left alone. (A member imported without one has nothing saved, so
+  // whatever they type is new and checked.)
   if (mobileChanged && !isAustralianMobile(data.mobile)) {
     return NextResponse.json({ error: AU_MOBILE_MESSAGE }, { status: 400 });
   }
@@ -109,10 +111,17 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Please choose your city from the list.' }, { status: 400 });
   }
 
-  const { email: _email, currentPassword: _password, cityId: _city, ...rest } = data;
+  // The mobile is saved only when it's a new number, as typed (trimmed), the
+  // way sign-up saves it. The same number written differently is left as it
+  // was, so what was confirmed is what stays on the account.
   const updated = await prisma.member.update({
     where: { id: member.id },
-    data: { ...rest, cityId, ...(dob ? { dateOfBirth: dob } : {}), ...(mobileChanged ? { mobileVerified: false } : {}) },
+    data: {
+      name: data.name,
+      cityId,
+      ...(mobileChanged ? { mobile: data.mobile, mobileVerified: false } : {}),
+      ...(dob ? { dateOfBirth: dob } : {}),
+    },
   });
   const smsSent = mobileChanged ? await sendMobileVerification(updated) : undefined;
 
@@ -136,7 +145,6 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
     }
   }
 
-  const { passwordHash, mobileVerificationCode, ...safe } = updated;
   // emailChangePending: the address a confirmation link went to (the email itself is unchanged).
-  return NextResponse.json({ ...safe, emailChangePending: emailChanged ? newEmail : null, mobileChangePending: mobileChanged, smsSent });
+  return NextResponse.json({ ...ownDetails(updated), emailChangePending: emailChanged ? newEmail : null, mobileChangePending: mobileChanged, smsSent });
 });

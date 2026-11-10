@@ -12,16 +12,17 @@ import { setPasswordUrl } from '@/lib/welcomeLink';
 import { newSignupToken, signupNext, PENDING_SIGNUP_DAYS, type PendingSignupData } from '@/lib/pendingSignup';
 import { hitRateLimit, rateKey, clientIp, LIMITS } from '@/lib/rateLimit';
 import { isAustralianMobile, AU_MOBILE_MESSAGE } from '@/lib/mobile';
+import { PASSWORD_MAX, PASSWORD_TOO_LONG } from '@/lib/tokens';
 
 const bodySchema = z.object({
-  name: z.string().trim().min(1),
+  name: z.string().trim().min(1).max(100, 'Please enter a shorter name.'),
   gender: z.enum(['MALE', 'FEMALE']),
-  email: z.string().trim().email(),
-  password: z.string().min(8),
-  cityId: z.string(),
-  dateOfBirth: z.string(), // YYYY-MM-DD
+  email: z.string().trim().max(254, 'Please enter a valid email address.').email(),
+  password: z.string().min(8).max(PASSWORD_MAX, PASSWORD_TOO_LONG),
+  cityId: z.string().max(100),
+  dateOfBirth: z.string().max(30), // YYYY-MM-DD
   // Australian mobiles only (Gil, Q21).
-  mobile: z.string().trim().min(1).refine(isAustralianMobile, AU_MOBILE_MESSAGE),
+  mobile: z.string().trim().min(1).max(30, AU_MOBILE_MESSAGE).refine(isAustralianMobile, AU_MOBILE_MESSAGE),
   agreedTerms: z.literal(true, {
     errorMap: () => ({ message: 'You must agree to the Terms & Conditions and Privacy Policy' }),
   }),
@@ -52,6 +53,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // The mobile's own message, so the form can say what's wrong with it.
     const mobileIssue = parsed.error.issues.find((i) => i.path[0] === 'mobile' && i.message === AU_MOBILE_MESSAGE);
     if (mobileIssue) return NextResponse.json({ error: AU_MOBILE_MESSAGE }, { status: 400 });
+    // Something typed far too long: say which, in words (the form shows a string error as it is).
+    const tooLong = parsed.error.issues.find((i) => i.code === 'too_big' && ['name', 'email', 'password'].includes(String(i.path[0])));
+    if (tooLong) return NextResponse.json({ error: tooLong.message }, { status: 400 });
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
   const data = parsed.data;
@@ -129,7 +133,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   if (email && mayEmail) {
     try {
-      await sendEmail({ to: data.email, ...email });
+      // A member's own address as saved, not as typed here: the lookup above
+      // ignores capitals (and the database treats some other differences as
+      // the same), and an email that may carry a set-password link must only
+      // ever go to the address on the account.
+      await sendEmail({ to: existing ? existing.email : data.email, ...email });
     } catch (err) {
       console.error('Sign-up: email failed', err);
       // The same for every address: the email simply didn't go.

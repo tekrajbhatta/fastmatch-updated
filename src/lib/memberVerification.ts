@@ -5,7 +5,9 @@ import { sendEmail } from './emails/send';
 import { welcomeVerificationEmail } from './emails/welcomeEmail';
 import { sendSms } from './sms/send';
 import { verificationCodeSms } from './sms/verificationSms';
-import { clearRateLimit, rateKey } from './rateLimit';
+import { clearRateLimit, hitRateLimit, LIMITS, rateKey } from './rateLimit';
+import { australianMobile } from './mobile';
+import { maskMobile } from './logMask';
 import { newMobileCode } from './mobileCode';
 
 /**
@@ -33,8 +35,35 @@ export async function sendEmailVerification(member: Pick<Member, 'id' | 'name' |
 }
 
 export async function sendMobileVerification(member: Pick<Member, 'id' | 'mobile'>): Promise<boolean> {
-  if (!member.mobile.trim()) return false; // no mobile yet (imported from the old site): nothing to text
+  return (await textMobileCode(member)) === 'sent';
+}
+
+/**
+ * How a verification text went: sent; held back because this number has had
+ * its share of codes lately; failed; or no number to text.
+ */
+export type MobileCodeResult = 'sent' | 'limited' | 'failed' | 'no-mobile';
+
+/**
+ * A fresh code, saved and texted. Never throws.
+ *
+ * A few texts an hour, and a few a day, to any one number, whoever asks:
+ * each one is a paid text, and the per-member limits alone let someone with
+ * several accounts send code after code to a stranger's phone. Checked first,
+ * so a code already sent stays the one to enter. Held back, the caller treats
+ * it like a text that couldn't be sent.
+ */
+export async function textMobileCode(member: Pick<Member, 'id' | 'mobile'>): Promise<MobileCodeResult> {
+  if (!member.mobile.trim()) return 'no-mobile'; // no mobile yet (imported from the old site): nothing to text
   try {
+    const number = australianMobile(member.mobile) ?? member.mobile.replace(/\D/g, '');
+    const hour = await hitRateLimit(rateKey('sms-to', number), LIMITS.smsToNumber.limit, LIMITS.smsToNumber.windowMs);
+    const day = hour.allowed ? await hitRateLimit(rateKey('sms-to-day', number), LIMITS.smsToNumberDaily.limit, LIMITS.smsToNumberDaily.windowMs) : null;
+    if (!day?.allowed) {
+      console.warn(`Member ${member.id}: verification text to ${maskMobile(member.mobile)} held back (that number's limit)`);
+      return 'limited';
+    }
+
     const code = newMobileCode();
     await prisma.member.update({
       where: { id: member.id },
@@ -42,10 +71,10 @@ export async function sendMobileVerification(member: Pick<Member, 'id' | 'mobile
     });
     await clearRateLimit(rateKey('mobile-code', member.id)); // a new code: five fresh guesses
     await sendSms({ to: member.mobile, body: verificationCodeSms(code) });
-    return true;
+    return 'sent';
   } catch (err) {
     console.error(`Member ${member.id}: verification SMS failed`, err);
-    return false;
+    return 'failed';
   }
 }
 

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
+import { readPurposeToken, PASSWORD_MAX, PASSWORD_TOO_LONG } from '@/lib/tokens';
 import { signSession, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
 import { calculateAge } from '@/lib/age';
 import { parseDateOfBirth } from '@/lib/friendBooking';
@@ -25,14 +25,12 @@ import { isAustralianMobile, sameMobile, AU_MOBILE_MESSAGE } from '@/lib/mobile'
 
 type TokenResult = { ok: true; memberId: string; email: string | null } | { ok: false; error: string };
 
+// Checked like every other emailed link (src/lib/tokens.ts): signed by us
+// with the one signing method, unexpired, and made for setting a password.
+// Any failure reads the same to the visitor.
 function readToken(token: string): TokenResult {
-  try {
-    // Read here, not at module scope — see the note in src/lib/emails/send.ts.
-    const payload = jwt.verify(token, process.env.JWT_SECRET as string) as { memberId: string; purpose: string; email?: unknown };
-    if (payload.purpose === 'set_password') return { ok: true, memberId: payload.memberId, email: typeof payload.email === 'string' ? payload.email : null };
-  } catch {
-    /* fall through */
-  }
+  const t = token ? readPurposeToken(token, 'set_password') : null;
+  if (t?.ok) return { ok: true, memberId: t.memberId, email: t.email ?? null };
   return { ok: false, error: 'This link is invalid or has expired.' };
 }
 
@@ -77,12 +75,12 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 });
 
 const bodySchema = z.object({
-  token: z.string().min(1),
-  password: z.string().min(8, 'Your password must be at least 8 characters.'),
+  token: z.string().min(1).max(2000),
+  password: z.string().min(8, 'Your password must be at least 8 characters.').max(PASSWORD_MAX, PASSWORD_TOO_LONG),
   name: z.string().trim().min(1, 'Please enter your name.').max(100),
-  mobile: z.string().trim().regex(/^\+?[\d\s()-]{8,20}$/, 'Please enter your mobile number.'),
-  dateOfBirth: z.string().min(1, 'Please enter your date of birth.'),
-  cityId: z.string().min(1, 'Please choose your city.'),
+  mobile: z.string().trim().max(30, 'Please enter your mobile number.').regex(/^\+?[\d\s()-]{8,20}$/, 'Please enter your mobile number.'),
+  dateOfBirth: z.string().min(1, 'Please enter your date of birth.').max(30, 'Please enter a valid date of birth.'),
+  cityId: z.string().min(1, 'Please choose your city.').max(100, 'Please choose your city.'),
   gender: z.enum(['MALE', 'FEMALE']).optional(),
   marketingOptIn: z.boolean().default(false),
   agreedTerms: z.literal(true, {

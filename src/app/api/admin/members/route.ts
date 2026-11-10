@@ -11,8 +11,22 @@ import { sendEmailVerification, sendMobileVerification } from '@/lib/memberVerif
 import { sendEmail } from '@/lib/emails/send';
 import { registeredByAdminEmail, registeredLinks } from '@/lib/emails/signupEmails';
 import { withMobileMatches } from '@/lib/memberSearch';
+import { z } from 'zod';
+import { PASSWORD_MAX, PASSWORD_TOO_LONG } from '@/lib/tokens';
 
 const PAGE_SIZE = 50;
+
+// Upper limits on what "Add member" accepts, checked alongside the shared
+// rules (src/lib/adminMember.ts), which set only the lower ones.
+const lengthLimits = z.object({
+  name: z.string().max(100, 'Please enter a shorter name.').optional(),
+  email: z.string().max(254, 'Please enter a valid email address.').optional(),
+  mobile: z.string().max(30, 'Please enter an Australian mobile number, like 0412 345 678.').optional(),
+  password: z.string().max(PASSWORD_MAX, PASSWORD_TOO_LONG.replace('Your password', 'The password')).optional(),
+  dateOfBirth: z.string().max(30, 'Please enter a valid date of birth.').optional(),
+  cityId: z.string().max(100, 'Please select a valid location.').optional(),
+});
+const addMemberSchema = z.intersection(newMemberSchema, lengthLimits);
 
 // GET /api/admin/members?search=&gender=&cityId=&ageMin=&ageMax=&page=
 // Paginated — real member counts run into the tens of thousands, so this
@@ -25,7 +39,11 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
   const params = req.nextUrl.searchParams;
-  const page = Math.max(1, Number(params.get('page') ?? 1));
+  // A whole page number from 1; anything else (junk, 1.5, 1e400) is page 1,
+  // as on Member Feedback: "?page=abc" used to ask the database to skip NaN
+  // rows, which failed as a server error.
+  const asked = Number(params.get('page') ?? 1);
+  const page = Number.isSafeInteger(asked) && asked >= 1 && asked <= 1_000_000 ? asked : 1;
   // Same parsing as the members screen and its blast page — see memberFilterFromParams.
   const filter: MemberFilter = await withMobileMatches(memberFilterFromParams(params));
   const where = buildMemberWhere(filter);
@@ -74,7 +92,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
-  const parsed = newMemberSchema.safeParse(await req.json().catch(() => ({})));
+  const parsed = addMemberSchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Please check the member details.' }, { status: 400 });
   }

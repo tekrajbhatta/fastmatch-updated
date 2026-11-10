@@ -18,6 +18,17 @@ describe('safeNext (after logging in)', () => {
     }
   });
 
+  it('refuses a path that only becomes "//host" once resolved', () => {
+    for (const bad of [
+      '/.//evil.example', '/..//evil.example', '/%2e//evil.example', '/./\\evil.example',
+      '/a/..//evil.example', '/%2e%2e//evil.example',
+    ]) {
+      expect(safeNext(bad, '/events', O), JSON.stringify(bad)).toBe('/events');
+    }
+    // A doubled slash later in the path is still this site.
+    expect(safeNext('/events//abc', '/events', O)).toBe('/events//abc');
+  });
+
   it('falls back when there is nothing to follow', () => {
     expect(safeNext(null, '/admin', O)).toBe('/admin');
     expect(safeNext('', '/admin', O)).toBe('/admin');

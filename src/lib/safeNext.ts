@@ -15,7 +15,13 @@ export function safeNext(next: string | null | undefined, fallback: string, orig
   try {
     const url = new URL(next, origin);
     if (url.origin !== new URL(origin).origin) return fallback;
-    return url.pathname + url.search + url.hash;
+    const path = url.pathname + url.search + url.hash;
+    // Resolving can itself produce "//host": "/.//evil.example",
+    // "/..//evil.example" and "/%2e//evil.example" all come out as
+    // "//evil.example", which is on this site only until it's followed — the
+    // browser then reads it as another site. Never hand one of those back.
+    if (path.startsWith('//') || path.startsWith('/\\')) return fallback;
+    return path;
   } catch {
     return fallback;
   }

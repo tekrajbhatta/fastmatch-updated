@@ -41,14 +41,14 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
 });
 
 const patchSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
+  name: z.string().trim().min(1).max(100),
+  email: z.string().max(254).email(),
   // Empty only for a member who has none yet (see below).
-  mobile: z.string(),
+  mobile: z.string().max(30),
   gender: z.enum(['MALE', 'FEMALE']),
-  dateOfBirth: z.string(), // ISO date
+  dateOfBirth: z.string().max(30), // ISO date
   // Empty: no city (members imported from the old site may have none).
-  cityId: z.string(),
+  cityId: z.string().max(100),
   // Gil (Q15): how we reach them and where their account stands, all
   // changeable here — all but admin access, which isn't offered at all.
   // Optional: left out, each stays as it is.
@@ -105,10 +105,15 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   // saved is left alone, whatever it is. A mobile can't be removed, but a
   // member imported without one can be saved without one until it's added.
   const current = await prisma.member.findUniqueOrThrow({ where: { id: params.id }, select: { mobile: true } });
-  if (!data.mobile.trim() && current.mobile) {
+  const typedMobile = data.mobile.trim();
+  if (!typedMobile && current.mobile.trim()) {
     return NextResponse.json({ error: 'Please enter a mobile number.' }, { status: 400 });
   }
-  if (!sameMobile(current.mobile, data.mobile) && !isAustralianMobile(data.mobile)) {
+  // Still none (left empty, with none saved), or the saved number however
+  // it's written: unchanged, and kept exactly as saved. Anything else is a
+  // new number: an Australian mobile, saved as typed.
+  const mobileChanged = typedMobile !== '' && !sameMobile(current.mobile, typedMobile);
+  if (mobileChanged && !isAustralianMobile(typedMobile)) {
     return NextResponse.json({ error: AU_MOBILE_MESSAGE }, { status: 400 });
   }
 
@@ -122,7 +127,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   };
   const updated = await prisma.member.update({
     where: { id: params.id },
-    data: { name: data.name, email: data.email, mobile: data.mobile.trim(), gender: data.gender, dateOfBirth: dob, cityId, ...flags },
+    data: { name: data.name, email: data.email, mobile: mobileChanged ? typedMobile : current.mobile, gender: data.gender, dateOfBirth: dob, cityId, ...flags },
   });
 
   const { passwordHash, mobileVerificationCode, ...safe } = updated;
