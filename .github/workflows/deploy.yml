@@ -11,7 +11,7 @@ jobs:
     env:
       DATABASE_URL: "mysql://ci:ci@127.0.0.1:3306/ci"
       JWT_SECRET: "ci-build-only"
-      APP_URL: "https://5minutedating.com.au"
+      APP_URL: "https://fastmatch.com.au"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,5 +37,5 @@ jobs:
       - name: Verify live site
         run: |
           sleep 5
-          code=$(curl -s -o /dev/null -w '%{http_code}' https://5minutedating.com.au/events)
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://fastmatch.com.au/events)
           echo "-> $code"; [ "$code" = "200" ]
