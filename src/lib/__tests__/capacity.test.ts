@@ -51,8 +51,8 @@ describe('capacityProblem', () => {
 /** Item 12: past, cancelled and hidden events can't be booked, and say why. */
 describe('eventAvailability', () => {
   const now = new Date('2026-10-09T08:00:00Z');
-  const ev = (over: Partial<{ status: 'UPCOMING' | 'CLOSED' | 'CANCELLED'; visibility: 'PUBLIC' | 'NOT_PUBLIC'; draft: boolean; startsAt: Date }> = {}) => ({
-    status: 'UPCOMING' as const, visibility: 'PUBLIC' as const, draft: false, startsAt: new Date('2026-10-09T09:00:00Z'), ...over,
+  const ev = (over: Partial<{ status: 'UPCOMING' | 'CLOSED' | 'CANCELLED'; visibility: 'PUBLIC' | 'NOT_PUBLIC'; draft: boolean; startsAt: Date; matchesCalculated: boolean }> = {}) => ({
+    status: 'UPCOMING' as const, visibility: 'PUBLIC' as const, draft: false, startsAt: new Date('2026-10-09T09:00:00Z'), matchesCalculated: false, ...over,
   });
   it('is open before the start', () => expect(eventAvailability(ev(), now)).toBe('open'));
   it('is finished from the start time on', () => {
@@ -64,6 +64,11 @@ describe('eventAvailability', () => {
     expect(eventAvailability(ev({ visibility: 'NOT_PUBLIC' }), now)).toBe('not-open');
     expect(eventAvailability(ev({ draft: true }), now)).toBe('not-open');
     expect(eventAvailability(ev({ status: 'CLOSED' }), now)).toBe('not-open');
+  });
+  it('closed with its matches sent is not open, even before its start time', () => {
+    // Closed early (check-in opens an hour before), or its date moved forward afterwards.
+    expect(eventAvailability(ev({ matchesCalculated: true }), now)).toBe('not-open');
+    expect(eventAvailability(ev({ matchesCalculated: true, startsAt: new Date('2026-12-01T08:00:00Z') }), now)).toBe('not-open');
   });
   it('has a message for every reason', () => {
     expect(NOT_BOOKABLE.finished).toMatch(/already started/);

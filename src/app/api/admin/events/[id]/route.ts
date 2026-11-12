@@ -8,7 +8,7 @@ import { withErrorHandling } from '@/lib/withErrorHandling';
 import { venueLine } from '@/lib/venue';
 import { eventTimeFor } from '@/lib/timezone';
 import { eventLabel } from '@/lib/eventLabel';
-import { checkEventEdit, CHECK_FIELDS } from '@/lib/eventInput';
+import { checkEventEdit, CHECK_FIELDS, CLOSED_EVENT_DATE_MESSAGE, movesClosedEvent } from '@/lib/eventInput';
 import { adminEvent } from '@/lib/adminEvents';
 
 // GET /api/admin/events/:id — one event for the admin's screens (its page,
@@ -43,6 +43,9 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   // here; this used to pass whatever it was sent straight to the database.
   const checked = checkEventEdit(await req.json().catch(() => ({})), before);
   if (!checked.ok) return NextResponse.json({ error: CHECK_FIELDS, fieldErrors: checked.fieldErrors }, { status: 400 });
+  if (movesClosedEvent(before, checked.data.startsAt)) {
+    return NextResponse.json({ error: CLOSED_EVENT_DATE_MESSAGE, fieldErrors: { startsAt: CLOSED_EVENT_DATE_MESSAGE } }, { status: 400 });
+  }
   const event = await prisma.event.update({
     where: { id: params.id },
     data: checked.data,

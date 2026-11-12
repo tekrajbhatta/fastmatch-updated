@@ -12,8 +12,11 @@ const DAY = 24 * 60 * 60 * 1000;
 // closes (src/lib/eventNight.ts): the public events list drops it as soon as
 // it starts, which is just when members arrive to check in.
 //
-// Paid bookings only, for events that aren't drafts or cancelled. An event
-// the admin has hidden from the public is still listed: the member is still
+// Paid bookings only, for events that aren't drafts or cancelled, and not
+// closed with their matches already worked out and sent (Gil, 12 Nov: those
+// shouldn't still appear as upcoming; an event moved to a later date after
+// its results went out used to show here with its check-in). An event the
+// admin has hidden from the public is still listed: the member is still
 // going (Gil: hiding does nothing to bookings).
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const member = await getSessionMember(req);
@@ -25,7 +28,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
       memberId: member.id,
       status: 'CONFIRMED',
       // The night is over by the next midnight; two days back covers every time zone.
-      event: { draft: false, status: { not: 'CANCELLED' }, startsAt: { gte: new Date(now.getTime() - 2 * DAY) } },
+      event: { draft: false, status: { not: 'CANCELLED' }, matchesCalculated: false, startsAt: { gte: new Date(now.getTime() - 2 * DAY) } },
     },
     include: { event: { include: { venue: true, theme: true, city: true } } },
     orderBy: { event: { startsAt: 'asc' } },

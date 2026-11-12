@@ -54,17 +54,23 @@ export interface CancelOutcome {
 
 /**
  * Why an event can't be cancelled, or null. One whose night is over has
- * happened. One already cancelled can be again only to finish a cancellation
- * that stopped part-way (a restart mid-run, say), leaving `unfinished` people
- * still booked, unrefunded and untold: whenever that's noticed.
+ * happened. Nor one closed early on its night, its matches already worked out
+ * and emailed (the user, 13 Nov: an event closed early had enough bookings,
+ * and cancelling it would refund everyone after their results went out). One
+ * already cancelled can be again only to finish a cancellation that stopped
+ * part-way (a restart mid-run, say), leaving `unfinished` people still
+ * booked, unrefunded and untold: whenever that's noticed.
  */
+export const MATCHES_SENT_CANT_CANCEL = 'This event\'s matches have already been worked out, so it can\'t be cancelled.';
+
 export function cancelBlocked(
-  event: Pick<Event, 'status' | 'startsAt'> & { city: { name: string } | null },
+  event: Pick<Event, 'status' | 'startsAt' | 'matchesCalculated'> & { city: { name: string } | null },
   now: Date = new Date(),
   unfinished = 0,
 ): string | null {
   if (event.status === 'CANCELLED') return unfinished > 0 ? null : 'This event has already been cancelled.';
   if (now >= endOfEventNight(event)) return 'This event has already happened, so it can\'t be cancelled.';
+  if (event.matchesCalculated) return MATCHES_SENT_CANT_CANCEL;
   return null;
 }
 
@@ -86,7 +92,7 @@ const STILL_BOOKED: Prisma.BookingWhereInput = {
 
 /** cancelBlocked, counting what an earlier cancellation left unfinished. */
 export async function whyCantCancel(
-  event: Pick<Event, 'id' | 'status' | 'startsAt'> & { city: { name: string } | null },
+  event: Pick<Event, 'id' | 'status' | 'startsAt' | 'matchesCalculated'> & { city: { name: string } | null },
   now: Date = new Date(),
 ): Promise<string | null> {
   const unfinished = event.status === 'CANCELLED' ? await prisma.booking.count({ where: { eventId: event.id, ...STILL_BOOKED } }) : 0;

@@ -9,7 +9,7 @@ import EventFlagFields from '@/components/EventFlagFields';
 import VenueInfoPanel, { venueFillPatch } from '@/components/VenueInfoPanel';
 import { toDateTimeLocalValue, fromDateTimeLocalValue } from '@/lib/datetime';
 import { timeZoneForCity } from '@/lib/timezone';
-import { checkEventFields, eventNumbers, EVENT_NUMBER_FIELDS, CHECK_FIELDS, type EventFieldErrors } from '@/lib/eventInput';
+import { checkEventFields, eventNumbers, EVENT_NUMBER_FIELDS, CHECK_FIELDS, CLOSED_EVENT_DATE_MESSAGE, type EventFieldErrors } from '@/lib/eventInput';
 
 interface City { id: string; name: string; }
 interface Theme { id: string; name: string; }
@@ -35,6 +35,8 @@ export default function EditEventPage() {
   const [copiedFrom, setCopiedFrom] = useState<string | null>(null);
   const [isDraft, setIsDraft] = useState(false);
   const [isCancelled, setIsCancelled] = useState(false);
+  // Matches worked out and sent: its date stays as it is (duplicate it to run it again).
+  const [isClosed, setIsClosed] = useState(false);
   // The start time as loaded. Saving with the date, time and city untouched
   // sends this back exactly, so the "has the time changed?" check can't be
   // tripped (it texts every attendee) by a value that only looks the same.
@@ -55,6 +57,7 @@ export default function EditEventPage() {
       if (e) {
         setIsDraft(!!e.draft);
         setIsCancelled(e.status === 'CANCELLED');
+        setIsClosed(!!e.matchesCalculated);
         // Shown on the event city's clock, as it's advertised.
         const wall = toDateTimeLocalValue(e.startsAt, timeZoneForCity(e.city?.name));
         loaded.current = {
@@ -85,7 +88,8 @@ export default function EditEventPage() {
     setFieldErrors({});
     setNotifyFailures([]);
     const was = loaded.current;
-    const startsAt = was && form.startsAt === was.wall && form.cityId === was.cityId
+    // A closed event keeps its start time exactly, even if its city is corrected.
+    const startsAt = was && (isClosed || (form.startsAt === was.wall && form.cityId === was.cityId))
       ? was.startsAt
       : fromDateTimeLocalValue(form.startsAt, timeZoneForCity(cityName));
     const body = {
@@ -174,7 +178,9 @@ export default function EditEventPage() {
           {/* One above the other on a phone: side by side, the date and time box was too narrow to read. */}
           <div className="grid items-end gap-x-3 sm:grid-cols-2">
             <Field label={`Start date & time (${cityName ?? 'event city'} time)`} error={err('startsAt')}>
-              <Input type="datetime-local" required value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} />
+              <Input type="datetime-local" required value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
+                disabled={isClosed} title={isClosed ? CLOSED_EVENT_DATE_MESSAGE : undefined}
+                className={isClosed ? 'cursor-not-allowed bg-ink/5 text-ink/60' : undefined} />
             </Field>
             <Field label="City" error={err('cityId')}>
               <Select value={form.cityId} onChange={(e) => setForm({ ...form, cityId: e.target.value })}>
@@ -182,6 +188,8 @@ export default function EditEventPage() {
               </Select>
             </Field>
           </div>
+          {/* Under both boxes: inside the date's box it pushed the city out of line. */}
+          {isClosed && !err('startsAt') && <p className="-mt-2 mb-4 text-xs text-ink/60">{CLOSED_EVENT_DATE_MESSAGE}</p>}
           <Field label="Venue" error={err('venueId')}>
             <Select required value={form.venueId} onChange={(e) => {
               const venueId = e.target.value;

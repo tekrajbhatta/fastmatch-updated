@@ -172,6 +172,20 @@ function check<T>(
 export const checkNewEvent = (body: unknown) => check(newEventSchema, body);
 /** The whole edit form, as the browser checks it before saving. */
 export const checkEventFields = (body: unknown) => check(eventFieldsSchema, body);
+/**
+ * A closed event (its matches worked out and sent) keeps its date (the user,
+ * 12 Nov): moving it forward put it back on Upcoming Events, bookable, with
+ * its results already out (event 33, moved from 7 to 28 Nov). To run it
+ * again, the admin duplicates it.
+ */
+export const CLOSED_EVENT_DATE_MESSAGE = 'This event is closed, so its date can’t be changed. Duplicate the event to run it again.';
+
+/** Whether an edit would move a closed event's start time. */
+export function movesClosedEvent(current: { matchesCalculated: boolean; startsAt: Date }, newStartsAt: string | undefined): boolean {
+  if (!current.matchesCalculated || newStartsAt === undefined) return false;
+  return new Date(newStartsAt).getTime() !== current.startsAt.getTime();
+}
+
 /** An edit, against the event as it stands (for the fields not being changed). */
 export const checkEventEdit = (body: unknown, current: { ageMin: number; ageMax: number }) => check(eventEditSchema, body, current);
 

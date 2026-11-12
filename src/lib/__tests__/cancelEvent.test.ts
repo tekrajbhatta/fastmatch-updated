@@ -81,11 +81,11 @@ describe('cancelBlocked', () => {
     const { cancelBlocked } = await import('../cancelEvent');
     const now = new Date('2026-10-10T09:00:00Z'); // 8 pm in Sydney
     const sydney = { name: 'Sydney' };
-    expect(cancelBlocked({ status: 'UPCOMING', startsAt: new Date('2026-10-20T08:30:00Z'), city: sydney }, now)).toBeNull();
+    expect(cancelBlocked({ status: 'UPCOMING', matchesCalculated: false, startsAt: new Date('2026-10-20T08:30:00Z'), city: sydney }, now)).toBeNull();
     // Started this evening: still the night, so it can still be called off.
-    expect(cancelBlocked({ status: 'UPCOMING', startsAt: new Date('2026-10-10T08:30:00Z'), city: sydney }, now)).toBeNull();
-    expect(cancelBlocked({ status: 'UPCOMING', startsAt: new Date('2026-10-09T08:30:00Z'), city: sydney }, now)).toMatch(/already happened/);
-    expect(cancelBlocked({ status: 'CANCELLED', startsAt: new Date('2026-10-20T08:30:00Z'), city: sydney }, now)).toMatch(/already been cancelled/);
+    expect(cancelBlocked({ status: 'UPCOMING', matchesCalculated: false, startsAt: new Date('2026-10-10T08:30:00Z'), city: sydney }, now)).toBeNull();
+    expect(cancelBlocked({ status: 'UPCOMING', matchesCalculated: false, startsAt: new Date('2026-10-09T08:30:00Z'), city: sydney }, now)).toMatch(/already happened/);
+    expect(cancelBlocked({ status: 'CANCELLED', matchesCalculated: false, startsAt: new Date('2026-10-20T08:30:00Z'), city: sydney }, now)).toMatch(/already been cancelled/);
   });
 
   it('a cancellation that stopped part-way can be finished, whenever that\'s noticed (batch 11)', async () => {
@@ -93,8 +93,20 @@ describe('cancelBlocked', () => {
     const now = new Date('2026-10-10T09:00:00Z');
     const sydney = { name: 'Sydney' };
     // Two people still booked on a cancelled event: finishing is allowed, even after the night.
-    expect(cancelBlocked({ status: 'CANCELLED', startsAt: new Date('2026-10-20T08:30:00Z'), city: sydney }, now, 2)).toBeNull();
-    expect(cancelBlocked({ status: 'CANCELLED', startsAt: new Date('2026-10-09T08:30:00Z'), city: sydney }, now, 2)).toBeNull();
+    expect(cancelBlocked({ status: 'CANCELLED', matchesCalculated: false, startsAt: new Date('2026-10-20T08:30:00Z'), city: sydney }, now, 2)).toBeNull();
+    expect(cancelBlocked({ status: 'CANCELLED', matchesCalculated: false, startsAt: new Date('2026-10-09T08:30:00Z'), city: sydney }, now, 2)).toBeNull();
+  });
+
+  it('an event whose matches are already worked out can\'t be cancelled, even on its night (the user, 13 Nov)', async () => {
+    const { cancelBlocked, MATCHES_SENT_CANT_CANCEL } = await import('../cancelEvent');
+    const now = new Date('2026-10-10T11:00:00Z'); // 10 pm in Sydney
+    const sydney = { name: 'Sydney' };
+    // Closed early tonight: matches emailed, so no cancelling (and refunding) afterwards.
+    expect(cancelBlocked({ status: 'UPCOMING', matchesCalculated: true, startsAt: new Date('2026-10-10T08:30:00Z'), city: sydney }, now)).toBe(MATCHES_SENT_CANT_CANCEL);
+    // The same evening, not closed yet: it can still be called off.
+    expect(cancelBlocked({ status: 'UPCOMING', matchesCalculated: false, startsAt: new Date('2026-10-10T08:30:00Z'), city: sydney }, now)).toBeNull();
+    // Past and closed: "already happened", as before.
+    expect(cancelBlocked({ status: 'UPCOMING', matchesCalculated: true, startsAt: new Date('2026-10-08T08:30:00Z'), city: sydney }, now)).toMatch(/already happened/);
   });
 });
 

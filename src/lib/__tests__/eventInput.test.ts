@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkNewEvent, checkEventFields, checkEventEdit, eventNumbers, EVENT_NUMBER_FIELDS } from '@/lib/eventInput';
+import { checkNewEvent, checkEventFields, checkEventEdit, eventNumbers, EVENT_NUMBER_FIELDS, movesClosedEvent } from '@/lib/eventInput';
 
 /** One set of rules for New event and Edit event, each problem against its field. */
 const good = {
@@ -70,5 +70,18 @@ describe('the form’s number boxes', () => {
   it('are numbers, or null when empty', () => {
     expect(eventNumbers({ ageMin: '28', ageMax: '', cost: '49.50', maxMen: 12, maxWomen: ' ', expenses: '' }, [...EVENT_NUMBER_FIELDS]))
       .toEqual({ ageMin: 28, ageMax: null, cost: 49.5, maxMen: 12, maxWomen: null, expenses: null });
+  });
+});
+
+describe('a closed event keeps its date (movesClosedEvent)', () => {
+  const startsAt = new Date('2026-11-07T00:00:00.000Z');
+  it('refuses a new start time once the matches are worked out', () => {
+    expect(movesClosedEvent({ matchesCalculated: true, startsAt }, '2026-11-28T00:00:00.000Z')).toBe(true);
+    expect(movesClosedEvent({ matchesCalculated: true, startsAt }, '2026-11-07T00:30:00.000Z')).toBe(true);
+  });
+  it('lets the rest of a closed event be edited, and any open event be moved', () => {
+    expect(movesClosedEvent({ matchesCalculated: true, startsAt }, undefined)).toBe(false);
+    expect(movesClosedEvent({ matchesCalculated: true, startsAt }, '2026-11-07T00:00:00.000Z')).toBe(false);
+    expect(movesClosedEvent({ matchesCalculated: false, startsAt }, '2026-11-28T00:00:00.000Z')).toBe(false);
   });
 });

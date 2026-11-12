@@ -44,12 +44,13 @@ describe('the results email', () => {
 });
 
 describe('the Privacy Policy', () => {
-  it('names both websites, whatever address the site is on', () => {
+  it('names fastmatch.com.au only, whatever address the site is on (the user, 12 Nov)', () => {
     const page = readFileSync(path.resolve(__dirname, '../../app/privacy/page.tsx'), 'utf8');
-    expect(page).toContain('the main way we collect and share information is on our websites at 5minutedating.com.au and fastmatch.com.au.');
+    expect(page).toContain('the main way we collect and share information is on our website at fastmatch.com.au.');
+    expect(page).not.toContain('5minutedating');
     expect(page).not.toContain('is our website,');
     expect(page).not.toContain('APP_URL');
-    expect(page).toContain("const LAST_UPDATED = '8 November 2026';");
+    expect(page).toContain("const LAST_UPDATED = '13 November 2026';");
   });
 });
 

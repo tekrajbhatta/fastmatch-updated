@@ -7,7 +7,7 @@ import { linkClass } from '@/components/site/button';
 export const metadata: Metadata = { title: 'Privacy policy' };
 
 /** When this policy last changed, shown at the top (update it with the wording). */
-const LAST_UPDATED = '8 November 2026';
+const LAST_UPDATED = '13 November 2026';
 
 export default function PrivacyPage() {
   return (
@@ -17,7 +17,7 @@ export default function PrivacyPage() {
         <div className="max-w-[720px] text-base leading-relaxed text-ink-600 md:text-[17px]">
           <P><strong className="font-bold text-ink-900">Last updated: {LAST_UPDATED}</strong></P>
           {/* Both addresses, whichever one the site is on (Gil, 7 Nov). */}
-          <P>Fast Match conducts events, workshops and seminars for singles, couples and friends, and the main way we collect and share information is on our websites at 5minutedating.com.au and fastmatch.com.au.</P>
+          <P>Fast Match conducts events, workshops and seminars for singles, couples and friends, and the main way we collect and share information is on our website at fastmatch.com.au.</P>
           <P>Fast Match is bound by the Australian Privacy Principles contained in the Privacy Act 1988 (Cth). We may review and update this policy from time to time, to take account of new laws and technology and changes to how Fast Match works. The current version is always the one on this page.</P>
 
           <H2>What we collect</H2>

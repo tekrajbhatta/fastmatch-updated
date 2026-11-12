@@ -9,7 +9,7 @@ import { eventClock } from '@/lib/timezone';
 
 interface AdminEvent extends EventForBlast {
   startsAt: string; status: 'UPCOMING' | 'CLOSED' | 'CANCELLED';
-  visibility: 'PUBLIC' | 'NOT_PUBLIC'; draft: boolean;
+  visibility: 'PUBLIC' | 'NOT_PUBLIC'; draft: boolean; matchesCalculated: boolean;
 }
 
 /**

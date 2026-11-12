@@ -52,8 +52,8 @@ describe('rewriteOldAddress (the move to fastmatch.com.au)', () => {
 });
 
 describe('publicUpcomingWhere (events list and sitemap)', () => {
-  it('lists only public, upcoming, finished-drafting events that have not started', () => {
+  it('lists only public, upcoming, finished-drafting events that have not started and are not closed with matches sent', () => {
     const now = new Date('2026-11-12T00:00:00Z');
-    expect(publicUpcomingWhere(now)).toEqual({ visibility: 'PUBLIC', status: 'UPCOMING', draft: false, startsAt: { gte: now } });
+    expect(publicUpcomingWhere(now)).toEqual({ visibility: 'PUBLIC', status: 'UPCOMING', draft: false, matchesCalculated: false, startsAt: { gte: now } });
   });
 });
