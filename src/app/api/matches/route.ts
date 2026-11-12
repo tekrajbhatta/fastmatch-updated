@@ -59,7 +59,10 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   // results were worked out isn't shown, and doesn't see anyone.
   const present = new Set(theirBookings.filter((b) => b.status === 'CONFIRMED' && b.checkedIn).map((b) => `${b.eventId}:${b.memberId}`));
 
-  const history = bookings.map((b) => {
+  // An event with no check-in or matches (a day at the races) has no results
+  // to show, so it isn't listed: it would only ever say "not available yet".
+  // It still counts as an event they've been to for the first-event offer below.
+  const history = bookings.filter((b) => b.event.ratingAudience !== 'NO_MATCHES').map((b) => {
     const mine = b.checkedIn ? matches.filter((m) => m.eventId === b.eventId) : [];
     const withDetails = (result: 'DATE' | 'FRIEND') =>
       mine
@@ -82,7 +85,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   });
 
   let welcomeOffer: { code: string; description: string } | null = null;
-  if (history.length === 0) {
+  if (bookings.length === 0) {
     const d = await prisma.discountCode.findUnique({ where: { code: WELCOME_OFFER_CODE } });
     // Not to someone who has used it already (it's once per member), nor
     // while it only works for one event or event type ("your first event").

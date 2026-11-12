@@ -18,6 +18,7 @@ import { eventReminderEmail } from '../lib/emails/eventEmails';
 import { venueLine } from '../lib/venue';
 import { eventTimeFor } from '../lib/timezone';
 import { eventLabel } from '../lib/eventLabel';
+import { noMatches } from '../lib/ratingAudience';
 
 const REMINDER_WINDOW_START_HOURS = 24;
 const REMINDER_WINDOW_END_HOURS = 48;
@@ -52,8 +53,9 @@ async function run() {
         startsAt: booking.event.startsAt,
         venue: venueLine(booking.event.venue),
         ...eventTimeFor(booking.event.startsAt, booking.event.city.name, booking.member.city?.name),
-        // The same shared check-in link as the booking email.
-        checkInUrl: `${process.env.APP_URL}/events/${booking.eventId}/checkin`,
+        // The same shared check-in link as the booking email (none for an
+        // event with no check-in or matches).
+        checkInUrl: noMatches(booking.event) ? null : `${process.env.APP_URL}/events/${booking.eventId}/checkin`,
       });
       await sendEmail({ to: booking.member.email, subject, html });
       await prisma.booking.update({ where: { id: booking.id }, data: { reminderSent: true } });

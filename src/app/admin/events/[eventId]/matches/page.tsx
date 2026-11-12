@@ -9,7 +9,7 @@ import { CHOICE_KINDS, type ChoiceKind, type MatchesView, type PersonRow, type V
 interface Data extends MatchesView {
   event: {
     id: string; number: number; name: string; theme: string; startsAt: string; city: string;
-    matchesCalculated: boolean; matchesCalculatedAt: string | null; ratingAudience: 'OPPOSITE_GENDER' | 'EVERYONE';
+    matchesCalculated: boolean; matchesCalculatedAt: string | null; ratingAudience: 'OPPOSITE_GENDER' | 'EVERYONE' | 'NO_MATCHES';
   };
   checkedIn: number;
   sentChoices: number;
@@ -51,7 +51,8 @@ export default function EventMatchesPage() {
       <p className="text-sm text-ink/60">#{data.event.number} {data.event.theme} · {data.event.name} · {when}, {data.event.city}</p>
       <p className="mb-6 mt-1 text-xs text-ink/50">
         Private: for checking a member&apos;s question about their results. Members only ever see their own matches.
-        {data.event.ratingAudience === 'OPPOSITE_GENDER' ? ' Members rated the opposite gender only.' : ' Members could rate everyone.'}
+        {data.event.ratingAudience === 'OPPOSITE_GENDER' ? ' Members rated the opposite gender only.'
+          : data.event.ratingAudience === 'NO_MATCHES' ? ' This event has no check-in or matches.' : ' Members could rate everyone.'}
       </p>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-3">

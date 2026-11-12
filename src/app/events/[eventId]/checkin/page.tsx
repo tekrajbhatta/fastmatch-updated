@@ -7,7 +7,7 @@ import { Container, DecorRing, FormCard, SplitLayout, PageLoader } from '@/compo
 import { FormError } from '@/components/site/form';
 import { Button, ButtonLink, buttonClass, linkClass } from '@/components/site/button';
 import { eventClock } from '@/lib/timezone';
-import { rosterCountLabel, type RatingAudience, type Gender } from '@/lib/ratingAudience';
+import { rosterCountLabel, NO_MATCHES_MEMBER_MESSAGE, type RatingAudience, type Gender } from '@/lib/ratingAudience';
 import { eventLabel } from '@/lib/eventLabel';
 
 interface Me { id: string; name: string; email: string; mobile: string; }
@@ -239,7 +239,8 @@ export default function CheckinPage() {
 
   // Not open yet, closed, or the event was cancelled: say so, rather than a
   // check-in button (a cancelled event's check-in link used to offer one).
-  if (step === 'confirm' && me && night && (night.checkIn !== 'open' || night.event.cancelled)) {
+  const noMatchesNight = night?.event.ratingAudience === 'NO_MATCHES';
+  if (step === 'confirm' && me && night && (night.checkIn !== 'open' || night.event.cancelled || noMatchesNight)) {
     const opens = eventClock(night.opensAt, night.event.city);
     return (
       <SplitLayout title={`Hi, ${me.name.split(' ')[0]}`} lead={eventLabel({ name: night.event.name, theme: { name: night.event.theme } })}>
@@ -247,11 +248,13 @@ export default function CheckinPage() {
           <p className="text-[17px] font-bold text-ink-900">
             {night.event.cancelled
               ? 'This event was cancelled.'
-              : night.checkIn === 'not-yet'
+              : noMatchesNight
+                ? NO_MATCHES_MEMBER_MESSAGE
+                : night.checkIn === 'not-yet'
                 ? `Check-in opens an hour before the event starts: ${opens.date({ weekday: 'long', day: 'numeric', month: 'long' })}, ${opens.time}${opens.note ? ` (${opens.note})` : ''}.`
                 : 'Check-in for this event has closed.'}
           </p>
-          {night.checkIn === 'not-yet' && !night.event.cancelled && (
+          {night.checkIn === 'not-yet' && !night.event.cancelled && !noMatchesNight && (
             <p className="text-[15px] leading-normal text-ink-600">
               Come back to this page at the venue, or scan the QR code there, and you&apos;ll be able to check in and see who&apos;s here.
             </p>

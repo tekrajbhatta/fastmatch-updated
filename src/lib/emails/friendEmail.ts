@@ -33,21 +33,23 @@ export function friendWelcomeEmail(opts: {
   /** "Perth time" when the friend's own clock reads differently. */
   zoneNote?: string | null;
   setPasswordUrl: string;
-  checkInUrl: string;
+  /** Null for an event with no check-in or matches: no check-in steps, and no "speed dating". */
+  checkInUrl: string | null;
 }) {
   const html = emailLayout(`
     <h1 style="${EMAIL_HEADING}">You're booked in, ${escapeHtml(opts.friendName)}!</h1>
     <p style="${PARA}">${escapeHtml(opts.bookedByName)} has booked you into <strong>${escapeHtml(opts.eventName)}</strong> at ${escapeHtml(opts.venue)}.</p>
     <p style="${PARA}"><strong>${formatEventWhen(opts.startsAt, opts.timeZone)}${opts.zoneNote ? ` (${escapeHtml(opts.zoneNote)})` : ''}</strong></p>
-    <p style="${PARA}">You've been added to FastMatch with this email address. Set a password so you can
-      check in for the event and choose your matches afterwards:</p>
+    <p style="${PARA}">You've been added to FastMatch with this email address. ${opts.checkInUrl
+      ? 'Set a password so you can check in for the event and choose your matches afterwards:'
+      : 'Set a password so you can log in to FastMatch:'}</p>
     <p style="${PARA_BUTTON}"><a href="${opts.setPasswordUrl}" style="${BUTTON}">Set your password</a></p>
     ${checkInStepsHtml(opts.checkInUrl)}
     <p style="${PARA}">Can't make it, or not expecting this? Let us know at
       <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a> and we'll cancel it.</p>
     <p style="${PARA}">See you there!<br>The FastMatch Team</p>
   `);
-  return { subject: `${oneLine(opts.bookedByName)} has booked you into FastMatch speed dating`, html };
+  return { subject: `${oneLine(opts.bookedByName)} has booked you into ${opts.checkInUrl ? 'FastMatch speed dating' : 'a FastMatch event'}`, html };
 }
 
 /**

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { checkInWindow } from './eventNight';
 
 /**
  * One set of rules for an event's details, used by "New event" and "Edit
@@ -107,7 +108,7 @@ export const eventFieldsSchema = z.object({
   fastmatchDiscounts: z.boolean().default(true),
   groupDiscounts: z.boolean().default(true),
   // Who members see and rate on the night (src/lib/ratingAudience.ts).
-  ratingAudience: z.enum(['OPPOSITE_GENDER', 'EVERYONE']).default('OPPOSITE_GENDER'),
+  ratingAudience: z.enum(['OPPOSITE_GENDER', 'EVERYONE', 'NO_MATCHES']).default('OPPOSITE_GENDER'),
 });
 
 export const newEventSchema = eventFieldsSchema.extend({
@@ -184,6 +185,24 @@ export const CLOSED_EVENT_DATE_MESSAGE = 'This event is closed, so its date can�
 export function movesClosedEvent(current: { matchesCalculated: boolean; startsAt: Date }, newStartsAt: string | undefined): boolean {
   if (!current.matchesCalculated || newStartsAt === undefined) return false;
   return new Date(newStartsAt).getTime() !== current.startsAt.getTime();
+}
+
+/**
+ * Once check-in has opened (an hour before the start), an event can't be
+ * switched to or from "No check-in or matches" (the user, 13 Nov): members
+ * may already have checked in and sent choices, which would be lost, or be
+ * told to check in to an event that has no check-in.
+ */
+export const NO_MATCHES_SWITCH_MESSAGE = 'Check-in for this event has already opened, so it can’t be switched to or from “No check-in or matches”.';
+
+/** Whether an edit would switch an event to or from "No check-in or matches" after check-in opened. */
+export function switchesNoMatchesTooLate(
+  current: { ratingAudience: string; startsAt: Date | string; city: { name: string } | null },
+  newAudience: string | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (newAudience === undefined || (newAudience === 'NO_MATCHES') === (current.ratingAudience === 'NO_MATCHES')) return false;
+  return now >= checkInWindow(current).opens;
 }
 
 /** An edit, against the event as it stands (for the fields not being changed). */

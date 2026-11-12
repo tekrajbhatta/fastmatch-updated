@@ -45,6 +45,8 @@ export default function BookedPage() {
   const [round, setRound] = useState(0); // "Check again" starts a new round
   const [refunded, setRefunded] = useState<Refunded | null>(null);
   const [friends, setFriends] = useState<Friends | null>(null);
+  // No check-in or matches at this event (a day at the races, say).
+  const [noMatches, setNoMatches] = useState(false);
 
   useEffect(() => {
     let stopped = false;
@@ -59,6 +61,7 @@ export default function BookedPage() {
       const status: string = data?.status ?? 'UNKNOWN';
       if (status === 'CONFIRMED') {
         setFriends({ booked: Math.max(0, Number(data?.friendsBooked) || 0), brought: friendsBrought() });
+        setNoMatches(data?.noMatches === true);
         return setState('confirmed');
       }
       if (data?.refundedPayment) { setRefunded(data.refundedPayment); return setState('refunded'); }
@@ -86,8 +89,9 @@ export default function BookedPage() {
             <span aria-hidden="true" className="relative flex h-16 w-16 items-center justify-center rounded-[32px_32px_32px_8px] bg-match-400 font-display text-3xl font-extrabold text-plum-900">✓</span>
             <h1 className="relative font-display text-[clamp(34px,4vw,52px)] font-extrabold leading-[1.05] tracking-[-0.03em] text-white">You&apos;re booked in!</h1>
             <p className="relative max-w-[460px] text-[17px] leading-normal text-plum-200 text-pretty">
-              A confirmation email is on its way. On the day of the event, check in from an hour before the start: open the
-              check-in link in that email, or scan the QR code at the venue.
+              {noMatches
+                ? 'A confirmation email is on its way. See you at the event!'
+                : 'A confirmation email is on its way. On the day of the event, check in from an hour before the start: open the check-in link in that email, or scan the QR code at the venue.'}
             </p>
             {friends && <FriendsNote {...friends} />}
           </>

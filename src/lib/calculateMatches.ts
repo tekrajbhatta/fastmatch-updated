@@ -22,6 +22,11 @@ export async function calculateMatchesForEvent(eventId: string) {
   if (event.matchesCalculated) {
     return { alreadyCalculated: true, matchesCreated: 0 };
   }
+  // No check-in or matches at this event: nothing to work out, and it stays
+  // "not worked out" (the results job and "Close event" leave it alone too).
+  if (event.ratingAudience === 'NO_MATCHES') {
+    return { alreadyCalculated: false, matchesCreated: 0 };
+  }
 
   // Only between people still on the night: a confirmed, checked-in booking,
   // the same rule as for choosing (the ratings route). Someone Gil cancelled,

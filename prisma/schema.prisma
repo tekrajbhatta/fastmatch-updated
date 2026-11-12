@@ -34,9 +34,12 @@ enum Choice {
 
 // Who members see and rate on the check-in list (Gil, 4 Oct): men see the
 // women and women the men, or everyone, for same-sex or friendship nights.
+// NO_MATCHES (Gil, Nov): no check-in, no choosing and no results at all, for
+// social days like a day at the races.
 enum RatingAudience {
   OPPOSITE_GENDER
   EVERYONE
+  NO_MATCHES
 }
 
 enum MatchResult {

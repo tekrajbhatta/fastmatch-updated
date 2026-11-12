@@ -8,6 +8,7 @@ import PhotoUploadField from '@/components/PhotoUploadField';
 import EventFlagFields from '@/components/EventFlagFields';
 import VenueInfoPanel, { venueFillPatch } from '@/components/VenueInfoPanel';
 import { toDateTimeLocalValue, fromDateTimeLocalValue } from '@/lib/datetime';
+import { checkInWindow } from '@/lib/eventNight';
 import { timeZoneForCity } from '@/lib/timezone';
 import { checkEventFields, eventNumbers, EVENT_NUMBER_FIELDS, CHECK_FIELDS, CLOSED_EVENT_DATE_MESSAGE, type EventFieldErrors } from '@/lib/eventInput';
 
@@ -37,6 +38,8 @@ export default function EditEventPage() {
   const [isCancelled, setIsCancelled] = useState(false);
   // Matches worked out and sent: its date stays as it is (duplicate it to run it again).
   const [isClosed, setIsClosed] = useState(false);
+  // Check-in has opened: "No check-in or matches" can't be switched on or off now.
+  const [noMatchesLock, setNoMatchesLock] = useState<{ savedNoMatches: boolean } | null>(null);
   // The start time as loaded. Saving with the date, time and city untouched
   // sends this back exactly, so the "has the time changed?" check can't be
   // tripped (it texts every attendee) by a value that only looks the same.
@@ -58,6 +61,7 @@ export default function EditEventPage() {
         setIsDraft(!!e.draft);
         setIsCancelled(e.status === 'CANCELLED');
         setIsClosed(!!e.matchesCalculated);
+        setNoMatchesLock(new Date() >= checkInWindow({ startsAt: e.startsAt, city: e.city }).opens ? { savedNoMatches: e.ratingAudience === 'NO_MATCHES' } : null);
         // Shown on the event city's clock, as it's advertised.
         const wall = toDateTimeLocalValue(e.startsAt, timeZoneForCity(e.city?.name));
         loaded.current = {
@@ -227,7 +231,7 @@ export default function EditEventPage() {
               </span>
             </span>
           </label>
-          <EventFlagFields value={form} onChange={(patch) => setForm({ ...form, ...patch })} />
+          <EventFlagFields value={form} onChange={(patch) => setForm({ ...form, ...patch })} noMatchesLock={noMatchesLock} audienceError={err('ratingAudience')} />
 
           {error && <p className="mb-4 text-sm font-medium text-coral">{error}</p>}
           {notifyFailures.length > 0 && (

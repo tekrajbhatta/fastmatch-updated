@@ -13,11 +13,14 @@ import { blastEventDetails } from '@/lib/campaigns/blastFill';
 import CancelSummary, { type CancelResult } from '@/components/CancelSummary';
 import { countOf } from '@/lib/plural';
 import { resultsState, RESULTS_SENT_MESSAGE, RESULTS_NOT_ALL_EMAILED_MESSAGE } from '@/lib/eventResults';
+import { NO_MATCHES_ADMIN_NOTE } from '@/lib/ratingAudience';
 
 interface EventDetail {
   id: string; name: string; venue: { name: string; address: string | null; phone: string | null; websiteUrl: string | null }; startsAt: string; cost: string;
   theme: { name: string }; city: { name: string };
   status: string;
+  // NO_MATCHES: no check-in or matches (src/lib/ratingAudience.ts).
+  ratingAudience: string;
   // Every booking, any status (from /api/admin/events).
   _count: { bookings: number };
 }
@@ -151,6 +154,8 @@ export default function AdminEventDetailPage() {
   }
 
   if (!event) return <Loader label="Loading event…" />;
+  // No check-in or matches (a day at the races, say).
+  const noMatchesEvent = event.ratingAudience === 'NO_MATCHES';
 
   return (
     <div className="mx-auto max-w-md">
@@ -175,14 +180,19 @@ export default function AdminEventDetailPage() {
       <h1 className="mb-1 text-2xl font-extrabold text-ink">{event.name}</h1>
       <p className="mb-6 text-sm text-ink/60">{venueLine(event.venue)} · {new Date(event.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', timeZone: timeZoneForCity(event.city.name) })}</p>
 
+      {/* A day at the races, say: the check-in and results cards below are left out. */}
+      {noMatchesEvent && <p className="mb-4 rounded-lg bg-ink/5 p-3 text-sm text-ink">{NO_MATCHES_ADMIN_NOTE}</p>}
+
       <Card className="mb-3">
         <Link href={`/admin/events/${event.id}/bookings`} className="block font-bold text-ink hover:text-plum">View bookings</Link>
-        <p className="mt-0.5 text-sm text-ink/50">Attendee list, payments, check-ins</p>
+        <p className="mt-0.5 text-sm text-ink/50">{noMatchesEvent ? 'Attendee list and payments' : 'Attendee list, payments, check-ins'}</p>
       </Card>
-      <Card className="mb-3">
-        <Link href={`/admin/events/${event.id}/matches`} className="block font-bold text-ink hover:text-plum">Matches and choices</Link>
-        <p className="mt-0.5 text-sm text-ink/50">Who matched with whom, and everyone&apos;s Date, Friend and No choices</p>
-      </Card>
+      {!noMatchesEvent && (
+        <Card className="mb-3">
+          <Link href={`/admin/events/${event.id}/matches`} className="block font-bold text-ink hover:text-plum">Matches and choices</Link>
+          <p className="mt-0.5 text-sm text-ink/50">Who matched with whom, and everyone&apos;s Date, Friend and No choices</p>
+        </Card>
+      )}
       <Card className="mb-3">
         <Link href={`/admin/events/${event.id}/edit`} className="block font-bold text-ink hover:text-plum">Edit event</Link>
       </Card>
@@ -212,6 +222,7 @@ export default function AdminEventDetailPage() {
         </>
       )}
 
+      {!noMatchesEvent && (<>
       <Card className="mb-3">
         <div className="font-bold text-ink">Close event &amp; calculate matches</div>
         <p className="mt-0.5 mb-3 text-sm text-ink/50">
@@ -273,6 +284,7 @@ export default function AdminEventDetailPage() {
         <Link href={`/admin/events/${event.id}/checkin-qr`} className="block font-bold text-ink hover:text-plum">Printable check-in QR code</Link>
         <p className="mt-0.5 text-sm text-ink/50">Display or print at the venue for attendees to scan when they check in</p>
       </Card>
+      </>)}
 
       {/* Cancelling is its own action (Gil, Q3): hiding the event (Edit event,
           "Visible to the public") only hides it. */}

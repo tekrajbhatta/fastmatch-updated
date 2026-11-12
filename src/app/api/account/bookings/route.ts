@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getSessionMember } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { checkInState, checkInWindow } from '@/lib/eventNight';
+import { noMatches } from '@/lib/ratingAudience';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -48,6 +49,8 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
         venue: { name: b.event.venue.name, address: b.event.venue.address },
         checkedIn: b.checkedIn,
         checkIn: checkInState(b.event, now),
+        // No check-in or matches at this event: listed, without the check-in line.
+        noMatches: noMatches(b.event),
         checkInOpensAt: checkInWindow(b.event).opens,
       })),
   );

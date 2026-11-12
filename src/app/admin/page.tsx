@@ -8,6 +8,7 @@ import { timeZoneForCity, zoneNote } from '@/lib/timezone';
 import { checkInState, endOfEventNight } from '@/lib/eventNight';
 import { countOf } from '@/lib/plural';
 import { resultsState, RESULTS_SENT_MESSAGE, RESULTS_NOT_ALL_EMAILED_MESSAGE } from '@/lib/eventResults';
+import { noMatches } from '@/lib/ratingAudience';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
@@ -36,20 +37,25 @@ export default async function AdminDashboard() {
                   {/* Results worked out (closed early, on the night): "Closed"
                       rather than "Check-in is open", which stays true until
                       midnight but no longer matters (Gil, 7 Nov). */}
-                  {e.results !== 'open' ? (
+                  {e.noMatches ? (
+                    // A day at the races, say: nobody checks in, so no check-in tag.
+                    <span className="rounded-full bg-ink/5 px-2 py-0.5 font-bold text-ink/60">No check-in or matches</span>
+                  ) : e.results !== 'open' ? (
                     <span className="rounded-full bg-plum/10 px-2 py-0.5 font-bold text-plum">Closed</span>
                   ) : e.checkInOpen && <span className="rounded-full bg-green/15 px-2 py-0.5 font-bold text-green-dark">Check-in is open</span>}
                 </div>
                 <div className="mt-1 font-bold text-ink">{e.label}</div>
                 <div className="text-sm text-ink/60">{e.when} · {e.venue}, {e.city}</div>
                 <div className="mt-1 text-sm text-ink">
-                  {countOf(e.booked, 'person', 'people')} booked{e.checkInOpen || e.checkedIn > 0 ? ` · ${e.checkedIn} checked in` : ''}
+                  {countOf(e.booked, 'person', 'people')} booked{!e.noMatches && (e.checkInOpen || e.checkedIn > 0) ? ` · ${e.checkedIn} checked in` : ''}
                 </div>
                 {e.results === 'sent' && <p className="mt-1 text-sm font-bold text-green-dark">{RESULTS_SENT_MESSAGE}</p>}
                 {e.results === 'not-all-emailed' && <p className="mt-1 text-sm font-bold text-coral">{RESULTS_NOT_ALL_EMAILED_MESSAGE}</p>}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Link href={`/admin/events/${e.id}/bookings`} className="inline-flex min-h-[40px] flex-1 items-center justify-center rounded-lg bg-coral px-3 text-sm font-bold text-white hover:bg-coral/90">Bookings</Link>
-                  <Link href={`/admin/events/${e.id}/checkin-qr`} className="inline-flex min-h-[40px] flex-1 items-center justify-center rounded-lg border border-plum px-3 text-sm font-bold text-plum hover:bg-plum/5">Check-in QR</Link>
+                  {!e.noMatches && (
+                    <Link href={`/admin/events/${e.id}/checkin-qr`} className="inline-flex min-h-[40px] flex-1 items-center justify-center rounded-lg border border-plum px-3 text-sm font-bold text-plum hover:bg-plum/5">Check-in QR</Link>
+                  )}
                   <Link href={`/admin/events/${e.id}`} className="inline-flex min-h-[40px] flex-1 items-center justify-center rounded-lg border border-plum px-3 text-sm font-bold text-plum hover:bg-plum/5">Event page</Link>
                 </div>
               </div>
@@ -113,6 +119,7 @@ async function comingUpEvents() {
       checkedIn: mine.filter((c) => c.checkedIn).reduce((n, c) => n + c._count._all, 0),
       checkInOpen: checkInState(e, now) === 'open',
       results: resultsState(e),
+      noMatches: noMatches(e),
     };
   });
 }

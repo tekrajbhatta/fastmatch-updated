@@ -1,5 +1,6 @@
 import type { City, Event, EventTheme, Gender, Venue } from '@prisma/client';
 import { eventAvailability } from './eventAvailability';
+import { noMatches } from './ratingAudience';
 
 type EventWithRefs = Event & { theme: EventTheme; city: City; venue: Venue };
 
@@ -47,6 +48,8 @@ export function toPublicEvent(e: EventWithRefs, booked: { men: number; women: nu
     // Whether it can be booked, and if not why: the event page shows
     // "finished", "cancelled" or "not open" instead of the booking panel.
     availability: eventAvailability(e),
+    // No check-in or matches (a day at the races, say): no Check in button.
+    noMatches: noMatches(e),
     // Every place, men's and women's together, taken.
     soldOut: booked.men + booked.women >= e.maxMen + e.maxWomen,
     // Every place for the signed-in member's gender taken (false when signed out).

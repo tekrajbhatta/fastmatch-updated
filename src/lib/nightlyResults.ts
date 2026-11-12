@@ -11,7 +11,8 @@ export const RESULTS_LOOK_BACK_DAYS = 7;
  * picks up: every event that has started, within the last
  * RESULTS_LOOK_BACK_DAYS days (Sydney days), whose matches haven't been calculated
  * (the admin's "Close event now & calculate early" sets that, so those are
- * skipped), leaving out cancelled events and unsaved duplicates.
+ * skipped), leaving out cancelled events, unsaved duplicates and events with
+ * no check-in or matches (a day at the races: nothing to work out).
  *
  * The job runs at midnight. It used to look for events that started between
  * the server's last midnight and now, which at midnight is nothing at all, so
@@ -31,6 +32,7 @@ export function eventsDueForResults(now: Date = new Date()): Prisma.EventWhereIn
     matchesCalculated: false,
     draft: false,
     status: { not: 'CANCELLED' },
+    ratingAudience: { not: 'NO_MATCHES' },
     startsAt: {
       gte: startOfDayIn(addDays(today, -RESULTS_LOOK_BACK_DAYS), EVENT_TIME_ZONE),
       lt: now,

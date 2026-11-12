@@ -38,6 +38,8 @@ interface EventDetail {
   alreadyBooked: boolean;
   /** Booked and already checked in tonight. */
   checkedIn: boolean;
+  /** No check-in or matches at this event: no Check in button. */
+  noMatches: boolean;
   fastmatchDiscounts: boolean;
   groupDiscounts: boolean;
   theme: { name: string };
@@ -457,7 +459,7 @@ export default function EventDetailPage() {
                 <div className="flex flex-col gap-3">
                   <FormSuccess>You&apos;re booked in for this event.</FormSuccess>
                   <CheckInAction eventId={event.id} cityName={event.city.name} state={nightState} opensAt={checkInWindow(event).opens}
-                    checkedIn={event.checkedIn} block />
+                    checkedIn={event.checkedIn} noMatches={event.noMatches} block />
                 </div>
               ) : closed ? (
                 <p role="status" className="rounded-[20px] bg-plum-50 px-5 py-4 text-center text-[17px] font-bold text-ink-900">

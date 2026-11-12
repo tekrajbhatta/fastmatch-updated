@@ -24,7 +24,7 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
 
   const booking = await prisma.booking.findUnique({
     where: { eventId_memberId: { eventId: params.eventId, memberId: member.id } },
-    select: { id: true, status: true, stripePaymentIntentId: true, confirmedAt: true, event: { select: { status: true } } },
+    select: { id: true, status: true, stripePaymentIntentId: true, confirmedAt: true, event: { select: { status: true, ratingAudience: true } } },
   });
   const session = req.nextUrl.searchParams.get('session');
   const ended = booking?.status === 'REFUNDED' || booking?.status === 'CANCELLED';
@@ -42,5 +42,7 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     status: booking?.status ?? 'NONE',
     ...(refundedPayment ? { refundedPayment } : {}),
     ...(friendsBooked !== undefined ? { friendsBooked } : {}),
+    // No check-in or matches at this event: the booked page says nothing about checking in.
+    noMatches: booking?.event.ratingAudience === 'NO_MATCHES',
   });
 });

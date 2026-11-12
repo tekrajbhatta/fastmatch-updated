@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getSessionMember } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { choicesOpen } from '@/lib/eventNight';
-import { canRate } from '@/lib/ratingAudience';
+import { canRate, noMatches, NO_MATCHES_MEMBER_MESSAGE } from '@/lib/ratingAudience';
 
 // Bounded: a night has a few dozen people, and each choice is a database
 // write in one transaction, so an unbounded list could tie the database up.
@@ -43,6 +43,7 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   }
 
   const event = await prisma.event.findUniqueOrThrow({ where: { id: params.eventId }, include: { city: true } });
+  if (noMatches(event)) return NextResponse.json({ error: NO_MATCHES_MEMBER_MESSAGE, noMatches: true }, { status: 409 });
   if (!choicesOpen(event)) {
     return NextResponse.json(
       {

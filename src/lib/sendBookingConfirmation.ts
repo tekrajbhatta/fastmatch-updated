@@ -5,6 +5,7 @@ import { registeredLinks } from './emails/signupEmails';
 import { venueLine } from './venue';
 import { eventTimeFor } from './timezone';
 import { eventLabel } from './eventLabel';
+import { noMatches } from './ratingAudience';
 
 /**
  * The "You're booked in!" email. `registered`: the admin has just added them
@@ -29,7 +30,8 @@ export async function sendBookingConfirmation(bookingId: string, opts: { registe
   const appUrl = (process.env.APP_URL ?? '').replace(/\/+$/, '');
   // The shared per-event QR/link — logging in identifies the attendee, so
   // this doesn't need to be a per-person token, just a stable event URL.
-  const checkInUrl = `${appUrl}/events/${booking.eventId}/checkin`;
+  // None for an event with no check-in or matches: the email leaves the steps out.
+  const checkInUrl = noMatches(booking.event) ? null : `${appUrl}/events/${booking.eventId}/checkin`;
 
   const { subject, html } = bookingConfirmationEmail({
     memberName: booking.member.name,

@@ -5,7 +5,7 @@ import { withErrorHandling } from '@/lib/withErrorHandling';
 import { checkInState, checkInWindow } from '@/lib/eventNight';
 import { formatEventWhen } from '@/lib/datetime';
 import { timeZoneForCity } from '@/lib/timezone';
-import { canRate } from '@/lib/ratingAudience';
+import { canRate, noMatches, NO_MATCHES_MEMBER_MESSAGE } from '@/lib/ratingAudience';
 import { shortName } from '@/lib/personName';
 
 // POST /api/events/:eventId/checkin
@@ -22,6 +22,10 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   // booking on it was cancelled with it).
   const cancelled = await prisma.event.findFirst({ where: { id: params.eventId, status: 'CANCELLED' }, select: { id: true } });
   if (cancelled) return NextResponse.json({ error: 'This event was cancelled.', cancelled: true }, { status: 409 });
+  // No check-in or matches at this event (a day at the races, say).
+  if (await prisma.event.findFirst({ where: { id: params.eventId, ratingAudience: 'NO_MATCHES' }, select: { id: true } })) {
+    return NextResponse.json({ error: NO_MATCHES_MEMBER_MESSAGE, noMatches: true }, { status: 409 });
+  }
 
   const booking = await prisma.booking.findUnique({
     where: { eventId_memberId: { eventId: params.eventId, memberId: member.id } },

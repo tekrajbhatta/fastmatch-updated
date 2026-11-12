@@ -20,7 +20,7 @@ type ApiEvent = MemberTableEvent & { venue: { name: string; address: string | nu
 interface BookedEvent {
   id: string; name: string; startsAt: string; ageMin: number; ageMax: number;
   theme: { name: string }; city: { name: string }; venue: { name: string; address: string | null };
-  checkedIn: boolean; checkIn: CheckInState; checkInOpensAt: string;
+  checkedIn: boolean; checkIn: CheckInState; checkInOpensAt: string; noMatches?: boolean;
 }
 
 /**
@@ -118,7 +118,7 @@ export default function MemberEventsBrowser({ showBookedList, splitByAge = false
                   <span className="mt-1 block text-sm leading-snug text-ink-600">{e.theme.name} · Ages {e.ageMin}–{e.ageMax} · {venueLine(e.venue)}</span>
                   </div>
                   <div className="flex-none">
-                    <CheckInAction eventId={e.id} cityName={e.city.name} state={e.checkIn} opensAt={e.checkInOpensAt} checkedIn={e.checkedIn} />
+                    <CheckInAction eventId={e.id} cityName={e.city.name} state={e.checkIn} opensAt={e.checkInOpensAt} checkedIn={e.checkedIn} noMatches={e.noMatches} />
                   </div>
                 </li>
               );

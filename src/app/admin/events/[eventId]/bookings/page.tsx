@@ -42,7 +42,7 @@ export default function EventBookingsPage() {
   // The card payment in Stripe behind the booking being edited, looked up
   // when its Edit row opens (the booking keeps only its payment page's id).
   // The event itself, for the night's check-in window (the "Check in" buttons).
-  const [event, setEvent] = useState<{ startsAt: string; status: string; city: { name: string } | null } | null>(null);
+  const [event, setEvent] = useState<{ startsAt: string; status: string; city: { name: string } | null; ratingAudience: string } | null>(null);
   // The booking a "Check in" button is saving.
   const [checkingIn, setCheckingIn] = useState<string | null>(null);
   const phone = useIsPhone();
@@ -127,7 +127,10 @@ export default function EventBookingsPage() {
     }
     loadBookings();
   }
-  const nightOpen = !!event && event.status !== 'CANCELLED' && checkInState(event) === 'open';
+  // No check-in or matches (a day at the races, say): nobody checks in, so
+  // no "Check in" buttons, no checked-in count and no "Checked in" tick.
+  const noCheckIn = event?.ratingAudience === 'NO_MATCHES';
+  const nightOpen = !!event && event.status !== 'CANCELLED' && !noCheckIn && checkInState(event) === 'open';
   const canCheckIn = (b: Booking) => nightOpen && b.status === 'CONFIRMED' && !b.checkedIn;
 
   // During the night the list keeps itself up to date (every 20 seconds), so
@@ -213,11 +216,13 @@ export default function EventBookingsPage() {
               onChange={(e) => setEdit({ ...edit, paidAmount: e.target.value })} />
           </Field>
         </div>
-        <label className="mb-4 flex min-h-[44px] items-center gap-2 text-sm font-semibold text-ink md:min-h-0">
-          <input type="checkbox" className="h-5 w-5 md:h-auto md:w-auto" checked={edit.checkedIn}
-            onChange={(e) => setEdit({ ...edit, checkedIn: e.target.checked })} />
-          Checked in
-        </label>
+        {!noCheckIn && (
+          <label className="mb-4 flex min-h-[44px] items-center gap-2 text-sm font-semibold text-ink md:min-h-0">
+            <input type="checkbox" className="h-5 w-5 md:h-auto md:w-auto" checked={edit.checkedIn}
+              onChange={(e) => setEdit({ ...edit, checkedIn: e.target.checked })} />
+            Checked in
+          </label>
+        )}
         <div className="col-span-2 mb-4 flex gap-2">
           <Button onClick={() => saveBooking(b.id)} disabled={savingBooking} loading={savingBooking} className="flex-1 md:flex-none">
             {savingBooking ? 'Saving…' : 'Save'}
@@ -256,7 +261,7 @@ export default function EventBookingsPage() {
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Event bookings</h1>
       <p className="mb-4 text-sm text-ink/60">
         {loaded ? `${countOf(men, 'man', 'men')} · ${countOf(women, 'woman', 'women')} booked` : 'Loading bookings…'}
-        {loaded && checkedInCount > 0 && <span> · {checkedInCount} checked in</span>}
+        {loaded && !noCheckIn && checkedInCount > 0 && <span> · {checkedInCount} checked in</span>}
         {unpaid > 0 && <span className="text-ink/40"> · {unpaid} unpaid ({unpaid === 1 ? 'it holds' : 'each holds'} its places for 10 minutes while its payment page is open)</span>}
       </p>
 

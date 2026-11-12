@@ -52,8 +52,9 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
  * checked in that they had no matches. Nor for a cancelled event, which
  * didn't happen.
  */
-function closeBlocked(event: { status: string; startsAt: Date; city: { name: string } | null }, now: Date = new Date()): string | null {
+function closeBlocked(event: { status: string; startsAt: Date; city: { name: string } | null; ratingAudience: string }, now: Date = new Date()): string | null {
   if (event.status === 'CANCELLED') return 'This event was cancelled, so there are no results to work out.';
+  if (event.ratingAudience === 'NO_MATCHES') return 'This event has no check-in or matches, so there are no results to work out.';
   if (now < checkInWindow(event).opens) return 'This event hasn’t started yet. Results can be worked out early once check-in has opened, an hour before the start.';
   return null;
 }

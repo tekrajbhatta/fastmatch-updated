@@ -399,7 +399,8 @@ describe('after paying', () => {
     addBooking({ id: 'f2', memberId: 'm7', status: 'CANCELLED', bookedById: 'lead' });
     const { GET } = await import('@/app/api/events/[eventId]/my-booking/route');
     const res = await GET(new NextRequest('http://x.test/api/events/e1/my-booking'), { params: Promise.resolve({ eventId: 'e1' }) });
-    expect(await res.json()).toEqual({ status: 'CONFIRMED', friendsBooked: 1 });
+    // Only the count (and whether the event has check-in, which is about the event, not them).
+    expect(await res.json()).toEqual({ status: 'CONFIRMED', friendsBooked: 1, noMatches: false });
   });
 
   it('a free booking tells the member about friends who couldn’t be added (nothing to refund)', async () => {

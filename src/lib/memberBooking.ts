@@ -17,6 +17,7 @@ import { sendEmail } from './emails/send';
 import { friendWelcomeEmail } from './emails/friendEmail';
 import { eventTimeFor } from './timezone';
 import { eventLabel } from './eventLabel';
+import { noMatches } from './ratingAudience';
 import { placesTaken, countHeld, capacityProblem, holdCutoff, payableCutoff } from './capacity';
 import { alertDiscountReused } from './paymentAlerts';
 import { eventAvailability, NOT_BOOKABLE } from './eventAvailability';
@@ -619,7 +620,7 @@ async function notifyFriend(bookingId: string, bookedByName: string): Promise<vo
     startsAt: b.event.startsAt,
     ...eventTimeFor(b.event.startsAt, b.event.city.name, b.member.city?.name),
     setPasswordUrl,
-    checkInUrl: `${process.env.APP_URL}/events/${b.eventId}/checkin`,
+    checkInUrl: noMatches(b.event) ? null : `${process.env.APP_URL}/events/${b.eventId}/checkin`,
   });
   await sendEmail({ to: b.member.email, subject, html });
 }

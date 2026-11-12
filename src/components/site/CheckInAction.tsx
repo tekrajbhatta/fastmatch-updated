@@ -9,15 +9,17 @@ import type { CheckInState } from '@/lib/eventNight';
  * way in from the site: only the link in their booking email, or the QR code
  * at the venue.
  */
-export default function CheckInAction({ eventId, cityName, state, opensAt, checkedIn, block = false }: {
+export default function CheckInAction({ eventId, cityName, state, opensAt, checkedIn, block = false, noMatches = false }: {
   eventId: string;
   cityName: string;
   state: CheckInState;
   opensAt: string | Date;
   checkedIn: boolean;
   block?: boolean;
+  /** An event with no check-in or matches: nothing to show. */
+  noMatches?: boolean;
 }) {
-  if (state === 'closed') return null;
+  if (state === 'closed' || noMatches) return null;
   if (state === 'not-yet') {
     const opens = formatEventForViewer(opensAt, cityName);
     return (

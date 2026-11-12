@@ -20,7 +20,9 @@ const CHECK_IN_BUTTON = `background:${BRAND_COLORS.redCta};color:#fff;padding:10
  * closes at midnight (src/lib/eventNight.ts). Headed "to the event", not "on
  * the night": some events are in the day (Gil, 7 Nov).
  */
-export function checkInStepsHtml(checkInUrl: string): string {
+export function checkInStepsHtml(checkInUrl: string | null): string {
+  // An event with no check-in or matches (a day at the races, say): nothing to explain.
+  if (!checkInUrl) return '';
   return `
     <h2 style="${EMAIL_SUBHEADING}color:${BRAND_COLORS.plum};">How to check in to the event</h2>
     <ol style="margin:0 0 16px;padding-left:22px;">
@@ -49,7 +51,8 @@ export function bookingConfirmationEmail(opts: {
   eventName: string;
   venue: string;
   startsAt: Date;
-  checkInUrl: string;
+  /** Null for an event with no check-in or matches: the email then leaves the steps out. */
+  checkInUrl: string | null;
   /** The EVENT's timezone — times are always the event's local time. */
   timeZone: string;
   /** "Perth time" when the recipient's own clock reads differently — see zoneNote. */
@@ -85,19 +88,23 @@ export function bookingConfirmationEmail(opts: {
   return { subject, html };
 }
 
-// Tone matches the real old-system reminder ("Teo, you are Speed dating on...")
-export function eventReminderEmail(opts: { memberName: string; eventName: string; startsAt: Date; venue: string; timeZone: string; zoneNote?: string | null; checkInUrl: string }) {
+// Tone matches the real old-system reminder ("Teo, you are Speed dating on...").
+// With no check-in URL (an event with no check-in or matches, such as a day at
+// the races) it says "your event" rather than speed dating, and nothing about
+// checking in.
+export function eventReminderEmail(opts: { memberName: string; eventName: string; startsAt: Date; venue: string; timeZone: string; zoneNote?: string | null; checkInUrl: string | null }) {
   const dateStr = opts.startsAt.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: opts.timeZone });
   const timeStr =
     opts.startsAt.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: opts.timeZone }) +
     (opts.zoneNote ? ` (${escapeHtml(opts.zoneNote)})` : '');
 
+  const headline = opts.checkInUrl ? `you're speed dating on ${dateStr}!` : `your event is on ${dateStr}!`;
   const html = emailLayout(`
-    <h1 style="${EMAIL_HEADING}">${escapeHtml(opts.memberName)}, you're speed dating on ${dateStr}!</h1>
+    <h1 style="${EMAIL_HEADING}">${escapeHtml(opts.memberName)}, ${headline}</h1>
     <p>How exciting! Your event is almost here.</p>
     <p>What to wear? Entirely up to you. Smart casual is always a safe bet. Just be yourself.</p>
     <p>There'll be plenty of first-timers there too, so relax, smile, and enjoy the process.</p>
-    <p>Remember to arrive at least 10 minutes early so you're checked in and ready to go.</p>
+    <p>${opts.checkInUrl ? "Remember to arrive at least 10 minutes early so you're checked in and ready to go." : 'Remember to arrive at least 10 minutes early.'}</p>
     <p><strong>${escapeHtml(opts.eventName)}</strong><br>${escapeHtml(opts.venue)}<br>${dateStr}, ${timeStr}</p>
     ${checkInStepsHtml(opts.checkInUrl)}
     <p>Can't make it? Let us know at <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>
@@ -105,7 +112,7 @@ export function eventReminderEmail(opts: { memberName: string; eventName: string
     <p>The FastMatch Team</p>
   `);
 
-  return { subject: `${oneLine(opts.memberName)}, you're speed dating on ${dateStr}!`, html };
+  return { subject: `${oneLine(opts.memberName)}, ${headline}`, html };
 }
 
 /**

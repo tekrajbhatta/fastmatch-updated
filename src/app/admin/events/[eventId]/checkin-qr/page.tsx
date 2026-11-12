@@ -10,13 +10,15 @@ export default function CheckinQrPage() {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [eventName, setEventName] = useState('');
   const [checkinUrl, setCheckinUrl] = useState('');
+  // No check-in or matches at this event (a day at the races, say): no code to show.
+  const [noCheckIn, setNoCheckIn] = useState(false);
 
   useEffect(() => {
     const url = `${window.location.origin}/events/${eventId}/checkin`;
     setCheckinUrl(url);
     QRCode.toDataURL(url, { width: 480, margin: 2, color: { dark: '#3D1E6D', light: '#FFFFFF' } }).then(setQrDataUrl);
-    fetch(`/api/admin/events/${eventId}`).then((r) => (r.ok ? r.json() : null)).then((e: { name: string } | null) => {
-      if (e) setEventName(e.name);
+    fetch(`/api/admin/events/${eventId}`).then((r) => (r.ok ? r.json() : null)).then((e: { name: string; ratingAudience?: string } | null) => {
+      if (e) { setEventName(e.name); setNoCheckIn(e.ratingAudience === 'NO_MATCHES'); }
     });
   }, [eventId]);
 
@@ -27,6 +29,11 @@ export default function CheckinQrPage() {
       <h1 className="mb-1 text-2xl font-extrabold text-ink">Check-in QR code</h1>
       <p className="mb-6 text-sm text-ink/60">Display on a tablet or print this page. It&apos;s one shared code for the whole event; attendees are identified from their own login.</p>
 
+      {noCheckIn ? (
+        <p className="rounded-lg bg-ink/5 p-4 text-sm text-ink">
+          <strong>{eventName}</strong> has no check-in or matches, so there&apos;s no check-in QR code to display.
+        </p>
+      ) : (<>
       <div className="mb-4 rounded-2xl border border-ink/10 bg-white p-8 print:border-none print:shadow-none">
         <div className="mb-4 font-extrabold text-ink">{eventName}</div>
         {qrDataUrl && <img src={qrDataUrl} alt="Check-in QR code" className="mx-auto" />}
@@ -34,6 +41,7 @@ export default function CheckinQrPage() {
       </div>
 
       <Button onClick={() => window.print()} className="print:hidden">Print this page</Button>
+      </>)}
 
       <style jsx global>{`
         @media print {
