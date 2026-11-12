@@ -11,10 +11,13 @@ import BlastSendProgress from '@/components/BlastSendProgress';
 import EmailPreview from '@/components/EmailPreview';
 import Modal from '@/components/Modal';
 import { countOf } from '@/lib/plural';
+import { leftOutSentence, leftOutPart, type LeftOutGroup } from '@/lib/campaigns/leftOut';
 
 interface BlastOption { id: string; title: string; blastStatus: string; reusable: boolean; hasBeenSent: boolean }
 interface City { id: string; name: string }
 interface SendState { id?: string; status: string; sentCount: number; failedCount?: number; totalRecipients: number }
+/** "See who": a reason, its first names, and how many more (src/lib/campaigns/leftOutQuery.ts). */
+interface LeftOutList extends LeftOutGroup { members: { id: string; name: string; email: string; mobile: string }[]; more: number }
 
 const NEW = '__new__';
 const EMPTY: BlastContent = {
@@ -44,7 +47,11 @@ export default function BlastFilteredMembersPage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState<BlastContent>(EMPTY);
   const [savedSnapshot, setSavedSnapshot] = useState('');
-  const [audience, setAudience] = useState<{ matching: number; recipients: number } | null>(null);
+  const [audience, setAudience] = useState<{ matching: number; recipients: number; leftOut: LeftOutGroup[] } | null>(null);
+  // "See who": the members left out, under each reason. Loaded when opened.
+  const [seeWho, setSeeWho] = useState(false);
+  const [leftOutList, setLeftOutList] = useState<LeftOutList[] | null>(null);
+  const [leftOutError, setLeftOutError] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -84,10 +91,31 @@ export default function BlastFilteredMembersPage() {
           query, sendEmail: content.sendEmail, sendSms: content.sendSms, ignorePreference: content.ignorePreference,
           excludeBooked: content.excludeBooked, excludeBookedEventId: content.excludeBookedEventId,
         }),
-      }).then((r) => r.json()).then((d) => setAudience({ matching: d.matching, recipients: d.recipients }));
+      }).then((r) => r.json()).then((d) => setAudience({ matching: d.matching, recipients: d.recipients, leftOut: Array.isArray(d.leftOut) ? d.leftOut : [] }));
     }, 250);
     return () => clearTimeout(t);
   }, [query, content.sendEmail, content.sendSms, content.ignorePreference, content.excludeBooked, content.excludeBookedEventId]);
+
+  // "See who": the names behind the counts, for the same filter and settings.
+  // Fetched again whenever those change while it's open.
+  useEffect(() => {
+    if (query === null || !seeWho) return;
+    setLeftOutList(null);
+    setLeftOutError(false);
+    const t = setTimeout(() => {
+      fetch('/api/admin/members/blast-audience', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query, sendEmail: content.sendEmail, sendSms: content.sendSms, ignorePreference: content.ignorePreference,
+          excludeBooked: content.excludeBooked, excludeBookedEventId: content.excludeBookedEventId, details: true,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((d) => setLeftOutList(Array.isArray(d.leftOutMembers) ? d.leftOutMembers : []))
+        .catch(() => setLeftOutError(true));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [seeWho, query, content.sendEmail, content.sendSms, content.ignorePreference, content.excludeBooked, content.excludeBookedEventId]);
 
   async function choose(id: string) {
     if (dirty && selected && !confirm('Discard your unsaved changes to this blast?')) return;
@@ -246,10 +274,46 @@ export default function BlastFilteredMembersPage() {
                 <strong className="text-plum">{audience.recipients.toLocaleString()}</strong> of the {countOf(audience.matching, 'filtered member', 'filtered members')} will receive this blast.
                 {audience.recipients < audience.matching && (
                   <span className="block text-xs text-ink/50">
-                    {leftOutReasons(content)}
+                    {!content.sendEmail && !content.sendSms ? (
+                      'Tick “Send Email” or “Send SMS” to choose how it goes out.'
+                    ) : audience.leftOut.length > 0 && (
+                      <>
+                        {leftOutSentence(audience.leftOut)}{' '}
+                        <button type="button" onClick={() => setSeeWho(!seeWho)} className="font-bold text-plum underline">
+                          {seeWho ? 'Hide' : 'See who'}
+                        </button>
+                      </>
+                    )}
                   </span>
                 )}
               </p>
+            )}
+            {/* Who's left out, under each reason. A name opens the member's
+                page in a new tab, so this blast isn't lost. */}
+            {seeWho && audience && audience.recipients < audience.matching && (content.sendEmail || content.sendSms) && (
+              <div className="mb-3 max-h-80 overflow-y-auto rounded-lg border border-ink/10 bg-white text-xs">
+                {leftOutError ? (
+                  <p className="px-3 py-2 font-medium text-coral">Couldn’t load the list. Please try again.</p>
+                ) : !leftOutList ? (
+                  <p className="px-3 py-2 text-ink/50">Loading…</p>
+                ) : (
+                  <>
+                    <p className="px-3 py-2 text-ink/50">A name opens the member’s page in a new tab, where you can check or change their details.</p>
+                    {leftOutList.map((g) => (
+                      <div key={g.key} className="border-t border-ink/5">
+                        <div className="bg-plum/5 px-3 py-1.5 font-bold text-ink">{leftOutPart(g)}</div>
+                        {g.members.map((m) => (
+                          <a key={m.id} href={`/admin/members/${m.id}`} target="_blank" rel="noreferrer" className="block px-3 py-1.5 hover:bg-plum/5">
+                            <span className="font-bold text-ink">{m.name}</span>
+                            <span className="text-ink/50"> · {m.email}{m.mobile ? ` · ${m.mobile}` : ''}</span>
+                          </a>
+                        ))}
+                        {g.more > 0 && <p className="px-3 py-1.5 text-ink/40">and {g.more.toLocaleString('en-AU')} more</p>}
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
             )}
             {message && (
               <p role="status" className={`mb-3 rounded-lg p-3 text-sm ${message.ok ? 'bg-green/15 font-bold text-green-dark' : 'bg-coral/10 font-medium text-coral'}`}>
@@ -294,23 +358,4 @@ export default function BlastFilteredMembersPage() {
       )}
     </div>
   );
-}
-
-/**
- * Why some of the filtered members won't get this blast, as the send decides
- * it (src/lib/campaigns/audience.ts). Unsubscribed members are always left
- * out, "Ignore preference" or not (the user, 7 Oct); so are addresses that
- * aren't confirmed.
- */
-function leftOutReasons(c: Pick<BlastContent, 'sendEmail' | 'sendSms' | 'ignorePreference' | 'excludeBooked'>): string {
-  const channels = c.sendEmail && c.sendSms ? 'email or SMS' : c.sendEmail ? 'email' : 'SMS';
-  const confirmed = c.sendEmail && c.sendSms ? 'their email address or mobile' : c.sendEmail ? 'their email address' : 'their mobile';
-  const reasons = [
-    'have unsubscribed from event news and offers',
-    ...(c.ignorePreference ? [] : [`don’t want to be contacted by ${channels}`]),
-    `haven’t confirmed ${confirmed}`,
-    ...(c.sendEmail ? ['have an email address that bounced'] : []),
-    ...(c.excludeBooked ? ['have already booked'] : []),
-  ];
-  return `The rest ${reasons.slice(0, -1).join(', ')}, or ${reasons[reasons.length - 1]}.`;
 }
