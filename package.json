@@ -14,6 +14,7 @@
     "calculate-matches": "tsx src/scripts/calculateMatches.ts",
     "process-campaign-sends": "tsx src/scripts/processCampaignSends.ts",
     "import-members": "tsx members-import/import-members.ts",
+    "confirm-imported-emails": "tsx members-import/confirm-imported-emails.ts",
     "send-reminders": "tsx src/scripts/sendReminders.ts",
     "delete-members": "tsx src/scripts/deleteMembers.ts",
     "rewrite-site-address": "tsx src/scripts/rewriteSiteAddress.ts",

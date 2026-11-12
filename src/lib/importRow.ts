@@ -77,6 +77,39 @@ export function skippedRowsCsv(rows: { row: Record<string, string | undefined>; 
 export const IMPORTED_PASSWORD_PREFIX = '!imported:';
 export const importedPasswordMarker = () => IMPORTED_PASSWORD_PREFIX + crypto.randomBytes(12).toString('hex');
 
+/**
+ * When a row was inserted, read from its id. Prisma's cuid() ids start with
+ * "c" and the insert time in milliseconds, in base 36 (8 characters). An
+ * imported member's createdAt is their OLD join date, but their id still
+ * tells when the import put them in. Null for an id that isn't a cuid.
+ */
+export function cuidTime(id: string): number | null {
+  if (!/^c[0-9a-z]{24}$/.test(id)) return null;
+  const ms = parseInt(id.slice(1, 9), 36);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * The span of time the member import ran in, from the members still holding
+ * the import's placeholder password (those who reset theirs since have lost
+ * it, but were inserted in the same run). Widened by `marginMs` either side,
+ * so the run's first and last members count even if they've reset. Null when
+ * there is no imported member.
+ */
+export function importRunWindow(markerIds: string[], marginMs = 60_000): { from: number; to: number } | null {
+  // A loop, not Math.min(...times): 50,000 arguments is past what a call can take.
+  let first = Infinity;
+  let last = -Infinity;
+  for (const id of markerIds) {
+    const t = cuidTime(id);
+    if (t === null) continue;
+    if (t < first) first = t;
+    if (t > last) last = t;
+  }
+  if (first === Infinity) return null;
+  return { from: first - marginMs, to: last + marginMs };
+}
+
 /** A yes/no cell; blank is `blankDefault`. Null: not recognised. */
 export function importYesNo(raw: string | null | undefined, blankDefault: boolean): boolean | null {
   const v = (raw ?? '').trim();
