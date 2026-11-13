@@ -42,6 +42,16 @@ enum RatingAudience {
   NO_MATCHES
 }
 
+// What an event's price includes (Gil, Nov): shown beside the price.
+enum EventOffering {
+  NONE
+  ONE_DRINK
+  TWO_DRINKS
+  FOOD
+  FOOD_AND_DRINKS
+  PRIZES
+}
+
 enum MatchResult {
   FRIEND
   DATE
@@ -233,6 +243,8 @@ model Event {
   groupDiscounts     Boolean    @default(true)
   // Who members see and rate on the night (src/lib/ratingAudience.ts).
   ratingAudience     RatingAudience @default(OPPOSITE_GENDER)
+  // What the price includes ("inc one drink"…), src/lib/eventOffering.ts.
+  offering           EventOffering  @default(NONE)
   series        EventSeries?    @relation(fields: [seriesId], references: [id])
   seriesId      String?
 
@@ -373,7 +385,8 @@ model CampaignTemplate {
   // renderCampaignEmailHtml) and emailBody (a raw-HTML override, for anyone
   // who wants to bypass the structured fields entirely) can both be set;
   // emailBody wins if present. Matches FastmatchLive's template model.
-  heading          String?
+  // Plain text, or HTML from the blast editor (src/lib/richText.ts): longer than 191.
+  heading          String?  @db.Text
   freeText         String? @db.Text // multi-paragraph body copy
   eventDetailsText String? @db.Text // free-form (When/Where/Cost/Age etc, admin's own wording)
   bookingLink      String?
@@ -417,7 +430,8 @@ model Campaign {
   // when every blast shared one rendered copy. emailBody is a raw-HTML
   // override for anyone who wants to bypass structured rendering entirely;
   // if set, it wins — see resolveCampaignEmailHtml in campaignEmail.ts.
-  heading          String?
+  // Plain text, or HTML from the blast editor (src/lib/richText.ts): longer than 191.
+  heading          String?  @db.Text
   freeText         String? @db.Text
   eventDetailsText String? @db.Text
   bookingLink      String?

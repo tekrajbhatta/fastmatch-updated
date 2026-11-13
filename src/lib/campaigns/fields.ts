@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { cleanStoredRich } from '../richTextClean';
 import { oneLine } from '../escapeHtml';
 import { normaliseLink, pictureUrl } from '../eventInput';
 import { CONTACT_METHODS } from './sendTabFilter';
@@ -34,6 +35,13 @@ export const CONTENT_FIELDS = [
 
 /** A blast's text field: shared by Create (POST) and Edit (PATCH), so their limits can't drift. */
 export const blastText = z.string().max(20_000).nullable().optional();
+
+/**
+ * A blast's heading or free text: plain text, or HTML written in the blast
+ * editor, which is cleaned here to the editor's own formatting before it's
+ * saved (src/lib/richTextClean.ts).
+ */
+export const blastRichText = blastText.transform((v) => cleanStoredRich(v));
 
 /** A blast picture (photo, banner, venue logo): an upload, a picture on this site, or an http(s) address (src/lib/eventInput.ts). */
 export const blastPicture = pictureUrl(blastText);
@@ -83,8 +91,8 @@ export const campaignPatchSchema = z
     // Kept to one line: a subject is an email header (see oneLine). The form's
     // single-line box can't hold a line break, but the API would accept one.
     subject: blastSubject.nullable().optional(),
-    heading: text,
-    freeText: text,
+    heading: blastRichText,
+    freeText: blastRichText,
     eventDetailsText: text,
     bookingLink: blastLink,
     photoUrl: blastPicture,

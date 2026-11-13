@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { resolveCampaignEmailHtml } from '@/lib/emails/campaignEmail';
+import { cleanRichHtml } from '@/lib/richTextClean';
 
 // GET /api/admin/campaigns/:id/render-preview — the actual rendered email
 // HTML, exactly as it will be sent (same resolveCampaignEmailHtml call the
@@ -28,7 +29,8 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
       venueLogoUrl: campaign.venueLogoUrl,
     },
     // Preview only — a real send signs a per-member unsubscribe token.
-    `${process.env.APP_URL}/unsubscribe?token=preview`
+    `${process.env.APP_URL}/unsubscribe?token=preview`,
+    cleanRichHtml,
   );
 
   return NextResponse.json({ html, subject: campaign.subject });

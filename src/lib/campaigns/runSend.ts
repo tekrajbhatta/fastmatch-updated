@@ -3,6 +3,7 @@ import { buildMemberWhere, MemberFilter } from '../memberFilter';
 import { sendEmail } from '../emails/send';
 import { sendSmsBulk, withOptOut } from '../sms/send';
 import { resolveCampaignEmailHtml } from '../emails/campaignEmail';
+import { cleanRichHtml } from '../richTextClean';
 import { recipientFilter } from './audience';
 import { isPermanentAddressRejection } from './sendFailure';
 import { oneLine } from '../escapeHtml';
@@ -141,7 +142,9 @@ export async function processCampaignSendBatch(sendId: string) {
               bannerImageUrl: campaign.bannerImageUrl,
               venueLogoUrl: campaign.venueLogoUrl,
             },
-            unsubscribeUrl
+            unsubscribeUrl,
+            // Cleaned again as it goes out (it was when saved).
+            cleanRichHtml,
           );
           // One line even for a blast saved before subjects were kept to one.
           // The one-click unsubscribe (the mail program's own button) uses the same token.

@@ -1,4 +1,5 @@
 import { venueBlock } from '../venue';
+import { priceWithOffering } from '../eventOffering';
 import { eventLabel } from '../eventLabel';
 import { timeZoneForCity } from '../timezone';
 import { formatPrice } from '../price';
@@ -44,6 +45,8 @@ export function venueWouldReplace(v: VenueForBlast, current: { eventDetailsText:
 /** An event in the blast form's pickers: what they fill in from it. */
 export interface EventForBlast {
   id: string; name: string; startsAt: string | Date; cost: string | number;
+  /** What the price includes (src/lib/eventOffering.ts): "Cost: $49 · inc one drink". */
+  offering?: string | null;
   theme: { name: string }; city: { name: string };
   venue: { name: string; address?: string | null; phone?: string | null; websiteUrl?: string | null };
 }
@@ -58,7 +61,7 @@ export function blastEventDetails(e: Omit<EventForBlast, 'id' | 'name' | 'theme'
   const timeZone = timeZoneForCity(e.city.name);
   const dateStr = date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone });
   const timeStr = date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone });
-  return `When: ${dateStr}, ${timeStr}\nWhere: ${venueBlock(e.venue, e.city.name)}\nCost: ${formatPrice(e.cost)}`;
+  return `When: ${dateStr}, ${timeStr}\nWhere: ${venueBlock(e.venue, e.city.name)}\nCost: ${priceWithOffering(formatPrice(e.cost), e.offering)}`;
 }
 
 /**

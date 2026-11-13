@@ -1,6 +1,7 @@
 import type { City, Event, EventTheme, Gender, Venue } from '@prisma/client';
 import { eventAvailability } from './eventAvailability';
 import { noMatches } from './ratingAudience';
+import { offeringLabel } from './eventOffering';
 
 type EventWithRefs = Event & { theme: EventTheme; city: City; venue: Venue };
 
@@ -32,6 +33,8 @@ export function toPublicEvent(e: EventWithRefs, booked: { men: number; women: nu
     ageMin: e.ageMin,
     ageMax: e.ageMax,
     cost: e.cost,
+    // What the price includes ("inc one drink"), or null: shown beside it.
+    offering: offeringLabel(e.offering),
     fastmatchDiscounts: e.fastmatchDiscounts,
     groupDiscounts: e.groupDiscounts,
     themeId: e.themeId,

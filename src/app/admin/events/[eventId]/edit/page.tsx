@@ -9,6 +9,7 @@ import EventFlagFields from '@/components/EventFlagFields';
 import VenueInfoPanel, { venueFillPatch } from '@/components/VenueInfoPanel';
 import { toDateTimeLocalValue, fromDateTimeLocalValue } from '@/lib/datetime';
 import { checkInWindow } from '@/lib/eventNight';
+import { OFFERING_OPTIONS, type EventOffering } from '@/lib/eventOffering';
 import { timeZoneForCity } from '@/lib/timezone';
 import { checkEventFields, eventNumbers, EVENT_NUMBER_FIELDS, CHECK_FIELDS, CLOSED_EVENT_DATE_MESSAGE, type EventFieldErrors } from '@/lib/eventInput';
 
@@ -75,6 +76,7 @@ export default function EditEventPage() {
           expenses: e.expenses ?? '', visibility: e.visibility, confirmed: !!e.confirmed,
           fastmatchDiscounts: e.fastmatchDiscounts ?? true, groupDiscounts: e.groupDiscounts ?? true,
           ratingAudience: e.ratingAudience ?? 'OPPOSITE_GENDER',
+          offering: e.offering ?? 'NONE',
         });
       }
     });
@@ -215,6 +217,12 @@ export default function EditEventPage() {
             <Field label="Age max" error={err('ageMax')}><Input type="number" required value={form.ageMax} onChange={(e) => setForm({ ...form, ageMax: e.target.value })} /></Field>
           </div>
           <Field label="Cost ($)" error={err('cost')}><Input type="number" step="0.01" required value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} /></Field>
+          <Field label="Offerings">
+            {/* What the price includes, shown to members beside it (src/lib/eventOffering.ts). */}
+            <Select value={form.offering} onChange={(e) => setForm({ ...form, offering: e.target.value as EventOffering })}>
+              {OFFERING_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </Select>
+          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Max men" error={err('maxMen')}><Input type="number" value={form.maxMen} onChange={(e) => setForm({ ...form, maxMen: e.target.value })} /></Field>
             <Field label="Max women" error={err('maxWomen')}><Input type="number" value={form.maxWomen} onChange={(e) => setForm({ ...form, maxWomen: e.target.value })} /></Field>

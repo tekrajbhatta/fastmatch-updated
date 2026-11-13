@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { checkInWindow } from './eventNight';
+import { OFFERING_VALUES } from './eventOffering';
 
 /**
  * One set of rules for an event's details, used by "New event" and "Edit
@@ -109,6 +110,8 @@ export const eventFieldsSchema = z.object({
   groupDiscounts: z.boolean().default(true),
   // Who members see and rate on the night (src/lib/ratingAudience.ts).
   ratingAudience: z.enum(['OPPOSITE_GENDER', 'EVERYONE', 'NO_MATCHES']).default('OPPOSITE_GENDER'),
+  // What the price includes (src/lib/eventOffering.ts).
+  offering: z.enum(OFFERING_VALUES).default('NONE'),
 });
 
 export const newEventSchema = eventFieldsSchema.extend({

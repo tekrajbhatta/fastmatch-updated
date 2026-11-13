@@ -10,6 +10,7 @@ import VenueInfoPanel, { venueFillPatch } from '@/components/VenueInfoPanel';
 import { fromDateTimeLocalValue } from '@/lib/datetime';
 import { timeZoneForCity } from '@/lib/timezone';
 import type { RatingAudience } from '@/lib/ratingAudience';
+import { OFFERING_OPTIONS, type EventOffering } from '@/lib/eventOffering';
 import { checkNewEvent, eventNumbers, EVENT_NUMBER_FIELDS, CHECK_FIELDS, type EventFieldErrors } from '@/lib/eventInput';
 
 interface City { id: string; name: string; }
@@ -27,6 +28,7 @@ export default function NewEventPage() {
     visibility: 'PUBLIC' as 'PUBLIC' | 'NOT_PUBLIC',
     confirmed: false, fastmatchDiscounts: true, groupDiscounts: true,
     ratingAudience: 'OPPOSITE_GENDER' as RatingAudience,
+    offering: 'NONE' as EventOffering,
   });
   const [repeatOn, setRepeatOn] = useState(false);
   const [repeat, setRepeat] = useState({ frequency: 'WEEKLY' as 'DAILY' | 'WEEKLY' | 'MONTHLY', interval: '1', endDate: '' });
@@ -164,6 +166,12 @@ export default function NewEventPage() {
           </div>
           <Field label="Cost ($)" error={err('cost')}>
             <Input type="number" step="0.01" required value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} placeholder="49.00" />
+          </Field>
+          <Field label="Offerings">
+            {/* What the price includes, shown to members beside it (src/lib/eventOffering.ts). */}
+            <Select value={form.offering} onChange={(e) => setForm({ ...form, offering: e.target.value as EventOffering })}>
+              {OFFERING_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </Select>
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Max men" error={err('maxMen')}>

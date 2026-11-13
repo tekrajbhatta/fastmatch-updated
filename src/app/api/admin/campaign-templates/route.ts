@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
-import { blastText, blastPicture, blastLink, blastSubject } from '@/lib/campaigns/fields';
+import { blastText, blastRichText, blastPicture, blastLink, blastSubject } from '@/lib/campaigns/fields';
 
 // A template's fields are copied into blasts made from it, so they follow the
 // blast's own rules (src/lib/campaigns/fields.ts): limits, web addresses for
@@ -11,8 +11,8 @@ import { blastText, blastPicture, blastLink, blastSubject } from '@/lib/campaign
 const templateSchema = z.object({
   title: z.string().trim().min(1, 'Please give the template a title.').max(200),
   subject: blastSubject.optional(),
-  heading: blastText,
-  freeText: blastText,
+  heading: blastRichText,
+  freeText: blastRichText,
   eventDetailsText: blastText,
   bookingLink: blastLink,
   photoUrl: blastPicture,

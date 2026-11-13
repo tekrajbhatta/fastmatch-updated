@@ -1,5 +1,6 @@
 'use client';
 
+import RichTextEditor from '@/components/RichTextEditor';
 import { Field, Input } from '@/components/ui';
 import PhotoUploadField from '@/components/PhotoUploadField';
 import VenuePickerField from '@/components/VenuePickerField';
@@ -50,15 +51,13 @@ export default function BlastFields({ value, onChange }: { value: BlastContent; 
       {value.sendEmail && (
         <div className="mb-4 rounded-lg bg-cream/40 p-4">
           <Field label="Email subject"><Input required value={value.subject} onChange={(e) => onChange({ subject: e.target.value })} /></Field>
+          {/* Editors, not text boxes (Gil): bold, colour, highlight, size and
+              links. Enter starts a new line, as in the email. */}
           <Field label="Heading">
-            {/* A textarea, not an Input: the heading is meant to wrap onto a
-                second line, and renderCampaignEmailHtml turns each newline
-                into a <br/> in the email. */}
-            <textarea className={TEXTAREA} rows={2} value={value.heading} onChange={(e) => onChange({ heading: e.target.value })}
-              placeholder={'PROFESSIONAL SPEED DATING\n27-39 years at Soultrap Surry Hills'} />
+            <RichTextEditor kind="heading" label="Heading" value={value.heading} onChange={(heading) => onChange({ heading })} />
           </Field>
           <Field label="Free text">
-            <textarea className={TEXTAREA} rows={4} value={value.freeText} onChange={(e) => onChange({ freeText: e.target.value })} />
+            <RichTextEditor kind="text" label="Free text" value={value.freeText} onChange={(freeText) => onChange({ freeText })} />
           </Field>
           <VenuePickerField current={value} onApply={(patch) => onChange(patch)} />
           <PhotoUploadField value={value.photoUrl} onChange={(url) => onChange({ photoUrl: url })} />

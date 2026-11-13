@@ -7,6 +7,8 @@ import { adminEventGroup, sortAdminEvents, isInactive, GROUP_ORDER, type AdminEv
 import EventWhen from '@/components/EventWhen';
 import { useIsPhone } from '@/lib/useMediaQuery';
 import { resultsState, RESULTS_LABEL } from '@/lib/eventResults';
+import { formatPrice } from '@/lib/price';
+import { offeringLabel, priceWithOffering } from '@/lib/eventOffering';
 
 interface AdminEvent {
   id: string;
@@ -31,6 +33,10 @@ interface AdminEvent {
   // was needed to show the age range.
   ageMin: number;
   ageMax: number;
+  // The ticket price (Gil: a Cost column on the events list), and what it
+  // includes ("inc one drink"), shown under it (src/lib/eventOffering.ts).
+  cost: string | number;
+  offering?: string;
   // Results worked out, and all emailed (the "Closed" tag).
   matchesCalculated: boolean;
   matchEmailsSent: boolean;
@@ -129,7 +135,7 @@ export default function AdminEventsPage() {
                 <VisibilityChip e={e} />
               </div>
               <div className="mt-1 text-sm text-ink"><EventWhen startsAt={e.startsAt} city={e.city.name} /></div>
-              <div className="text-sm text-ink/70">{e.venue.name}, {e.city.name} · Ages {e.ageMin}–{e.ageMax}</div>
+              <div className="text-sm text-ink/70">{e.venue.name}, {e.city.name} · Ages {e.ageMin}–{e.ageMax} · {priceWithOffering(formatPrice(e.cost), e.offering)}</div>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
                 <span>Men <b>{e.menBooked}/{e.maxMen}</b> · Women <b>{e.womenBooked}/{e.maxWomen}</b></span>
                 {e.seriesId && (
@@ -154,6 +160,7 @@ export default function AdminEventsPage() {
               <th className="px-4 py-3">City</th>
               <th className="px-4 py-3">Venue</th>
               <th className="px-4 py-3">Ages</th>
+              <th className="px-4 py-3">Cost</th>
               <th className="px-4 py-3">Men</th>
               <th className="px-4 py-3">Women</th>
               <th className="px-4 py-3">Visibility</th>
@@ -178,7 +185,7 @@ export default function AdminEventsPage() {
                   <ResultsChip e={e} className="ml-2" />
                 </td>
                 {/* Cell order must mirror the <th> order above: Date & Time,
-                    Event type, City, Venue, Ages, Men, Women, Visibility, Action. */}
+                    Event type, City, Venue, Ages, Cost, Men, Women, Visibility, Action. */}
                 <td className="whitespace-nowrap px-4 py-3">
                   <EventWhen startsAt={e.startsAt} city={e.city.name} />
                 </td>
@@ -189,6 +196,10 @@ export default function AdminEventsPage() {
                     the event's own page and in /admin/venues. */}
                 <td className="px-4 py-3">{e.venue.name}</td>
                 <td className="whitespace-nowrap px-4 py-3">{e.ageMin}–{e.ageMax}</td>
+                <td className="whitespace-nowrap px-4 py-3 tabular-nums">
+                  {formatPrice(e.cost)}
+                  {offeringLabel(e.offering) && <span className="block text-xs text-ink/70">{offeringLabel(e.offering)}</span>}
+                </td>
                 <td className="px-4 py-3">{e.menBooked}/{e.maxMen}</td>
                 <td className="px-4 py-3">{e.womenBooked}/{e.maxWomen}</td>
                 {/* A solid white chip rather than <Badge>: the badge's pale

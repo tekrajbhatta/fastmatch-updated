@@ -21,6 +21,8 @@ interface EventDetail {
   status: string;
   // NO_MATCHES: no check-in or matches (src/lib/ratingAudience.ts).
   ratingAudience: string;
+  // What the price includes, for "Create blast" ("Cost: $49 · inc one drink").
+  offering?: string;
   // Every booking, any status (from /api/admin/events).
   _count: { bookings: number };
 }

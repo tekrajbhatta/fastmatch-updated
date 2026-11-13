@@ -5,6 +5,8 @@ import { requireAdmin } from '@/lib/auth';
 import { sendEmail, providerMessage } from '@/lib/emails/send';
 import { sendSms, withOptOut } from '@/lib/sms/send';
 import { resolveCampaignEmailHtml } from '@/lib/emails/campaignEmail';
+import { cleanRichHtml } from '@/lib/richTextClean';
+import { blastRichText } from '@/lib/campaigns/fields';
 import { oneLine } from '@/lib/escapeHtml';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { hitRateLimit, rateKey, LIMITS } from '@/lib/rateLimit';
@@ -23,7 +25,7 @@ const bodySchema = z
     // What's on screen right now, if it differs from what's saved — so a
     // test shows exactly the version about to go out.
     content: z
-      .object({ subject: text, heading: text, freeText: text, eventDetailsText: text, bookingLink: text, photoUrl: text, bannerImageUrl: text, venueLogoUrl: text, emailBody: text, smsBody: text })
+      .object({ subject: text, heading: blastRichText, freeText: blastRichText, eventDetailsText: text, bookingLink: text, photoUrl: text, bannerImageUrl: text, venueLogoUrl: text, emailBody: text, smsBody: text })
       .partial()
       .optional(),
   })
@@ -79,7 +81,8 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
           emailBody: c.emailBody, heading: c.heading, freeText: c.freeText, eventDetailsText: c.eventDetailsText,
           bookingLink: c.bookingLink, photoUrl: c.photoUrl, bannerImageUrl: c.bannerImageUrl, venueLogoUrl: c.venueLogoUrl,
         },
-        `${process.env.APP_URL}/unsubscribe?token=test`
+        `${process.env.APP_URL}/unsubscribe?token=test`,
+        cleanRichHtml,
       );
       await sendEmail({ to: email, subject: `[TEST] ${oneLine(c.subject ?? '')}`, html });
       result.email = `Test email sent to ${email}.`;

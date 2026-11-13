@@ -1,5 +1,6 @@
 'use client';
 
+import RichTextEditor from '@/components/RichTextEditor';
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Field, Input, Select, Button, Card, BackLink } from '@/components/ui';
@@ -125,17 +126,12 @@ function NewBlastInner() {
           {form.sendEmail && (
             <div className="mb-4 rounded-lg bg-cream/40 p-4">
               <Field label="Email subject"><Input required value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} /></Field>
+              {/* Editors, not text boxes (Gil): bold, colour, highlight, size and links. */}
               <Field label="Heading">
-                <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-base outline-none sm:text-sm focus:border-plum" rows={2}
-                  value={form.heading} onChange={(e) => setForm({ ...form, heading: e.target.value })}
-                  placeholder={"PROFESSIONAL SPEED DATING\n27-39 years at Soultrap Surry Hills"} />
-                {/* A textarea, not an Input: the heading is meant to wrap onto a
-                    second line, and renderCampaignEmailHtml already turns each
-                    newline into a <br/> in the email. */}
+                <RichTextEditor kind="heading" label="Heading" value={form.heading} onChange={(heading) => setForm((f) => ({ ...f, heading }))} />
               </Field>
               <Field label="Free text">
-                <textarea className="w-full rounded-lg border border-ink/15 bg-white px-3.5 py-2.5 text-base outline-none sm:text-sm focus:border-plum" rows={4}
-                  value={form.freeText} onChange={(e) => setForm({ ...form, freeText: e.target.value })} />
+                <RichTextEditor kind="text" label="Free text" value={form.freeText} onChange={(freeText) => setForm((f) => ({ ...f, freeText }))} />
               </Field>
               <VenuePickerField current={form} onApply={(patch) => setForm((f) => ({ ...f, ...patch }))} />
               <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm((f) => ({ ...f, photoUrl: url }))} />

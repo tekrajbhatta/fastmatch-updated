@@ -40,6 +40,8 @@ interface EventDetail {
   checkedIn: boolean;
   /** No check-in or matches at this event: no Check in button. */
   noMatches: boolean;
+  /** What the price includes ("inc one drink"), or null. */
+  offering: string | null;
   fastmatchDiscounts: boolean;
   groupDiscounts: boolean;
   theme: { name: string };
@@ -400,6 +402,8 @@ export default function EventDetailPage() {
                 <div className="flex-[1_1_110px]">
                   <p className="text-sm font-semibold text-ink-600">Ticket price</p>
                   <p className="mt-1 font-display text-[44px] font-extrabold leading-none tracking-[-0.02em] text-plum-700">{formatPrice(event.cost)}</p>
+                  {/* What the price includes ("inc one drink"), if anything. */}
+                  {event.offering && <p className="mt-2 text-[15px] font-semibold text-ink-900">{event.offering}</p>}
                 </div>
                 {/* "FastMatch Discounts" on the event decides whether codes apply. */}
                 {event.fastmatchDiscounts && canBook && (

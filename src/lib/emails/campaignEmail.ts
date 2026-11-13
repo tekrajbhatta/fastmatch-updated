@@ -1,6 +1,11 @@
 import { BRAND_COLORS } from '../brand';
 import { escapeHtml, safeHref, safeSrc } from '../escapeHtml';
 import { EMAIL_HEADING, EMAIL_FRAME } from './layout';
+import { isRich, richBody, wrapLooseLines } from '../richText';
+
+/** Cleans editor HTML (src/lib/richTextClean.ts). Server code passes it in; the
+ * blast form's own preview, in a sandboxed frame, renders without it. */
+type Clean = (html: string) => string;
 
 /**
  * Resolves what a campaign should actually send: the raw emailBody override
@@ -13,7 +18,9 @@ import { EMAIL_HEADING, EMAIL_FRAME } from './layout';
  * emailBody is the one thing sent exactly as written, unescaped: it is meant
  * to be HTML. Only an admin can set it (through the API; no form has a field
  * for it), and nothing a member typed is ever merged into a blast. The
- * structured fields are plain text from the blast form and are escaped.
+ * structured fields are plain text from the blast form and are escaped,
+ * except a heading or free text written in the blast editor (src/lib/richText.ts),
+ * which is HTML cleaned to the editor's own formatting by `clean`.
  */
 export function resolveCampaignEmailHtml(
   campaign: {
@@ -26,10 +33,12 @@ export function resolveCampaignEmailHtml(
     bannerImageUrl?: string | null;
     venueLogoUrl?: string | null;
   },
-  unsubscribeUrl: string
+  unsubscribeUrl: string,
+  clean?: Clean,
 ) {
   if (campaign.emailBody) return campaign.emailBody;
   return renderCampaignEmailHtml({
+    clean,
     heading: campaign.heading,
     freeText: campaign.freeText,
     eventDetailsText: campaign.eventDetailsText,
@@ -101,15 +110,24 @@ export function renderCampaignEmailHtml(fields: {
   bannerImageUrl?: string | null;
   venueLogoUrl?: string | null;
   unsubscribeUrl: string;
+  clean?: Clean;
 }) {
-  // The text fields are plain text, typed into the blast form (or copied in
-  // from a venue), so each is escaped. Their line breaks are still kept:
-  // here as paragraphs, in the heading as <br/>, in the details by pre-line.
-  const paragraphs = (fields.freeText || '')
-    .split('\n')
-    .filter((line) => line.trim())
-    .map((line) => `<p style="margin:0 0 14px;">${escapeHtml(line)}</p>`)
-    .join('');
+  const clean = fields.clean ?? ((html: string) => html);
+  // Plain text (typed before the editor, or copied in from a venue or an
+  // event) is escaped, its line breaks kept: here as paragraphs, in the
+  // heading as <br/>, in the details by pre-line. Written in the editor: its
+  // HTML, cleaned, with the same spacing between paragraphs.
+  const paragraphs = isRich(fields.freeText)
+    ? `<div>${wrapLooseLines(clean(richBody(fields.freeText))).replace(/<p( style="([^"]*)")?>/g, '<p style="margin:0 0 14px;$2">')}</div>`
+    : (fields.freeText || '')
+        .split('\n')
+        .filter((line) => line.trim())
+        .map((line) => `<p style="margin:0 0 14px;">${escapeHtml(line)}</p>`)
+        .join('');
+  // Lines of a heading written in the editor are <div>s: a <p> can't sit in an <h1>.
+  const headingHtml = isRich(fields.heading)
+    ? clean(richBody(fields.heading)).replace(/<p(\s|>)/g, '<div$1').replace(/<\/p>/g, '</div>')
+    : (fields.heading ?? '').split('\n').filter((l) => l.trim()).map(escapeHtml).join('<br/>');
 
   // Light background with dark text, NOT the plum block this briefly used.
   // Mail clients auto-detect the address, phone number and website in here and
@@ -146,7 +164,7 @@ export function renderCampaignEmailHtml(fields: {
     <div style="max-width:520px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:${BRAND_COLORS.ink};line-height:1.6;background-color:#ffffff;${EMAIL_FRAME}">
       ${campaignBanner(fields.bannerImageUrl)}
       <div style="padding:24px 24px 8px;">
-        ${fields.heading ? `<h1 style="${EMAIL_HEADING}text-align:center;">${fields.heading.split('\n').filter((l) => l.trim()).map(escapeHtml).join('<br/>')}</h1>` : ''}
+        ${headingHtml ? `<h1 style="${EMAIL_HEADING}text-align:center;">${headingHtml}</h1>` : ''}
         ${photoHtml}
         ${paragraphs}
         ${eventDetailsHtml}

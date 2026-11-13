@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { oneLine } from '@/lib/escapeHtml';
 import {
+  blastRichText,
   blastContentProblem, BLAST_PROBLEM_ON_SAVE, blastText, blastPicture, blastLink, blastSubject, blastFilterSchema, BAD_FILTER,
 } from '@/lib/campaigns/fields';
 
@@ -24,8 +25,8 @@ const campaignSchema = z.object({
   fromEmail: z.string().email().default('donotreply@fastmatch.com.au'),
   // One line, as in campaignPatchSchema: a subject is an email header.
   subject: blastSubject.optional(),
-  heading: text,
-  freeText: text,
+  heading: blastRichText,
+  freeText: blastRichText,
   eventDetailsText: text,
   bookingLink: blastLink,
   photoUrl: blastPicture,

@@ -67,6 +67,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
           fastmatchDiscounts: data.fastmatchDiscounts,
           groupDiscounts: data.groupDiscounts,
           ratingAudience: data.ratingAudience,
+          offering: data.offering,
           seriesId: series?.id,
         },
       })

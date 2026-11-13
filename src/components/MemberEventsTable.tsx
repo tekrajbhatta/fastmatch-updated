@@ -12,6 +12,8 @@ export interface MemberTableEvent {
   ageMin: number;
   ageMax: number;
   cost: string | number;
+  /** What the price includes ("inc one drink"), or null (src/lib/eventOffering.ts). */
+  offering?: string | null;
   bookedByMe: boolean;
   cityId: string;
   // Every place taken (worked out by the server; the counts stay private).
@@ -69,7 +71,7 @@ export default function MemberEventsTable({
             <p className="mt-2 text-[15px] leading-normal text-ink-600">
               {when.shortDate}, {when.time}{when.note ? ` (${when.note})` : ''} · {e.venue.name}{showCity ? `, ${e.city.name}` : ''}
             </p>
-            <p className="text-[15px] leading-normal text-ink-600">Ages {e.ageMin} to {e.ageMax} · {formatPrice(e.cost)}</p>
+            <p className="text-[15px] leading-normal text-ink-600">Ages {e.ageMin} to {e.ageMax} · {formatPrice(e.cost)}{e.offering ? ` · ${e.offering}` : ''}</p>
             <div className="mt-4 flex flex-wrap items-center gap-2.5">
               <Link href={`/events/${e.id}`} className={VIEW}>View</Link>
               {e.bookedByMe ? (
@@ -116,7 +118,10 @@ export default function MemberEventsTable({
                 <td className={`${CELL} text-ink-900`}>{e.venue.name}</td>
                 {showCity && <td className={`${CELL} text-ink-600`}>{e.city.name}</td>}
                 <td className={`${CELL} whitespace-nowrap text-ink-900`}>{e.ageMin} to {e.ageMax}</td>
-                <td className={`${CELL} tabular-nums text-ink-900`}>{formatPrice(e.cost)}</td>
+                <td className={`${CELL} tabular-nums text-ink-900`}>
+                  {formatPrice(e.cost)}
+                  {e.offering && <span className="block whitespace-nowrap text-[13px] text-ink-600">{e.offering}</span>}
+                </td>
                 <td className={CELL}><Link href={`/events/${e.id}`} className={VIEW}>View</Link></td>
                 <td className={CELL}>
                   {e.bookedByMe ? (
