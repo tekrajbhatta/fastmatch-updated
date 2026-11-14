@@ -9,7 +9,9 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
-  const codes = await prisma.discountCode.findMany({ orderBy: { validFrom: 'desc' } });
+  // Affiliates' promotions too, with the affiliate's name: they're listed, and
+  // changed on the Affiliates page (src/lib/affiliates.ts).
+  const codes = await prisma.discountCode.findMany({ orderBy: { validFrom: 'desc' }, include: { affiliate: { select: { name: true } } } });
   return NextResponse.json(await withScopeEvents(codes));
 });
 

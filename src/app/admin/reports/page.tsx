@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { Field, Input, Select, Button, Card, Loader } from '@/components/ui';
 import { timeZoneForCity } from '@/lib/timezone';
 import { countOf } from '@/lib/plural';
+import type { CommissionReport } from '@/lib/reports/commissions';
 import {
   CATEGORY_OPTIONS, GROUP_OPTIONS, REPORT_TYPES, reportProblem,
   type Dimension, type ReportType, type Metrics, type CategoryRow, type Overview, type OverviewRow,
@@ -29,11 +30,16 @@ interface EventReport {
   attended: number; men: number; women: number; matchRate: number | null;
   revenue: number; expenses: number; profit: number;
   dateMatches: number; friendMatches: number;
-  statement: { lines: StatementLine[]; revenue: number; commissions: number; expenses: number; profit: number };
+  statement: {
+    lines: StatementLine[]; revenue: number;
+    /** Each affiliate and code's commissions on this event's bookings. */
+    commissionLines: { affiliate: string; code: string; bookings: number; amount: number }[];
+    commissions: number; expenses: number; profit: number;
+  };
 }
 
 const COLUMN_LABELS: Record<keyof Metrics, string> = {
-  signups: 'Signups', members: 'Members', bookings: 'Bookings', matchPct: 'Matches', revenue: 'Revenue', expenses: 'Expenses', profit: 'Profit/Loss',
+  signups: 'Signups', members: 'Members', bookings: 'Bookings', matchPct: 'Matches', revenue: 'Revenue', commissions: 'Commissions', expenses: 'Expenses', profit: 'Profit/Loss',
 };
 // The old report's legend, in our terms.
 const COLUMN_HELP: Record<keyof Metrics, string> = {
@@ -42,8 +48,9 @@ const COLUMN_HELP: Record<keyof Metrics, string> = {
   bookings: 'Number of paid bookings: online, cash, card, pay at door and friends',
   matchPct: 'Percentage of those members who got at least one date or friend match (events whose results are in)',
   revenue: 'How much money was taken in',
+  commissions: 'Commissions due to affiliates on the events’ bookings',
   expenses: 'Each event’s expenses, counted once per event',
-  profit: 'Revenue less expenses',
+  profit: 'Revenue less commissions and expenses',
 };
 
 const money = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -60,11 +67,14 @@ function cell(col: keyof Metrics, m: Metrics) {
   const v = m[col];
   if (v === null) return '-';
   if (col === 'matchPct') return `${v.toFixed(2)}%`;
-  if (col === 'revenue' || col === 'expenses' || col === 'profit') return money(v);
+  if (col === 'revenue' || col === 'commissions' || col === 'expenses' || col === 'profit') return money(v);
   return v.toLocaleString();
 }
 
-const EMPTY_FILTERS = { cityId: '', venueId: '', themeId: '', gender: '', ageMin: '', ageMax: '', dateFrom: '', dateTo: '' };
+const EMPTY_FILTERS = { cityId: '', venueId: '', themeId: '', gender: '', ageMin: '', ageMax: '', dateFrom: '', dateTo: '', affiliateId: '', codeId: '' };
+// Only the commissions report is restricted by affiliate or code.
+const AFFILIATE_FILTERS = ['affiliateId', 'codeId'];
+interface PromotionOption { id: string; code: string; affiliate: { id: string; name: string } }
 
 export default function ReportsPage() {
   const [tab, setTab] = useState<'summary' | 'event'>('summary');
@@ -79,6 +89,9 @@ export default function ReportsPage() {
   const [breakdown, setBreakdown] = useState<{ data: Breakdown; shape: typeof shape; filters: typeof filters } | null>(null);
   const [breakdownError, setBreakdownError] = useState<string | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
+  // "Commissions due to affiliates": its own table, and the affiliates and codes to filter by.
+  const [commissionReport, setCommissionReport] = useState<CommissionReport | null>(null);
+  const [promotions, setPromotions] = useState<PromotionOption[]>([]);
 
   const [events, setEvents] = useState<EventOption[]>([]);
   const [eventSearch, setEventSearch] = useState('');
@@ -90,6 +103,7 @@ export default function ReportsPage() {
     fetch('/api/event-themes').then((r) => r.json()).then(setThemes);
     fetch('/api/cities').then((r) => r.json()).then(setCities);
     fetch('/api/admin/venues').then((r) => r.json()).then(setVenues);
+    fetch('/api/admin/affiliates').then((r) => r.json()).then((d) => setPromotions(Array.isArray(d.promotions) ? d.promotions : [])).catch(() => {});
     fetch('/api/admin/reports/events-list').then((r) => r.json()).then((data: EventOption[]) => {
       setEvents(data);
       // Opens on the latest event that has happened, not the furthest-off future one.
@@ -111,11 +125,30 @@ export default function ReportsPage() {
   const memberFilters = !!filters.gender || !!filters.ageMin || !!filters.ageMax;
   const problem = reportProblem({ ...shape, memberFilters });
   const isPL = shape.type === 'profitLoss';
+  const isCommissions = shape.type === 'commissions';
+  const affiliates = [...new Map(promotions.map((p) => [p.affiliate.id, p.affiliate])).values()].sort((a, b) => a.name.localeCompare(b.name));
+  const codesShown = promotions.filter((p) => !filters.affiliateId || p.affiliate.id === filters.affiliateId);
 
   // One button drives the report table AND the overview below it, with the
   // same Restrict To filters, so the numbers on the page always agree.
   function generate(f: typeof filters, s: typeof shape) {
-    const params = new URLSearchParams(Object.entries(f).filter(([, v]) => v) as [string, string][]);
+    if (s.type === 'commissions') {
+      // Its own table: no overview or breakdown with it.
+      const q = new URLSearchParams(Object.entries(f).filter(([k, v]) => v && !['gender', 'ageMin', 'ageMax'].includes(k)) as [string, string][]);
+      setSummary(null);
+      setBreakdown(null);
+      setBreakdownError(null);
+      setLoadingReport(true);
+      fetch(`/api/admin/reports/commissions?${q}`).then(async (r) => {
+        const d = await r.json().catch(() => ({}));
+        setLoadingReport(false);
+        if (!r.ok) { setBreakdownError(typeof d.error === 'string' ? d.error : 'The report could not be generated.'); return; }
+        setCommissionReport(d);
+      });
+      return;
+    }
+    setCommissionReport(null);
+    const params = new URLSearchParams(Object.entries(f).filter(([k, v]) => v && !AFFILIATE_FILTERS.includes(k)) as [string, string][]);
     fetch(`/api/admin/reports/summary?${params}`).then((r) => (r.ok ? r.json() : null)).then((d) => {
       setSummary(d);
       setSummaryMemberFilters(!!f.gender || !!f.ageMin || !!f.ageMax);
@@ -150,14 +183,14 @@ export default function ReportsPage() {
             <Card>
               <h2 className="mb-3 font-extrabold text-ink">Reporting</h2>
               <Field label="Categorise by">
-                <Select value={shape.category} onChange={(e) => setShape({ ...shape, category: e.target.value as Dimension })}>
+                <Select value={shape.category} disabled={isCommissions} onChange={(e) => setShape({ ...shape, category: e.target.value as Dimension })}>
                   {CATEGORY_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value} disabled={isPL && o.value === 'ageGroup'}>{o.label}</option>
                   ))}
                 </Select>
               </Field>
               <Field label="Group by">
-                <Select value={shape.group} onChange={(e) => setShape({ ...shape, group: e.target.value as Dimension | 'none' })}>
+                <Select value={shape.group} disabled={isCommissions} onChange={(e) => setShape({ ...shape, group: e.target.value as Dimension | 'none' })}>
                   {GROUP_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value} disabled={o.value === shape.category || (isPL && o.value === 'ageGroup')}>{o.label}</option>
                   ))}
@@ -172,12 +205,13 @@ export default function ReportsPage() {
                     // Age and gender don't apply to a profit/loss statement and
                     // their boxes grey out: cleared too, or they'd still block
                     // "Generate" from boxes that can't be changed.
-                    if (type === 'profitLoss') setFilters((f) => ({ ...f, gender: '', ageMin: '', ageMax: '' }));
+                    if (type === 'profitLoss' || type === 'commissions') setFilters((f) => ({ ...f, gender: '', ageMin: '', ageMax: '' }));
                   }}
                 >
                   {REPORT_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </Select>
               </Field>
+              {isCommissions && <p className="-mt-2 text-xs text-ink/50">One line for each booking made with an affiliate&apos;s code, with a total for each affiliate and for the report.</p>}
             </Card>
 
             <Card>
@@ -200,15 +234,29 @@ export default function ReportsPage() {
                   </Select>
                 </Field>
                 <Field label="Gender">
-                  <Select value={filters.gender} disabled={isPL} onChange={(e) => setFilters({ ...filters, gender: e.target.value })}>
+                  <Select value={filters.gender} disabled={isPL || isCommissions} onChange={(e) => setFilters({ ...filters, gender: e.target.value })}>
                     <option value="">Either</option><option value="MALE">Male</option><option value="FEMALE">Female</option>
                   </Select>
                 </Field>
                 <Field label="Event date from"><Input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} /></Field>
                 <Field label="Event date to"><Input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} /></Field>
-                <Field label="Age from"><Input type="number" min={18} disabled={isPL} value={filters.ageMin} onChange={(e) => setFilters({ ...filters, ageMin: e.target.value })} /></Field>
-                <Field label="Age to"><Input type="number" min={18} disabled={isPL} value={filters.ageMax} onChange={(e) => setFilters({ ...filters, ageMax: e.target.value })} /></Field>
+                <Field label="Age from"><Input type="number" min={18} disabled={isPL || isCommissions} value={filters.ageMin} onChange={(e) => setFilters({ ...filters, ageMin: e.target.value })} /></Field>
+                <Field label="Age to"><Input type="number" min={18} disabled={isPL || isCommissions} value={filters.ageMax} onChange={(e) => setFilters({ ...filters, ageMax: e.target.value })} /></Field>
+                {/* Gil: the commissions report filtered by affiliate name and by affiliate code. */}
+                <Field label="Affiliate">
+                  <Select value={filters.affiliateId} disabled={!isCommissions} onChange={(e) => setFilters({ ...filters, affiliateId: e.target.value, codeId: '' })}>
+                    <option value="">All</option>{affiliates.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Affiliate code">
+                  <Select value={filters.codeId} disabled={!isCommissions} onChange={(e) => setFilters({ ...filters, codeId: e.target.value })}>
+                    <option value="">All</option>
+                    {codesShown.map((p) => <option key={p.id} value={p.id}>{p.code}{filters.affiliateId ? '' : ` (${p.affiliate.name})`}</option>)}
+                  </Select>
+                </Field>
               </div>
+              {!isCommissions && <p className="-mt-2 mb-1 text-xs text-ink/50">Affiliate and Affiliate code are for the &ldquo;Commissions due to affiliates&rdquo; report.</p>}
+              {isCommissions && <p className="-mt-2 text-xs text-ink/50">Age and gender don&apos;t apply to commissions, which are for each booking.</p>}
               {isPL && <p className="-mt-2 text-xs text-ink/50">Age and gender don&apos;t apply to a profit/loss statement, as expenses are for the whole event.</p>}
             </Card>
           </div>
@@ -222,6 +270,7 @@ export default function ReportsPage() {
           {breakdownError && <p className="mb-4 text-sm font-medium text-coral">{breakdownError}</p>}
           {loadingReport && !breakdown && <Loader label="Generating report…" />}
           {breakdown && <BreakdownTable b={breakdown} cities={cities} venues={venues} themes={themes} />}
+          {commissionReport && <CommissionTable r={commissionReport} />}
 
           {summary && (
             <div className="print:hidden">
@@ -240,6 +289,7 @@ export default function ReportsPage() {
                 <li>Only events that have already happened are counted (not cancelled ones). Upcoming events are in the Per-event tab.</li>
                 <li>Attendees: everyone who paid (online, cash, card, pay at door and friends), as in the table&apos;s Bookings.</li>
                 <li>Match rate: the share of those members with at least one date or friend match, at events whose results are in{summary.totals.matchRate === null ? ' (none yet)' : ''}.</li>
+                <li>Profit / loss: revenue less affiliate commissions and expenses.</li>
                 {summaryMemberFilters && <li>Expenses and profit aren&apos;t shown when restricted by age or gender: an event&apos;s expenses are for the whole night.</li>}
               </ul>
 
@@ -442,8 +492,17 @@ function EventStatement({ r }: { r: EventReport }) {
       <StatementTotal label="Total revenue" amount={s.revenue} />
 
       <h3 className="mb-1 mt-5 font-extrabold text-ink">Commissions</h3>
-      <p className="text-xs text-ink/50">None. The new site has no affiliates.</p>
-      <StatementTotal label="Total commissions" amount={-s.commissions} />
+      {s.commissionLines.length === 0 ? (
+        <p className="text-xs text-ink/50">No commission: no bookings made with an affiliate&apos;s code.</p>
+      ) : (
+        s.commissionLines.map((c) => (
+          <div key={`${c.affiliate}|${c.code}`} className="flex justify-between py-1.5 text-sm">
+            <span className="text-ink/80">Affiliate: {c.affiliate}{c.code ? ` · code ${c.code}` : ''} ({countOf(c.bookings, 'booking', 'bookings')})</span>
+            <span className="text-coral">{money(-c.amount)}</span>
+          </div>
+        ))
+      )}
+      <StatementTotal label="Total commissions" amount={-s.commissions} tone={s.commissions > 0 ? 'text-coral' : undefined} />
 
       <h3 className="mb-1 mt-5 font-extrabold text-ink">Expenses</h3>
       <div className="flex justify-between py-1.5 text-sm">
@@ -456,6 +515,72 @@ function EventStatement({ r }: { r: EventReport }) {
         <span className="text-lg font-extrabold text-ink">Profit/Loss</span>
         <span className={`text-xl font-extrabold ${s.profit < 0 ? 'text-coral' : 'text-green-dark'}`}>{money(s.profit)}</span>
       </div>
+    </Card>
+  );
+}
+
+/**
+ * "Commissions due to affiliates", as Gil set it out: a line per booking
+ * made with an affiliate's code, a subtotal for each affiliate, and a total
+ * at the bottom. Printable.
+ */
+function CommissionTable({ r }: { r: CommissionReport }) {
+  const day = (l: CommissionReport['groups'][number]['lines'][number]) =>
+    new Date(l.startsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'numeric', year: '2-digit', timeZone: timeZoneForCity(l.location) });
+  const head = 'px-3 py-2 text-left text-xs font-bold uppercase text-ink/50';
+  const cellCls = 'px-3 py-2 align-top';
+  return (
+    <Card>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-extrabold text-ink">Commissions due to affiliates</h2>
+          <p className="text-sm text-ink/60">Bookings made with an affiliate&apos;s code at events that have happened. Refunded and cancelled bookings, and cancelled events, aren&apos;t included.</p>
+        </div>
+        <Button variant="ghost" onClick={() => window.print()} className="print:hidden">Print</Button>
+      </div>
+      {r.groups.length === 0 ? (
+        <p className="py-3 text-sm text-ink/50">No commissions for this filter.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-cream/50">
+              <tr>
+                <th className={head}>Affiliate</th><th className={head}>Event</th><th className={head}>Event date</th><th className={head}>Location</th>
+                <th className={`${head} text-right`}>Event cost</th><th className={head}>Affiliate code</th>
+                <th className={`${head} text-right`}>Commission</th><th className={`${head} text-right`}>Commission due</th>
+              </tr>
+            </thead>
+            <tbody>
+              {r.groups.map((g) => (
+                <Fragment key={g.affiliate}>
+                  {g.lines.map((l) => (
+                    <tr key={l.bookingId} className="border-t border-ink/5">
+                      <td className={`${cellCls} font-bold text-ink`}>{l.affiliate}</td>
+                      <td className={cellCls}>{l.event}</td>
+                      <td className={`${cellCls} whitespace-nowrap`}>{day(l)}</td>
+                      <td className={cellCls}>{l.location}</td>
+                      <td className={`${cellCls} text-right tabular-nums`}>{money(l.eventCost)}</td>
+                      <td className={`${cellCls} font-mono`}>{l.code}</td>
+                      <td className={`${cellCls} text-right tabular-nums`}>{l.percent}%</td>
+                      <td className={`${cellCls} whitespace-nowrap text-right tabular-nums`}>{money(l.commission)} <span className="text-xs text-ink/50">({l.percent}% × {money(l.eventCost)})</span></td>
+                    </tr>
+                  ))}
+                  <tr className="border-t border-ink/10 bg-plum/5">
+                    <td colSpan={7} className={`${cellCls} font-bold text-ink`}>{g.affiliate} total ({countOf(g.bookings, 'booking', 'bookings')})</td>
+                    <td className={`${cellCls} text-right font-bold tabular-nums`}>{money(g.total)}</td>
+                  </tr>
+                </Fragment>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-ink/80">
+                <td colSpan={7} className={`${cellCls} text-base font-extrabold text-ink`}>Total commission due ({countOf(r.bookings, 'booking', 'bookings')})</td>
+                <td className={`${cellCls} text-right text-base font-extrabold tabular-nums`}>{money(r.total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
     </Card>
   );
 }

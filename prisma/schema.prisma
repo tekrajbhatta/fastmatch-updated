@@ -278,6 +278,15 @@ model Booking {
   paidAmount     Decimal       @db.Decimal(10, 2)
   discountCode   DiscountCode? @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
   discountCodeId String?
+  // Booked with an affiliate's code (src/lib/affiliates.ts): the affiliate,
+  // and the commission as it was when the booking was paid, so later changes
+  // to the promotion don't change what's owed: its %, the event cost it was
+  // worked out on, and the amount.
+  affiliate      Affiliate?    @relation(fields: [affiliateId], references: [id], onDelete: Restrict)
+  affiliateId    String?
+  affiliateCommissionPercent Decimal? @db.Decimal(5, 2)
+  affiliateCommissionBase    Decimal? @db.Decimal(10, 2)
+  affiliateCommission        Decimal? @db.Decimal(10, 2)
   stripePaymentIntentId String?
   paymentMethod  PaymentMethod?
   // A friend's booking points at the booking of the member who brought and
@@ -357,9 +366,27 @@ model DiscountCode {
   usedCount   Int          @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+  // An affiliate's promotion (Gil, Nov): bookings made with it earn the
+  // affiliate this % of the event's cost (src/lib/affiliates.ts). Managed
+  // on the Affiliates page; null on every other code.
+  affiliate         Affiliate? @relation(fields: [affiliateId], references: [id], onDelete: Restrict)
+  affiliateId       String?
+  commissionPercent Decimal?   @db.Decimal(5, 2)
 
   bookings Booking[]
 }
+// A partner who promotes FastMatch events (Gil, Nov: "RSVP"). Each of its
+// promotions is a discount code with a commission (DiscountCode.affiliateId).
+model Affiliate {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  codes    DiscountCode[]
+  bookings Booking[]
+}
+
 
 enum ContactMethod {
   EMAIL_AND_SMS

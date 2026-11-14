@@ -71,6 +71,7 @@ export default async function AdminDashboard() {
         <DashCard href="/admin/members" title="Members" desc="Search, add, and export members" />
         <DashCard href="/admin/venues" title="Venues" desc="The venue directory used by events and blasts" />
         <DashCard href="/admin/discounts" title="Discount codes" desc="Create and edit promo codes" />
+        <DashCard href="/admin/affiliates" title="Affiliates" desc="Partners' promotion codes and their commission" />
         <DashCard href="/admin/event-types" title="Event Types" desc="The event types offered when creating an event" />
         <DashCard href="/admin/feedback" title="Member Feedback" desc="Everything members have sent from the Feedback page" />
         <DashCard href="/admin/reports" title="Reports" desc="Attendance, revenue, and matches" />

@@ -5,6 +5,7 @@ import { withErrorHandling } from '@/lib/withErrorHandling';
 import { Prisma } from '@prisma/client';
 import { discountDay } from '@/lib/discountDates';
 import { discountInputSchema, checkDiscountInput, DUPLICATE_CODE } from '@/lib/discountInput';
+import { EDIT_ON_AFFILIATES_PAGE } from '@/lib/affiliates';
 
 // PATCH /api/admin/discount-codes/:id — edit an existing code in place,
 // including reusing an expired one by updating its dates/amount/scope. The
@@ -17,6 +18,8 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
 
   const current = await prisma.discountCode.findUnique({ where: { id: params.id } });
   if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  // An affiliate's promotion is changed on the Affiliates page, with its commission.
+  if (current.affiliateId) return NextResponse.json({ error: EDIT_ON_AFFILIATES_PAGE }, { status: 409 });
   const body = (await req.json().catch(() => null)) ?? {};
   const parsed = discountInputSchema.safeParse({
     code: current.code,
@@ -66,6 +69,10 @@ export const DELETE = withErrorHandling(async (req: NextRequest, ctx: { params: 
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
+  const current = await prisma.discountCode.findUnique({ where: { id: params.id }, select: { affiliateId: true } });
+  if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  // Deleted (only if never used) on the Affiliates page, so it can't leave the commission report.
+  if (current.affiliateId) return NextResponse.json({ error: EDIT_ON_AFFILIATES_PAGE }, { status: 409 });
   await prisma.discountCode.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 });

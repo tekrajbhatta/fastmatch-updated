@@ -120,7 +120,17 @@ export async function loadReportFacts(
     });
   }
 
-  const events: EventFact[] = rows.map((e) => ({ eventId: e.id, expenses: Number(e.expenses ?? 0), at: eventPlaces(e) }));
+  // Affiliate commissions on each event's paid bookings (none if refunded or
+  // cancelled), counted once per event like its expenses.
+  const owed = rows.length
+    ? await prisma.booking.groupBy({
+        by: ['eventId'],
+        where: { status: 'CONFIRMED', eventId: { in: rows.map((e) => e.id) }, affiliateCommission: { not: null } },
+        _sum: { affiliateCommission: true },
+      })
+    : [];
+  const commissionsBy = new Map(owed.map((o) => [o.eventId, Number(o._sum.affiliateCommission ?? 0)]));
+  const events: EventFact[] = rows.map((e) => ({ eventId: e.id, expenses: Number(e.expenses ?? 0), commissions: commissionsBy.get(e.id) ?? 0, at: eventPlaces(e) }));
 
   let signups: SignupFact[] | null = null;
   if (opts.signups) {

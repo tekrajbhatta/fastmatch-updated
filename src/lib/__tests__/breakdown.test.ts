@@ -9,9 +9,9 @@ const at = (month: string, age: string, location: string, venue: string, event: 
 const booking = (memberId: string, eventId: string, paid: number, month: string, age: string, matched: boolean | null = null): BookingFact => ({
   memberId, eventId, paid, matched, at: at(month, age, 'Sydney', `venue-${eventId}`, eventId),
 });
-const eventFact = (eventId: string, month: string, expenses: number): EventFact => {
+const eventFact = (eventId: string, month: string, expenses: number, commissions = 0): EventFact => {
   const { ageGroup, ...rest } = at(month, '26–34', 'Sydney', `venue-${eventId}`, eventId);
-  return { eventId, expenses, at: rest };
+  return { eventId, expenses, commissions, at: rest };
 };
 
 describe('buildReport — All', () => {
@@ -64,12 +64,22 @@ describe('buildReport — Basic Profit/Loss', () => {
       events: [eventFact('e1', '2026-08', 100), eventFact('e3', '2026-08', 60)],
       signups: null,
     });
-    expect(r.columns).toEqual(['bookings', 'revenue', 'expenses', 'profit']);
+    expect(r.columns).toEqual(['bookings', 'revenue', 'commissions', 'expenses', 'profit']);
     expect(r.categories[0].metrics).toMatchObject({ revenue: 147, expenses: 160, profit: -13 });
     const e1 = r.categories[0].groups.find((g) => g.label === 'e1')!;
     expect(e1.metrics).toMatchObject({ revenue: 147, expenses: 100, profit: 47 });
     expect(r.categories[0].groups.find((g) => g.label === 'e3')!.metrics).toMatchObject({ bookings: 0, revenue: 0, profit: -60 });
     expect(r.total.profit).toBe(-13);
+  });
+
+  it('affiliate commissions come off profit, once per event (Gil, 14 Nov)', () => {
+    const r = buildReport({
+      category: 'month', group: 'event', type: 'profitLoss',
+      bookings: [booking('a', 'e1', 40, '2026-08', '26–34'), booking('b', 'e1', 50, '2026-08', '26–34')],
+      events: [eventFact('e1', '2026-08', 30, 10)],
+      signups: null,
+    });
+    expect(r.total).toMatchObject({ revenue: 90, commissions: 10, expenses: 30, profit: 50 });
   });
 });
 

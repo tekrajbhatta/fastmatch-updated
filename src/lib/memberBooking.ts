@@ -18,6 +18,7 @@ import { friendWelcomeEmail } from './emails/friendEmail';
 import { eventTimeFor } from './timezone';
 import { eventLabel } from './eventLabel';
 import { noMatches } from './ratingAudience';
+import { commissionFor } from './affiliates';
 import { placesTaken, countHeld, capacityProblem, holdCutoff, payableCutoff } from './capacity';
 import { alertDiscountReused } from './paymentAlerts';
 import { eventAvailability, NOT_BOOKABLE } from './eventAvailability';
@@ -203,6 +204,9 @@ export async function createMemberBooking(
     paidAmount: prepared.quote.memberAmount,
     discountCodeId: prepared.discount?.id ?? null,
     pendingFriends: pending.length ? (pending as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
+    // Recorded when it's paid (confirmBookingGroup), not before: a reopened
+    // booking doesn't keep the commission of the one it was.
+    affiliateId: null, affiliateCommissionPercent: null, affiliateCommissionBase: null, affiliateCommission: null,
   };
   const old = await prisma.booking.findUnique({ where: { eventId_memberId: { eventId: event.id, memberId: member.id } } });
   if (old && (old.status === 'CANCELLED' || old.status === 'REFUNDED')) {
@@ -536,7 +540,28 @@ export async function confirmBookingGroup(
         discountReused = (await tx.booking.count({
           where: { memberId: lead.memberId, discountCodeId: lead.discountCodeId, status: 'CONFIRMED', id: { not: lead.id } },
         })) > 0;
-        await tx.discountCode.update({ where: { id: lead.discountCodeId }, data: { usedCount: { increment: 1 } } });
+        const code = await tx.discountCode.update({
+          where: { id: lead.discountCodeId },
+          data: { usedCount: { increment: 1 } },
+          select: { affiliateId: true, commissionPercent: true },
+        });
+        // An affiliate's code (src/lib/affiliates.ts): the affiliate earns its
+        // % of the event's cost on this booking, recorded now so later changes
+        // to the promotion don't change it. Once per member, as the discount:
+        // none if this code slipped through twice.
+        if (code.affiliateId && code.commissionPercent != null && !discountReused) {
+          const base = Number(lead.event.cost);
+          const percent = Number(code.commissionPercent);
+          await tx.booking.update({
+            where: { id: lead.id },
+            data: {
+              affiliateId: code.affiliateId,
+              affiliateCommissionPercent: percent,
+              affiliateCommissionBase: base,
+              affiliateCommission: commissionFor(base, percent),
+            },
+          });
+        }
       }
       return { friendBookingIds, notAdded, discountReused };
     },

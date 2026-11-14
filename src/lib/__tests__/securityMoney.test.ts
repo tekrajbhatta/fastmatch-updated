@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
   countArgs: [] as any[],
   otherConfirmedWithCode: 0,
   discountUpdates: 0,
+  // The code being confirmed: an affiliate's promotion, or (null) any other code.
+  codeAffiliate: null as null | { affiliateId: string; commissionPercent: number },
   alerts: [] as any[],
   limits: [] as string[],
   deny: new Set<string>(),
@@ -65,7 +67,7 @@ vi.mock('../prisma', () => {
     eventTheme: { findUnique: vi.fn(async () => ({ name: 'Speed dating' })) },
     discountCode: {
       findUnique: vi.fn(async () => ({ id: 'd1', code: 'FMDC10', type: 'FIXED_REDUCTION', amount: 10, validFrom: new Date(0), validTo: new Date(4e12), scopeThemeId: null, scopeEventId: null })),
-      update: vi.fn(async () => { h.discountUpdates++; }),
+      update: vi.fn(async () => { h.discountUpdates++; return h.codeAffiliate ?? { affiliateId: null, commissionPercent: null }; }),
     },
     city: { findUnique: vi.fn(async () => null) },
     rating: { upsert: vi.fn((args: any) => { h.upserts.push(args); return args; }) },
@@ -117,11 +119,13 @@ const event = {
 };
 const pendingBooking = (over: Record<string, unknown> = {}) => ({
   id: 'b1', eventId: 'e1', memberId: 'm1', badge: 3, status: 'PENDING', paidAmount: 49, pendingFriends: null, discountCodeId: null,
-  stripePaymentIntentId: 'cs_1', confirmedAt: null, createdAt: new Date(), reopenedFrom: null, paymentMethod: null, ...over,
+  stripePaymentIntentId: 'cs_1', confirmedAt: null, createdAt: new Date(), reopenedFrom: null, paymentMethod: null,
+  affiliateId: null, affiliateCommissionPercent: null, affiliateCommissionBase: null, affiliateCommission: null, ...over,
 });
 
 beforeEach(() => {
   h.bookings.clear();
+  h.codeAffiliate = null;
   h.member = { ...member };
   h.event = { ...event };
   h.queries = []; h.countArgs = []; h.alerts = []; h.limits = []; h.upserts = [];
@@ -187,6 +191,26 @@ describe('a discount code on another event’s payment page', () => {
     expect(await confirmBookingGroup('b1', { sessionId: 'cs_1', expectTotalCents: 3900 })).toMatchObject({ confirmed: true, discountReused: false });
     expect(h.discountUpdates).toBe(1);
     expect(h.alerts).toHaveLength(0);
+    // Not an affiliate's code: no commission.
+    expect(h.bookings.get('b1').affiliateCommission).toBeNull();
+  });
+
+  it("an affiliate's code: the commission is recorded on the booking, its % of the event's cost (Gil, 14 Nov)", async () => {
+    h.codeAffiliate = { affiliateId: 'a1', commissionPercent: 20 };
+    h.bookings.set('b1', pendingBooking({ discountCodeId: 'd1', paidAmount: 39 }));
+    const { confirmBookingGroup } = await import('../memberBooking');
+    expect(await confirmBookingGroup('b1', { sessionId: 'cs_1', expectTotalCents: 3900 })).toMatchObject({ confirmed: true });
+    // 20% of the $49 event, not of the $39 paid.
+    expect(h.bookings.get('b1')).toMatchObject({ affiliateId: 'a1', affiliateCommissionPercent: 20, affiliateCommissionBase: 49, affiliateCommission: 9.8 });
+  });
+
+  it("an affiliate's code that slipped through twice: no second commission (once per member, Gil)", async () => {
+    h.codeAffiliate = { affiliateId: 'a1', commissionPercent: 20 };
+    h.otherConfirmedWithCode = 1;
+    h.bookings.set('b1', pendingBooking({ discountCodeId: 'd1', paidAmount: 39 }));
+    const { confirmBookingGroup } = await import('../memberBooking');
+    expect(await confirmBookingGroup('b1', { sessionId: 'cs_1', expectTotalCents: 3900 })).toMatchObject({ confirmed: true, discountReused: true });
+    expect(h.bookings.get('b1').affiliateCommission).toBeNull();
   });
 });
 

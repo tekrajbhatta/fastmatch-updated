@@ -10,7 +10,7 @@
 // 'theme' (the event type) isn't offered on the table; the Overview's "By
 // event type" uses it.
 export type Dimension = 'month' | 'ageGroup' | 'location' | 'venue' | 'event' | 'theme';
-export type ReportType = 'all' | 'profitLoss';
+export type ReportType = 'all' | 'profitLoss' | 'commissions';
 
 export const CATEGORY_OPTIONS: { value: Dimension; label: string }[] = [
   { value: 'month', label: 'Month' },
@@ -28,6 +28,8 @@ export const GROUP_OPTIONS: { value: Dimension | 'none'; label: string }[] = [
 export const REPORT_TYPES: { value: ReportType; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'profitLoss', label: 'Basic Profit/Loss Statement' },
+  // Its own table, one line per booking (src/lib/reports/commissions.ts).
+  { value: 'commissions', label: 'Commissions due to affiliates' },
 ];
 
 /** Age bands, by the member's age on the day (of the event, or of signing up). */
@@ -54,10 +56,12 @@ export interface BookingFact {
   matched: boolean | null;
   at: Record<Dimension, Place>;
 }
-/** One event, for its expenses (counted once per event, never per booking). */
+/** One event, for its expenses and affiliate commissions (counted once per event, never per booking). */
 export interface EventFact {
   eventId: string;
   expenses: number;
+  /** Affiliate commissions on its paid bookings (src/lib/affiliates.ts). */
+  commissions: number;
   at: Record<Exclude<Dimension, 'ageGroup'>, Place>;
 }
 /** One registration. Signups belong to a month, an age group and a location only. */
@@ -72,6 +76,8 @@ export interface Metrics {
   /** % of attending members with at least one match — over events whose matches are in. null = none in yet. */
   matchPct: number | null;
   revenue: number;
+  /** Affiliate commissions owed on these events' bookings. */
+  commissions: number | null;
   expenses: number | null;
   profit: number | null;
 }
@@ -92,6 +98,8 @@ const SIGNUP_DIMENSIONS = new Set(['month', 'ageGroup', 'location', 'none']);
 export function reportProblem(opts: {
   category: Dimension; group: Dimension | 'none'; type: ReportType; memberFilters: boolean;
 }): string | null {
+  // Its own table: categorising, grouping, age and gender don't apply.
+  if (opts.type === 'commissions') return null;
   if (opts.category === opts.group) return 'Choose a different Group by. It’s the same as Categorise by.';
   if (opts.type === 'profitLoss') {
     if (opts.category === 'ageGroup' || opts.group === 'ageGroup') {
@@ -117,6 +125,7 @@ class Acc {
   signups = 0;
   bookings = 0;
   revenue = 0;
+  commissions = 0;
   expenses = 0;
   members = new Set<string>();
   calcMembers = new Set<string>();
@@ -138,8 +147,10 @@ class Acc {
       bookings: this.bookings,
       matchPct: this.calcMembers.size ? r((this.matchedMembers.size / this.calcMembers.size) * 100) : null,
       revenue: r(this.revenue),
+      commissions: withMoney ? r(this.commissions) : null,
       expenses: withMoney ? r(this.expenses) : null,
-      profit: withMoney ? r(this.revenue - this.expenses) : null,
+      // Affiliate commissions come off profit too (Gil, 14 Nov).
+      profit: withMoney ? r(this.revenue - this.commissions - this.expenses) : null,
     };
   }
 }
@@ -182,7 +193,7 @@ export function buildReport(input: {
     for (const e of input.events) {
       const cat = e.at[category as Exclude<Dimension, 'ageGroup'>];
       const grp = group === 'none' ? null : e.at[group as Exclude<Dimension, 'ageGroup'>];
-      for (const a of [...slot(cat, grp), total]) a.expenses += e.expenses;
+      for (const a of [...slot(cat, grp), total]) { a.expenses += e.expenses; a.commissions += e.commissions; }
     }
   }
   if (input.signups) {
@@ -205,7 +216,7 @@ export function buildReport(input: {
 
   const columns: (keyof Metrics)[] =
     type === 'profitLoss'
-      ? ['bookings', 'revenue', 'expenses', 'profit']
+      ? ['bookings', 'revenue', 'commissions', 'expenses', 'profit']
       : [...(withSignups ? (['signups'] as const) : []), 'members', 'bookings', 'matchPct', 'revenue'];
 
   return { columns, categories, total: total.metrics(withSignups, withMoney) };

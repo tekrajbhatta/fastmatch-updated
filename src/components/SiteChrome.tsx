@@ -69,6 +69,7 @@ export default function SiteChrome({
         { href: '/admin/members', label: 'Members' },
         { href: '/admin/venues', label: 'Venues' },
         { href: '/admin/discounts', label: 'Discount codes' },
+        { href: '/admin/affiliates', label: 'Affiliates' },
         { href: '/admin/event-types', label: 'Event Types' },
         { href: '/admin/feedback', label: 'Member Feedback' },
         { href: '/admin/reports', label: 'Reports' },

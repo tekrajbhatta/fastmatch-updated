@@ -31,7 +31,7 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     return NextResponse.json({
       event: summary, happened: false, cancelled,
       attended: 0, men: 0, women: 0, matchRate: null, revenue: 0, expenses: 0, profit: 0, dateMatches: 0, friendMatches: 0,
-      statement: { lines: [], revenue: 0, commissions: 0, expenses: 0, profit: 0 },
+      statement: { lines: [], revenue: 0, commissionLines: [], commissions: 0, expenses: 0, profit: 0 },
     });
   }
 
@@ -41,6 +41,7 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
       member: { select: { name: true, gender: true } },
       discountCode: { select: { code: true } },
       bookedBy: { select: { member: { select: { name: true } } } },
+      affiliate: { select: { name: true } },
     },
     orderBy: { badge: 'asc' },
   });
@@ -48,6 +49,18 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
   const women = bookings.filter((b) => b.member.gender === 'FEMALE').length;
   const revenue = bookings.reduce((sum, b) => sum + Number(b.paidAmount), 0);
   const expenses = Number(event.expenses ?? 0);
+  // Affiliate commissions (src/lib/affiliates.ts), one line for each affiliate
+  // and code: what was recorded when each booking was paid.
+  const commissionLines = new Map<string, { affiliate: string; code: string; bookings: number; amount: number }>();
+  for (const b of bookings) {
+    if (b.affiliateCommission == null) continue;
+    const key = `${b.affiliateId}|${b.discountCodeId}`;
+    const line = commissionLines.get(key) ?? { affiliate: b.affiliate?.name ?? '(an affiliate since removed)', code: b.discountCode?.code ?? '', bookings: 0, amount: 0 };
+    line.bookings += 1;
+    line.amount += Number(b.affiliateCommission);
+    commissionLines.set(key, line);
+  }
+  const commissions = [...commissionLines.values()].reduce((sum, l) => sum + l.amount, 0);
 
   const matches = await prisma.match.findMany({ where: { eventId: event.id } });
   const dateMatches = matches.filter((m) => m.result === 'DATE').length;
@@ -72,7 +85,7 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     // The share of them with at least one match, once the results are in
     // (null before). It was pairs × 2 over attendees, which could pass 100%.
     matchRate: event.matchesCalculated ? shareMatched(bookings.map((b) => b.memberId), matches) : null,
-    revenue: round(revenue), expenses: round(expenses), profit: round(revenue - expenses),
+    revenue: round(revenue), expenses: round(expenses), profit: round(revenue - commissions - expenses),
     dateMatches, friendMatches,
     statement: {
       lines: bookings.map((b) => ({
@@ -84,10 +97,12 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
         amount: round(Number(b.paidAmount)),
       })),
       revenue: round(revenue),
-      // There are no affiliates in the new site, so nothing is ever owed.
-      commissions: 0,
+      commissionLines: [...commissionLines.values()].sort((a, b) => a.affiliate.localeCompare(b.affiliate) || a.code.localeCompare(b.code))
+        .map((l) => ({ ...l, amount: round(l.amount) })),
+      commissions: round(commissions),
       expenses: round(expenses),
-      profit: round(revenue - expenses),
+      // Commissions come off profit (Gil, 14 Nov).
+      profit: round(revenue - commissions - expenses),
     },
   });
 });

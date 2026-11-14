@@ -5,6 +5,7 @@ import { Field, Input, Select, Button, Card, Badge, Loader } from '@/components/
 import { discountDay, formatDiscountDay, discountStatus } from '@/lib/discountDates';
 import { timeZoneForCity } from '@/lib/timezone';
 import { formatPrice } from '@/lib/price';
+import Link from 'next/link';
 
 interface ScopeEvent { id: string; number: number; name: string; startsAt: string; venue: { name: string }; city?: { name: string } }
 
@@ -18,6 +19,8 @@ interface DiscountCode {
   // "Event type": the same, for one event type.
   scopeThemeId: string | null;
   scopeTheme: { id: string; name: string } | { deleted: true } | null;
+  // An affiliate's promotion: changed on the Affiliates page, with its commission.
+  affiliate: { name: string } | null;
 }
 
 interface EventType { id: string; name: string }
@@ -176,6 +179,24 @@ export default function AdminDiscountsPage() {
       <div className="space-y-2">
         {codes.map((c) => {
           const status = discountStatus(c);
+          // An affiliate's promotion opens the Affiliates page, where it's changed with its commission.
+          if (c.affiliate) {
+            return (
+              <Link key={c.id} href="/admin/affiliates" className="flex w-full items-center justify-between rounded-lg border border-ink/10 bg-white p-3 text-left hover:border-plum">
+                <div>
+                  <div className="font-mono font-extrabold text-ink">{c.code}</div>
+                  <div className="text-xs text-ink/50">
+                    {c.type === 'PERCENT_OFF' ? `${c.amount}% off` : `${formatPrice(c.amount ?? 0)} off`} · Used {c.usedCount} {c.usedCount === 1 ? 'time' : 'times'}
+                    <br />{formatDiscountDay(c.validFrom)} to {formatDiscountDay(c.validTo)}
+                    <br />Affiliate: {c.affiliate.name} · changed on the Affiliates page
+                  </div>
+                </div>
+                {status === 'expired' ? <Badge tone="muted">Expired</Badge>
+                  : status === 'not-started' ? <Badge tone="plum">Starts {formatDiscountDay(c.validFrom)}</Badge>
+                    : <Badge tone="green">Active</Badge>}
+              </Link>
+            );
+          }
           // Limited to an event, or an event type, that has since been deleted: it works nowhere.
           const noEvent = (!!c.scopeEvent && 'deleted' in c.scopeEvent) || (!!c.scopeTheme && 'deleted' in c.scopeTheme);
           return (
