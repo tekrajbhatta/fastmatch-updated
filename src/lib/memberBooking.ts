@@ -22,6 +22,7 @@ import { commissionFor } from './affiliates';
 import { placesTaken, countHeld, capacityProblem, holdCutoff, payableCutoff } from './capacity';
 import { alertDiscountReused } from './paymentAlerts';
 import { eventAvailability, NOT_BOOKABLE } from './eventAvailability';
+import { eventContactEmail } from './eventContact';
 
 /**
  * A member booking themselves — and, where the event allows it, friends —
@@ -72,14 +73,16 @@ interface PendingFriend {
  */
 export async function lookupDiscount(
   member: Pick<Member, 'id'>,
-  event: Pick<Event, 'id' | 'themeId' | 'fastmatchDiscounts'>,
+  event: Pick<Event, 'id' | 'themeId' | 'cityId' | 'fastmatchDiscounts'>,
   rawCode: string,
 ): Promise<{ ok: false; error: string } | { ok: true; discount: DiscountCode; alreadyUsed: boolean }> {
   if (!event.fastmatchDiscounts) return { ok: false, error: "Discount codes can't be used for this event." };
-  const discount = await prisma.discountCode.findUnique({ where: { code: rawCode.trim() } });
-  if (!discount || !discountAppliesTo(discount, event, new Date())) {
+  // With its locations: a franchisee's code only works in theirs.
+  const found = await prisma.discountCode.findUnique({ where: { code: rawCode.trim() }, include: { scopeCities: { select: { id: true } } } });
+  if (!found || !discountAppliesTo(found, event, new Date())) {
     return { ok: false, error: 'This discount code is not valid for this event.' };
   }
+  const { scopeCities: _locations, ...discount } = found;
   // One use per member. A CONFIRMED booking counts — an abandoned checkout
   // mustn't burn someone's code — and so does one on another event's payment
   // page that could still be paid: two pages open at once used to get the
@@ -334,12 +337,14 @@ export async function discardMemberBooking(bookingId: string): Promise<void> {
  * is told just that they "couldn't be added" (src/lib/friendShareRefund.ts).
  */
 export function friendCantComeReason(
-  account: { gender: string; dateOfBirth: Date },
+  account: { gender: string; dateOfBirth: Date; isFranchisee?: boolean },
   theirBooking: { status: string } | null | undefined,
   typed: { gender: string },
   event: { ageMin: number; ageMax: number },
   now: Date = new Date(),
 ): string | null {
+  // A franchise login is staff, never booked (src/lib/franchise.ts).
+  if (account.isFranchisee) return 'that email address is a franchisee’s login, not a member’s';
   if (theirBooking?.status === 'CONFIRMED') return 'they were already booked into this event';
   if (theirBooking?.status === 'CANCELLED' || theirBooking?.status === 'REFUNDED') {
     return 'they have a cancelled or refunded booking for this event (book them in yourself if they are coming)';
@@ -646,6 +651,7 @@ async function notifyFriend(bookingId: string, bookedByName: string): Promise<vo
     ...eventTimeFor(b.event.startsAt, b.event.city.name, b.member.city?.name),
     setPasswordUrl,
     checkInUrl: noMatches(b.event) ? null : `${process.env.APP_URL}/events/${b.eventId}/checkin`,
+    contactEmail: await eventContactEmail(b.event),
   });
   await sendEmail({ to: b.member.email, subject, html });
 }

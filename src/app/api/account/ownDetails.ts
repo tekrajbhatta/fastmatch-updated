@@ -11,7 +11,8 @@ import type { Member } from '@prisma/client';
  * up, Unsubscribe), verify-mobile (mobileVerificationExpires), verify-email,
  * the event page and check-in (name, email, mobile, dateOfBirth, gender, the
  * three setup flags), the events list (dateOfBirth, cityId) and the admin's
- * test-send box. isAdmin: My account hides the offers rows for staff.
+ * test-send box. isAdmin, isFranchisee: My account hides the offers rows
+ * for staff, and Edit profile for a franchisee (Gil sets their details).
  */
 export const OWN_DETAILS_FIELDS = [
   'id',
@@ -28,6 +29,7 @@ export const OWN_DETAILS_FIELDS = [
   'marketingOptIn',
   'passwordSetByAdmin',
   'isAdmin',
+  'isFranchisee',
 ] as const satisfies readonly (keyof Member)[];
 
 export type OwnDetails = Pick<Member, (typeof OWN_DETAILS_FIELDS)[number]>;

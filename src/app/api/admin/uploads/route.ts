@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import path from 'path';
 import { promises as fs } from 'fs';
 import sharp from 'sharp';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff } from '@/lib/staff';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { ensureUploadDir, uploadDir, uploadUrl } from '@/lib/uploads';
 import { hasTransparency, MAX_INPUT_PIXELS } from '@/lib/imageFormat';
@@ -28,9 +28,11 @@ const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/
 // that merely claims to be a PNG can't be stored and later served as script.
 // EXIF (including GPS coordinates from a phone camera) is dropped in the
 // process, which matters when the photos are of real attendees.
+//
+// Staff: Gil, or a franchisee (their events' and venues' pictures).
 export const POST = withErrorHandling(async (req: NextRequest) => {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
   const declared = Number(req.headers.get('content-length') ?? 0);
   if (declared > MAX_REQUEST_BYTES) {

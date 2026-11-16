@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff, canSeeCity, notAuthorized, notFound } from '@/lib/staff';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { pictureUrlProblem, websiteProblem } from '@/lib/eventInput';
 
@@ -33,13 +33,15 @@ const venueSchema = z.object({
 // GET /api/admin/venues/:id — one venue, for the edit form.
 export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const venue = await prisma.venue.findUniqueOrThrow({
     where: { id: params.id },
     include: { city: { select: { id: true, name: true } }, _count: { select: { events: true } } },
   });
+  // Outside a franchisee's locations: as if it didn't exist.
+  if (!canSeeCity(staff, venue.cityId)) return notFound();
 
   return NextResponse.json(venue);
 });
@@ -52,8 +54,8 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
 // the admin. Events DO reference the venue, so they show the corrected details.
 export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const parsed = venueSchema.safeParse(await req.json());
   // A web address's own message says what to fix; anything else, the general one.
@@ -65,6 +67,11 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
 
   const city = await prisma.city.findUnique({ where: { id: data.cityId } });
   if (!city) return NextResponse.json({ error: 'Please select a valid city.' }, { status: 400 });
+
+  // A franchisee: a venue in their locations, staying there.
+  const stored = await prisma.venue.findUnique({ where: { id: params.id }, select: { cityId: true } });
+  if (!stored || !canSeeCity(staff, stored.cityId)) return notFound();
+  if (!canSeeCity(staff, city.id)) return NextResponse.json({ error: 'Please choose one of your locations.' }, { status: 400 });
 
   // A venue that events are at keeps its city: moving it would leave those
   // events in one city at a venue in another (their edit form then can't
@@ -96,13 +103,14 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
 // how many events are involved instead of a generic 500.
 export const DELETE = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const venue = await prisma.venue.findUniqueOrThrow({
     where: { id: params.id },
     include: { _count: { select: { events: true } } },
   });
+  if (!canSeeCity(staff, venue.cityId)) return notFound();
 
   if (venue._count.events > 0) {
     const n = venue._count.events;

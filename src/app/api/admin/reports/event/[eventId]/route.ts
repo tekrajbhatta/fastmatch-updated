@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff, canSeeCity, inAgreement, notAuthorized, notFound } from '@/lib/staff';
 import { paymentMethodLabel } from '@/lib/paymentMethod';
 import { shareMatched } from '@/lib/reports/breakdown';
 import { withErrorHandling } from '@/lib/withErrorHandling';
@@ -11,13 +11,15 @@ import { withErrorHandling } from '@/lib/withErrorHandling';
 // profit or loss for the night.
 export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ eventId: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const event = await prisma.event.findUniqueOrThrow({
     where: { id: params.eventId },
     include: { venue: true, city: true, theme: true },
   });
+  // A franchisee's: their locations' events within their agreement (Gil's answer 7).
+  if (!canSeeCity(staff, event.cityId) || !inAgreement(staff, event.startsAt)) return notFound('Event not found');
   const summary = {
     id: event.id, number: event.number, name: event.name, startsAt: event.startsAt,
     venue: event.venue.name, city: event.city.name, theme: event.theme.name,

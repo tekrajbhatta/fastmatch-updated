@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff, canSeeCity, notAuthorized, notFound } from '@/lib/staff';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { PAYMENT_METHOD_VALUES, bookingStatusLabel } from '@/lib/paymentMethod';
 import { formatPrice } from '@/lib/price';
@@ -37,14 +37,16 @@ const patchSchema = z.object({
 // in Stripe, or in person.
 export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const parsed = patchSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: 'Please check the booking details.' }, { status: 400 });
   const data = parsed.data;
 
   const existing = await prisma.booking.findUniqueOrThrow({ where: { id: params.id }, include: { member: true, event: true } });
+  // A franchisee: only bookings for their locations' events (src/lib/staff.ts).
+  if (!canSeeCity(staff, existing.event.cityId)) return notFound('That booking no longer exists.');
 
   // Changed since the editor was opened: a card payment came through, say.
   // Saving would put back the old status ("Pending" over a payment), or

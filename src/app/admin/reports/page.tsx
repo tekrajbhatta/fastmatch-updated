@@ -6,6 +6,7 @@ import { Field, Input, Select, Button, Card, Loader } from '@/components/ui';
 import { timeZoneForCity } from '@/lib/timezone';
 import { countOf } from '@/lib/plural';
 import type { CommissionReport } from '@/lib/reports/commissions';
+import { useStaff, useCityChoices } from '@/components/StaffContext';
 import {
   CATEGORY_OPTIONS, GROUP_OPTIONS, REPORT_TYPES, reportProblem,
   type Dimension, type ReportType, type Metrics, type CategoryRow, type Overview, type OverviewRow,
@@ -77,9 +78,13 @@ const AFFILIATE_FILTERS = ['affiliateId', 'codeId'];
 interface PromotionOption { id: string; code: string; affiliate: { id: string; name: string } }
 
 export default function ReportsPage() {
+  // A franchisee's reports: their locations, within their agreement's dates
+  // (the API keeps to them too); commissions to affiliates stay Gil's.
+  const { isAdmin, agreement } = useStaff();
   const [tab, setTab] = useState<'summary' | 'event'>('summary');
   const [themes, setThemes] = useState<Theme[]>([]);
   const [cities, setCities] = useState<City[]>([]);
+  const cityChoices = useCityChoices(cities);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [shape, setShape] = useState<{ category: Dimension; group: Dimension | 'none'; type: ReportType }>({ category: 'month', group: 'none', type: 'all' });
@@ -103,7 +108,7 @@ export default function ReportsPage() {
     fetch('/api/event-themes').then((r) => r.json()).then(setThemes);
     fetch('/api/cities').then((r) => r.json()).then(setCities);
     fetch('/api/admin/venues').then((r) => r.json()).then(setVenues);
-    fetch('/api/admin/affiliates').then((r) => r.json()).then((d) => setPromotions(Array.isArray(d.promotions) ? d.promotions : [])).catch(() => {});
+    if (isAdmin) fetch('/api/admin/affiliates').then((r) => r.json()).then((d) => setPromotions(Array.isArray(d.promotions) ? d.promotions : [])).catch(() => {});
     fetch('/api/admin/reports/events-list').then((r) => r.json()).then((data: EventOption[]) => {
       setEvents(data);
       // Opens on the latest event that has happened, not the furthest-off future one.
@@ -171,6 +176,11 @@ export default function ReportsPage() {
     <div>
       <h1 className="mb-1 text-2xl font-extrabold text-ink print:hidden">Reports</h1>
       <p className="mb-6 text-sm text-ink/60 print:hidden">Build a summary report, or drill into one event.</p>
+      {agreement && (
+        <p className="-mt-4 mb-6 text-sm text-ink/60">
+          Your reports cover your locations&apos; events from {agreement.from} to {agreement.till}, your agreement&apos;s dates.
+        </p>
+      )}
 
       <div className="mb-6 flex gap-2 print:hidden">
         <button onClick={() => setTab('summary')} className={`rounded-full px-4 py-2 text-sm font-bold ${tab === 'summary' ? 'bg-plum text-white' : 'bg-plum/10 text-plum'}`}>Summary</button>
@@ -208,7 +218,7 @@ export default function ReportsPage() {
                     if (type === 'profitLoss' || type === 'commissions') setFilters((f) => ({ ...f, gender: '', ageMin: '', ageMax: '' }));
                   }}
                 >
-                  {REPORT_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  {REPORT_TYPES.filter((o) => isAdmin || o.value !== 'commissions').map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </Select>
               </Field>
               {isCommissions && <p className="-mt-2 text-xs text-ink/50">One line for each booking made with an affiliate&apos;s code, with a total for each affiliate and for the report.</p>}
@@ -219,7 +229,7 @@ export default function ReportsPage() {
               <div className="grid grid-cols-2 gap-x-4 md:grid-cols-4">
                 <Field label="Location">
                   <Select value={filters.cityId} onChange={(e) => setFilters({ ...filters, cityId: e.target.value, venueId: '' })}>
-                    <option value="">All</option>{cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    <option value="">All</option>{cityChoices.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </Select>
                 </Field>
                 <Field label="Venue">
@@ -243,6 +253,7 @@ export default function ReportsPage() {
                 <Field label="Age from"><Input type="number" min={18} disabled={isPL || isCommissions} value={filters.ageMin} onChange={(e) => setFilters({ ...filters, ageMin: e.target.value })} /></Field>
                 <Field label="Age to"><Input type="number" min={18} disabled={isPL || isCommissions} value={filters.ageMax} onChange={(e) => setFilters({ ...filters, ageMax: e.target.value })} /></Field>
                 {/* Gil: the commissions report filtered by affiliate name and by affiliate code. */}
+                {isAdmin && <>
                 <Field label="Affiliate">
                   <Select value={filters.affiliateId} disabled={!isCommissions} onChange={(e) => setFilters({ ...filters, affiliateId: e.target.value, codeId: '' })}>
                     <option value="">All</option>{affiliates.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -254,8 +265,9 @@ export default function ReportsPage() {
                     {codesShown.map((p) => <option key={p.id} value={p.id}>{p.code}{filters.affiliateId ? '' : ` (${p.affiliate.name})`}</option>)}
                   </Select>
                 </Field>
+                </>}
               </div>
-              {!isCommissions && <p className="-mt-2 mb-1 text-xs text-ink/50">Affiliate and Affiliate code are for the &ldquo;Commissions due to affiliates&rdquo; report.</p>}
+              {isAdmin && !isCommissions && <p className="-mt-2 mb-1 text-xs text-ink/50">Affiliate and Affiliate code are for the &ldquo;Commissions due to affiliates&rdquo; report.</p>}
               {isCommissions && <p className="-mt-2 text-xs text-ink/50">Age and gender don&apos;t apply to commissions, which are for each booking.</p>}
               {isPL && <p className="-mt-2 text-xs text-ink/50">Age and gender don&apos;t apply to a profit/loss statement, as expenses are for the whole event.</p>}
             </Card>

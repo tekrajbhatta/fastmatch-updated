@@ -132,6 +132,17 @@ model Member {
 
   // Never store raw card data — Stripe customer/payment method references only
   stripeCustomerId String?
+
+  // A franchisee's login (Gil, Nov; src/lib/franchise.ts), made on the
+  // Franchises page: not a member but staff, limited to their locations, who
+  // can only log in between the agreement's dates (whole Sydney days, from
+  // 12:00 am on the first to 11:59:59 pm on the last). They're left out of
+  // the members list, blasts and reports; their gender and date of birth are
+  // placeholders nobody sees.
+  isFranchisee    Boolean   @default(false)
+  franchiseFrom   DateTime?
+  franchiseTill   DateTime?
+  franchiseCities City[]    @relation("FranchiseCities")
 }
 
 model City {
@@ -140,6 +151,10 @@ model City {
   events Event[]
   members Member[]
   venues Venue[]
+  // The franchisees whose locations include it, and the discount codes
+  // limited to it.
+  franchisees   Member[]       @relation("FranchiseCities")
+  discountCodes DiscountCode[] @relation("DiscountCodeCities")
 }
 
 // Venue directory — replaces the free-text `Event.venue` string, so the same
@@ -361,6 +376,10 @@ model DiscountCode {
   // like scopeThemeId, not a relation: if the event is ever deleted the code
   // matches no event, rather than falling back to working on every event.
   scopeEventId String?
+  // "Locations": none = every location (Gil's own codes); otherwise only
+  // events in these cities. A franchisee's codes are always limited to
+  // their own locations (src/lib/staff.ts).
+  scopeCities City[]       @relation("DiscountCodeCities")
   validFrom   DateTime
   validTo     DateTime
   usedCount   Int          @default(0)

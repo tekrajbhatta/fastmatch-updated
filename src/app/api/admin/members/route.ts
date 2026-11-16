@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
+import { requireStaff, notAuthorized } from '@/lib/staff';
 import { buildMemberWhere, MemberFilter } from '@/lib/memberFilter';
 import { memberFilterFromParams } from '@/lib/memberFilterParams';
 import { withErrorHandling } from '@/lib/withErrorHandling';
@@ -34,9 +35,13 @@ const addMemberSchema = z.intersection(newMemberSchema, lengthLimits);
 // split, total matches) are computed over the FULL filtered set via
 // database-level aggregates, not just the current page — matches the
 // mockup's requirement without loading thousands of rows to do it.
+//
+// A franchisee's search (Gil's answer 3): only members in their locations
+// (src/lib/staff.ts), and it's also how they find someone for "Add a new
+// booking".
 export const GET = withErrorHandling(async (req: NextRequest) => {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const params = req.nextUrl.searchParams;
   // A whole page number from 1; anything else (junk, 1.5, 1e400) is page 1,
@@ -46,6 +51,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const page = Number.isSafeInteger(asked) && asked >= 1 && asked <= 1_000_000 ? asked : 1;
   // Same parsing as the members screen and its blast page — see memberFilterFromParams.
   const filter: MemberFilter = await withMobileMatches(memberFilterFromParams(params));
+  if (staff.cityIds) filter.cityIds = staff.cityIds;
   const where = buildMemberWhere(filter);
 
   const [members, total, maleCount, femaleCount, totalMatches] = await Promise.all([

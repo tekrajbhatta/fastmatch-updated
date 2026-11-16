@@ -1,23 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff, notAuthorized } from '@/lib/staff';
+import { managedCodesWhere, checkCodeLocations, codeEventAllowed } from '@/lib/discountLocations';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { Prisma } from '@prisma/client';
 import { discountInputSchema, checkDiscountInput, DUPLICATE_CODE } from '@/lib/discountInput';
 
 export const GET = withErrorHandling(async (req: NextRequest) => {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   // Affiliates' promotions too, with the affiliate's name: they're listed, and
-  // changed on the Affiliates page (src/lib/affiliates.ts).
-  const codes = await prisma.discountCode.findMany({ orderBy: { validFrom: 'desc' }, include: { affiliate: { select: { name: true } } } });
+  // changed on the Affiliates page (src/lib/affiliates.ts). A franchisee's
+  // list is the codes for their locations (src/lib/discountLocations.ts).
+  const codes = await prisma.discountCode.findMany({
+    where: await managedCodesWhere(staff),
+    orderBy: { validFrom: 'desc' },
+    include: { affiliate: { select: { name: true } }, scopeCities: { select: { id: true, name: true }, orderBy: { name: 'asc' } } },
+  });
   return NextResponse.json(await withScopeEvents(codes));
 });
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   // The same checks as editing (src/lib/discountInput.ts).
   const parsed = discountInputSchema.safeParse(await req.json().catch(() => null));
@@ -25,8 +31,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const checked = checkDiscountInput(parsed.data);
   if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
   const data = checked.data;
+  // "Locations": every location, or the ones chosen; a franchisee's own.
+  const locations = await checkCodeLocations(staff, parsed.data.cityIds);
+  if (!locations.ok) return NextResponse.json({ error: locations.error }, { status: 400 });
 
-  if (data.scopeEventId && !(await prisma.event.findUnique({ where: { id: data.scopeEventId }, select: { id: true } }))) {
+  if (data.scopeEventId && (!(await prisma.event.findUnique({ where: { id: data.scopeEventId }, select: { id: true } })) || !(await codeEventAllowed(staff, data.scopeEventId)))) {
     return NextResponse.json({ error: 'Please choose a valid event.' }, { status: 400 });
   }
   if (data.scopeThemeId && !(await prisma.eventTheme.findUnique({ where: { id: data.scopeThemeId }, select: { id: true } }))) {
@@ -38,7 +47,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
 
   try {
-    const created = await prisma.discountCode.create({ data });
+    const created = await prisma.discountCode.create({ data: { ...data, scopeCities: { connect: (locations.cityIds ?? []).map((id) => ({ id })) } } });
     return NextResponse.json(created);
   } catch (err) {
     // Created by someone else a moment ago.

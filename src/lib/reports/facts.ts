@@ -48,8 +48,10 @@ export function queryValues(params: URLSearchParams): Record<string, string> {
 
 export async function loadReportFacts(
   q: ReportFilters,
-  opts: { signups: boolean },
+  // cityIds: a franchisee's locations (src/lib/staff.ts, scopeReportFilters); null for Gil's, every city.
+  opts: { signups: boolean; cityIds?: string[] | null },
 ): Promise<{ bookings: BookingFact[]; events: EventFact[]; signups: SignupFact[] | null }> {
+  const inCities = opts.cityIds ? { AND: [{ cityId: { in: opts.cityIds } }] } : {};
   const tz = EVENT_TIME_ZONE;
   const from = q.dateFrom ? startOfDayIn(q.dateFrom, tz) : undefined;
   // "To 30 September" includes the whole of the 30th.
@@ -65,6 +67,7 @@ export async function loadReportFacts(
     ...(q.cityId ? { cityId: q.cityId } : {}),
     ...(q.venueId ? { venueId: q.venueId } : {}),
     ...(q.themeId ? { themeId: q.themeId } : {}),
+    ...inCities,
     startsAt: { ...(range ?? {}), lte: new Date() },
   };
 
@@ -137,9 +140,12 @@ export async function loadReportFacts(
     const joined = await prisma.member.findMany({
       where: {
         isAdmin: false,
+        // A franchise login isn't a member.
+        isFranchisee: false,
         // Never set up: the account was made for them, not by them.
         awaitingPasswordSetup: false,
         ...(q.cityId ? { cityId: q.cityId } : {}),
+        ...inCities,
         ...(q.gender ? { gender: q.gender } : {}),
         ...(range ? { createdAt: range } : {}),
       },

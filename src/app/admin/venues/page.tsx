@@ -8,6 +8,7 @@ import Modal from '@/components/Modal';
 import { NETWORK_ERROR } from '@/lib/networkError';
 import { useIsPhone } from '@/lib/useMediaQuery';
 import { countOf } from '@/lib/plural';
+import { useStaff, onlyMine } from '@/components/StaffContext';
 
 interface City { id: string; name: string; }
 interface Venue {
@@ -24,6 +25,8 @@ export default function AdminVenuesPage() {
   // False until the first fetch returns, so the list doesn't claim to be empty while loading.
   const [loaded, setLoaded] = useState(false);
   const [cities, setCities] = useState<City[]>([]);
+  // A franchisee's venues are in their own locations (src/lib/staff.ts).
+  const { cities: myCities } = useStaff();
   const [form, setForm] = useState(EMPTY);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -41,10 +44,12 @@ export default function AdminVenuesPage() {
 
   useEffect(() => {
     load();
-    fetch('/api/cities').then((r) => r.json()).then((data: City[]) => {
+    fetch('/api/cities').then((r) => r.json()).then((all: City[]) => {
+      const data = onlyMine(all, myCities);
       setCities(data);
       setForm((f) => (f.cityId ? f : { ...f, cityId: data[0]?.id ?? '' }));
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function startCreate() {

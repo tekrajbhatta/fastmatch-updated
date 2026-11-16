@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff, eventInScope, notAuthorized, notFound } from '@/lib/staff';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
 // POST /api/admin/events/:id/duplicate — "Duplicate event". Copies everything
@@ -21,8 +21,10 @@ import { withErrorHandling } from '@/lib/withErrorHandling';
 // still carrying the original's date never shows up twice in public.
 export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
+  // A franchisee: only their locations' events (src/lib/staff.ts).
+  if (!(await eventInScope(staff, params.id))) return notFound('Event not found');
 
   const e = await prisma.event.findUniqueOrThrow({ where: { id: params.id } });
 

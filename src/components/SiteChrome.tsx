@@ -34,6 +34,7 @@ export default function SiteChrome({
   children,
   isLoggedIn,
   isAdmin,
+  isFranchisee = false,
 }: {
   children: React.ReactNode;
   isLoggedIn: boolean;
@@ -41,7 +42,12 @@ export default function SiteChrome({
       about which page is being shown. An admin keeps the admin nav
       everywhere, including on the public homepage. */
   isAdmin: boolean;
+  /** The viewer is a franchisee (src/lib/franchise.ts): staff too, with
+      their part of the admin's menu. */
+  isFranchisee?: boolean;
 }) {
+  // Gil or a franchisee: the admin's header, footer and logo link.
+  const isStaff = isAdmin || isFranchisee;
   const pathname = usePathname() ?? '';
   const isAdminRoute = pathname.startsWith('/admin');
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -70,11 +76,24 @@ export default function SiteChrome({
         { href: '/admin/venues', label: 'Venues' },
         { href: '/admin/discounts', label: 'Discount codes' },
         { href: '/admin/affiliates', label: 'Affiliates' },
+        { href: '/admin/franchises', label: 'Franchises' },
         { href: '/admin/event-types', label: 'Event Types' },
         { href: '/admin/feedback', label: 'Member Feedback' },
         { href: '/admin/reports', label: 'Reports' },
         { href: '/account', label: 'My Account' },
       ]
+    : isFranchisee
+      ? [
+          // Gil's list for franchisees (Nov), in his menu's order, plus
+          // Members to search (his answer 3).
+          { href: '/admin', label: 'Dashboard' },
+          { href: '/admin/events', label: 'Events' },
+          { href: '/admin/members', label: 'Members' },
+          { href: '/admin/venues', label: 'Venues' },
+          { href: '/admin/discounts', label: 'Discount codes' },
+          { href: '/admin/reports', label: 'Reports' },
+          { href: '/account', label: 'My Account' },
+        ]
     : isLoggedIn
       ? [
           // Gil's names, from the old site's "My FastMatch" menu.
@@ -99,7 +118,7 @@ export default function SiteChrome({
   const closeMobile = () => setMobileOpen(false);
 
   // Breakpoints and sizes for this audience's header (see siteHeaderLayout).
-  const bp = siteHeaderLayout(isLoggedIn, isAdmin);
+  const bp = siteHeaderLayout(isLoggedIn, isStaff);
 
   return (
     <>
@@ -114,7 +133,7 @@ export default function SiteChrome({
               than to the page that explains what FastMatch is; for members
               their events are still one click away via the nav. An admin's
               home is the dashboard, so their logo goes there. */}
-          <Link href={isAdmin ? '/admin' : '/'} className="flex shrink-0 rounded-md focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-4 focus-visible:outline-plum-700">
+          <Link href={isStaff ? '/admin' : '/'} className="flex shrink-0 rounded-md focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-4 focus-visible:outline-plum-700">
             <Image src="/logo.png" alt={`${BRAND_NAME}, ${BRAND_TAGLINE}`} width={200} height={61} priority className={`h-auto ${bp.logo}`} />
           </Link>
 
@@ -177,7 +196,7 @@ export default function SiteChrome({
                   onClick={closeMobile}
                   aria-current={isCurrent(l.href) ? 'page' : undefined}
                   className={`border-b border-white/15 font-display font-bold tracking-[-0.02em] text-white hover:text-match-300 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-match-400 aria-[current=page]:text-match-300 ${
-                    isAdmin ? 'py-3.5 text-[22px]' : 'py-5 text-[28px]'
+                    isStaff ? 'py-3.5 text-[22px]' : 'py-5 text-[28px]'
                   }`}
                 >
                   {l.label}
@@ -209,7 +228,7 @@ export default function SiteChrome({
         <main className="flex flex-1 flex-col">{children}</main>
       )}
 
-      <SiteFooter isLoggedIn={isLoggedIn} isAdmin={isAdmin} container={container} />
+      <SiteFooter isLoggedIn={isLoggedIn} isAdmin={isStaff} container={container} />
     </>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { prisma } from '@/lib/prisma';
 import { getCurrentAdmin } from '@/lib/auth';
 import { adminTitle } from '@/lib/pageTitles';
+import GilOnly from '@/components/admin/GilOnly';
 
 // The member's name in the tab — for an admin only (anyone else sees the
 // "for FastMatch staff" page, and their tab mustn't name the member either).
@@ -16,5 +17,6 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 }
 
 export default function AdminMemberLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  // Gil's alone: a franchisee is told so (src/components/admin/GilOnly.tsx).
+  return <GilOnly>{children}</GilOnly>;
 }

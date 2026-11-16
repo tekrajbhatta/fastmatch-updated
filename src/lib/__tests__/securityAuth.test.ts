@@ -91,7 +91,7 @@ function memberRow(over: Record<string, unknown> = {}) {
     emailVerified: true, mobileVerified: true, mobileVerificationCode: '123456', mobileVerificationExpires: null,
     name: 'Olivia', gender: 'FEMALE', dateOfBirth: new Date('1990-01-01'), mobile: '0412 345 678', cityId: 'city-1',
     agreedTerms: true, agreedTermsAt: null, marketingOptIn: true, contactMethod: 'EMAIL_AND_SMS', emailBounced: false,
-    bounceReason: 'mailbox full', isAdmin: false, awaitingPasswordSetup: false, passwordSetByAdmin: false,
+    bounceReason: 'mailbox full', isAdmin: false, isFranchisee: false, awaitingPasswordSetup: false, passwordSetByAdmin: false,
     referredById: null, createdAt: new Date(), updatedAt: new Date(), stripeCustomerId: 'cus_123',
     ...over,
   };

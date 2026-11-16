@@ -9,6 +9,7 @@ import { useIsPhone } from '@/lib/useMediaQuery';
 import { resultsState, RESULTS_LABEL } from '@/lib/eventResults';
 import { formatPrice } from '@/lib/price';
 import { offeringLabel, priceWithOffering } from '@/lib/eventOffering';
+import { adMakerHref } from '@/lib/adMaker';
 
 interface AdminEvent {
   id: string;
@@ -28,6 +29,7 @@ interface AdminEvent {
   womenBooked: number;
   maxMen: number;
   maxWomen: number;
+  ratingAudience: string;
   // Already returned by GET /api/admin/events (findMany returns every scalar
   // column) — they were simply missing from this interface, so no API change
   // was needed to show the age range.
@@ -82,8 +84,12 @@ export default function AdminEventsPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const phone = useIsPhone();
+  // Just made on "New event" (?made=<id>): offer Gil's Ad Maker for it, so
+  // the social media pictures can be made there and then.
+  const [made, setMade] = useState<string | null>(null);
 
   useEffect(() => {
+    setMade(new URLSearchParams(window.location.search).get('made'));
     fetch('/api/admin/events').then((r) => r.json()).then((data) => {
       setEvents(data);
       setLoading(false);
@@ -100,6 +106,7 @@ export default function AdminEventsPage() {
   // viewer on an empty one.
   const currentPage = Math.min(page, pageCount);
   const visible = sorted.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
+  const madeEvent = made ? events.find((e) => e.id === made) : undefined;
 
   return (
     <div>
@@ -114,6 +121,12 @@ export default function AdminEventsPage() {
       </div>
 
       {loading && <Loader label="Loading events…" />}
+      {madeEvent && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-green/15 p-3 text-sm text-ink">
+          <span><b>Event #{madeEvent.number} is saved.</b> Make an ad for it to post on social media?</span>
+          <a href={adMakerHref(madeEvent)} target="_blank" rel="noopener" className="inline-flex min-h-[40px] items-center rounded-lg bg-coral px-4 font-bold text-white hover:bg-coral/90">Make an ad</a>
+        </div>
+      )}
 
       {phone ? (
         // A phone: one card per event, in its row colour; tap it to open the event.

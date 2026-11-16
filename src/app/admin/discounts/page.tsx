@@ -6,6 +6,7 @@ import { discountDay, formatDiscountDay, discountStatus } from '@/lib/discountDa
 import { timeZoneForCity } from '@/lib/timezone';
 import { formatPrice } from '@/lib/price';
 import Link from 'next/link';
+import { useStaff, useCityChoices } from '@/components/StaffContext';
 
 interface ScopeEvent { id: string; number: number; name: string; startsAt: string; venue: { name: string }; city?: { name: string } }
 
@@ -21,13 +22,17 @@ interface DiscountCode {
   scopeTheme: { id: string; name: string } | { deleted: true } | null;
   // An affiliate's promotion: changed on the Affiliates page, with its commission.
   affiliate: { name: string } | null;
+  // "Locations": none = every location.
+  scopeCities: { id: string; name: string }[];
 }
+
+interface City { id: string; name: string }
 
 interface EventType { id: string; name: string }
 
 interface EventOption extends ScopeEvent { draft: boolean; status: string }
 
-const emptyForm = { code: '', type: 'PERCENT_OFF', amount: '', validFrom: '', validTo: '', scopeEventId: '', scopeThemeId: '' };
+const emptyForm = { code: '', type: 'PERCENT_OFF', amount: '', validFrom: '', validTo: '', scopeEventId: '', scopeThemeId: '', cityIds: [] as string[] };
 
 // "#12 28-40 years at Soultrap Bar, 2 Oct 2026", as in the blast forms, with
 // the year so past events can be told apart. The date is the event city's.
@@ -49,6 +54,10 @@ export default function AdminDiscountsPage() {
   const [events, setEvents] = useState<EventOption[]>([]);
   // The event types, for the "Event type" dropdown (as on the event forms).
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
+  // "Locations": every city for Gil, a franchisee's own for them (src/lib/discountLocations.ts).
+  const [cities, setCities] = useState<City[]>([]);
+  const { isAdmin, cities: myCities } = useStaff();
+  const cityChoices = useCityChoices(cities);
 
   function loadCodes() {
     fetch('/api/admin/discount-codes').then((r) => r.json()).then((d) => { setCodes(d); setLoaded(true); });
@@ -57,6 +66,7 @@ export default function AdminDiscountsPage() {
     loadCodes();
     fetch('/api/admin/events').then((r) => r.json()).then((all: EventOption[]) => setEvents(all)).catch(() => {});
     fetch('/api/event-themes').then((r) => r.json()).then((all: EventType[]) => setEventTypes(Array.isArray(all) ? all : [])).catch(() => {});
+    fetch('/api/cities').then((r) => r.json()).then((all: City[]) => setCities(Array.isArray(all) ? all : [])).catch(() => {});
   }, []);
 
   const now = Date.now();
@@ -71,13 +81,18 @@ export default function AdminDiscountsPage() {
 
   function openNew() {
     setEditing(null);
-    setForm(emptyForm);
+    // Gil's start working everywhere; a franchisee's in all their locations.
+    setForm({ ...emptyForm, cityIds: myCities ? myCities.map((c) => c.id) : [] });
     setShowForm(true);
+  }
+
+  function toggleCity(id: string, on: boolean) {
+    setForm((f) => ({ ...f, cityIds: on ? [...f.cityIds, id] : f.cityIds.filter((c) => c !== id) }));
   }
 
   function openEdit(c: DiscountCode) {
     setEditing(c.id);
-    setForm({ code: c.code, type: c.type, amount: c.amount ?? '', validFrom: discountDay(c.validFrom), validTo: discountDay(c.validTo), scopeEventId: c.scopeEventId ?? '', scopeThemeId: c.scopeThemeId ?? '' });
+    setForm({ code: c.code, type: c.type, amount: c.amount ?? '', validFrom: discountDay(c.validFrom), validTo: discountDay(c.validTo), scopeEventId: c.scopeEventId ?? '', scopeThemeId: c.scopeThemeId ?? '', cityIds: (c.scopeCities ?? []).map((city) => city.id) });
     setShowForm(true);
     // The form opens above the list: bring it into view (on a phone it was off the screen).
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -107,7 +122,14 @@ export default function AdminDiscountsPage() {
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div><h1 className="text-2xl font-extrabold text-ink">Discount codes</h1><p className="text-sm text-ink/60">Percent off, fixed reduction, or free.</p></div>
+        <div>
+          <h1 className="text-2xl font-extrabold text-ink">Discount codes</h1>
+          <p className="text-sm text-ink/60">
+            {isAdmin
+              ? 'Percent off, fixed reduction, or free.'
+              : 'Percent off, fixed reduction, or free, for your locations’ events. FastMatch’s own codes work on your events too.'}
+          </p>
+        </div>
         <Button onClick={openNew} className="whitespace-nowrap">+ New code</Button>
       </div>
 
@@ -167,6 +189,28 @@ export default function AdminDiscountsPage() {
                   <p className="mt-1 text-xs text-ink/50">&quot;All&quot; works for every event. Choose one event to make the code work for that event only.</p>
                 </Field>
               </div>
+              <div className="col-span-2 mb-3">
+                <p className="mb-1 text-sm font-bold text-ink">Locations</p>
+                {myCities && myCities.length === 1 ? (
+                  <p className="text-sm text-ink/70">Works for events in {myCities[0].name} only.</p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3 lg:grid-cols-4">
+                      {cityChoices.map((city) => (
+                        <label key={city.id} className="flex min-h-[32px] items-center gap-2 text-sm text-ink">
+                          <input type="checkbox" checked={form.cityIds.includes(city.id)} onChange={(e) => toggleCity(city.id, e.target.checked)} />
+                          {city.name}
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-1 text-xs text-ink/50">
+                      {isAdmin && form.cityIds.length === 0
+                        ? 'None ticked: the code works in every location, franchisees’ included.'
+                        : 'The code works only for events in the locations ticked.'}
+                    </p>
+                  </>
+                )}
+              </div>
             </div>
             {error && <p className="mb-3 text-sm font-medium text-coral">{error}</p>}
             <Button type="submit">{editing ? 'Save changes' : 'Create code'}</Button>
@@ -211,6 +255,9 @@ export default function AdminDiscountsPage() {
                   )}
                   {!c.scopeEvent && c.scopeTheme && (
                     <><br />Only for {'deleted' in c.scopeTheme ? 'an event type that has been deleted' : `${c.scopeTheme.name} events`}</>
+                  )}
+                  {c.scopeCities?.length > 0 && (
+                    <><br />Locations: {c.scopeCities.map((city) => city.name).join(', ')}</>
                   )}
                 </div>
               </div>

@@ -9,8 +9,9 @@ import { FormError, Notice } from '@/components/site/form';
 import { NETWORK_ERROR } from '@/lib/networkError';
 import ResendConfirmation from '@/components/ResendConfirmation';
 import { verifyMobileHref } from '@/lib/accountSetup';
+import { FRANCHISE_DETAILS_BY_GIL } from '@/lib/franchiseText';
 
-interface Me { id: string; name: string; email: string; agreedTerms: boolean; isAdmin: boolean; emailVerified: boolean; mobileVerified: boolean; mobile: string; marketingOptIn: boolean; }
+interface Me { id: string; name: string; email: string; agreedTerms: boolean; isAdmin: boolean; isFranchisee?: boolean; emailVerified: boolean; mobileVerified: boolean; mobile: string; marketingOptIn: boolean; }
 
 export default function AccountPage() {
   const router = useRouter();
@@ -74,6 +75,9 @@ export default function AccountPage() {
     );
   }
 
+  // Gil, or a franchisee: staff have no event news to subscribe to.
+  const isStaff = me.isAdmin || !!me.isFranchisee;
+
   return (
     <SplitLayout
       title="My account"
@@ -114,8 +118,8 @@ export default function AccountPage() {
         <dl className="flex flex-col gap-1 text-[15px]">
           <StatusRow label="Email address" ok={me.emailVerified} />
           <StatusRow label="Mobile number" ok={me.mobileVerified} />
-          {/* Blasts: theirs to turn on or off (Gil, Q15). Not for an admin account. */}
-          {!me.isAdmin && (
+          {/* Blasts: theirs to turn on or off (Gil, Q15). Not for staff. */}
+          {!isStaff && (
             <div className="flex justify-between gap-4">
               <dt className="text-ink-600">Event news and offers</dt>
               <dd className="font-bold text-ink-900">{me.marketingOptIn ? 'Subscribed' : 'Not subscribed'}</dd>
@@ -128,11 +132,16 @@ export default function AccountPage() {
               Privacy policy and Terms & conditions all live in the site footer
               on every page, for every role, so listing them here as well was a
               second route to the same three pages. */}
-          <AccountLink href="/account/edit-profile" label="Edit profile" />
+          {/* A franchisee's details are set by Gil, on the Franchises page. */}
+          {me.isFranchisee ? (
+            <li className="py-3 text-[15px] text-ink-600">{FRANCHISE_DETAILS_BY_GIL}</li>
+          ) : (
+            <AccountLink href="/account/edit-profile" label="Edit profile" />
+          )}
           <AccountLink href="/account/change-password" label="Change password" />
           {/* Marketing is for members; an admin account has nothing to
               unsubscribe from. Unsubscribing stops texts as well as emails. */}
-          {!me.isAdmin && (
+          {!isStaff && (
             <AccountLink href="/account/unsubscribe" label={me.marketingOptIn ? 'Unsubscribe from event news and offers' : 'Subscribe to event news and offers'} />
           )}
         </ul>

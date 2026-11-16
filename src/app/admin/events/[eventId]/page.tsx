@@ -14,6 +14,8 @@ import CancelSummary, { type CancelResult } from '@/components/CancelSummary';
 import { countOf } from '@/lib/plural';
 import { resultsState, RESULTS_SENT_MESSAGE, RESULTS_NOT_ALL_EMAILED_MESSAGE } from '@/lib/eventResults';
 import { NO_MATCHES_ADMIN_NOTE } from '@/lib/ratingAudience';
+import { adMakerHref } from '@/lib/adMaker';
+import { useStaff } from '@/components/StaffContext';
 
 interface EventDetail {
   id: string; name: string; venue: { name: string; address: string | null; phone: string | null; websiteUrl: string | null }; startsAt: string; cost: string;
@@ -23,6 +25,8 @@ interface EventDetail {
   ratingAudience: string;
   // What the price includes, for "Create blast" ("Cost: $49 · inc one drink").
   offering?: string;
+  // For "Make an ad" (src/lib/adMaker.ts).
+  ageMin: number; ageMax: number; maxMen: number; maxWomen: number;
   // Every booking, any status (from /api/admin/events).
   _count: { bookings: number };
 }
@@ -30,6 +34,9 @@ interface EventDetail {
 export default function AdminEventDetailPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const router = useRouter();
+  // A franchisee's event page leaves out Gil's parts: blasts (they tell Gil
+  // what to send) and matches (worked out by themselves, Gil's answer 3).
+  const { isAdmin } = useStaff();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [closing, setClosing] = useState(false);
   const [closeResult, setCloseResult] = useState<{ matchesCreated?: number; alreadyCalculated?: boolean; emailsSent?: number; emailFailures?: string[] } | null>(null);
@@ -189,7 +196,7 @@ export default function AdminEventDetailPage() {
         <Link href={`/admin/events/${event.id}/bookings`} className="block font-bold text-ink hover:text-plum">View bookings</Link>
         <p className="mt-0.5 text-sm text-ink/50">{noMatchesEvent ? 'Attendee list and payments' : 'Attendee list, payments, check-ins'}</p>
       </Card>
-      {!noMatchesEvent && (
+      {isAdmin && !noMatchesEvent && (
         <Card className="mb-3">
           <Link href={`/admin/events/${event.id}/matches`} className="block font-bold text-ink hover:text-plum">Matches and choices</Link>
           <p className="mt-0.5 text-sm text-ink/50">Who matched with whom, and everyone&apos;s Date, Friend and No choices</p>
@@ -206,9 +213,16 @@ export default function AdminEventDetailPage() {
         <p className="mt-0.5 text-sm text-ink/50">Makes a copy with the same details, then opens it for editing</p>
         {duplicateError && <p className="mt-2 text-sm font-medium text-coral">{duplicateError}</p>}
       </Card>
+      {isAdmin && (
+        <Card className="mb-3">
+          <button onClick={createBlastForEvent} className="block text-left font-bold text-ink hover:text-plum">Create blast for this event</button>
+          <p className="mt-0.5 text-sm text-ink/50">Auto-fills subject, details, and booking link, so there&apos;s nothing to retype</p>
+        </Card>
+      )}
+      {/* Gil's Ad Maker, filled in from this event (src/lib/adMaker.ts). */}
       <Card className="mb-3">
-        <button onClick={createBlastForEvent} className="block text-left font-bold text-ink hover:text-plum">Create blast for this event</button>
-        <p className="mt-0.5 text-sm text-ink/50">Auto-fills subject, details, and booking link, so there&apos;s nothing to retype</p>
+        <a href={adMakerHref(event)} target="_blank" rel="noopener" className="block font-bold text-ink hover:text-plum">Make an ad for this event</a>
+        <p className="mt-0.5 text-sm text-ink/50">Social media pictures for Eventbrite, Facebook, Meetup and Instagram, with the event&apos;s type, ages, venue and date already in. Opens in a new tab</p>
       </Card>
       {/* A cancelled event can't be booked into: everyone on it has been told. */}
       {event.status !== 'CANCELLED' && (

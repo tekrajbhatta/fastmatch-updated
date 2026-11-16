@@ -3,6 +3,7 @@ import { BRAND_COLORS } from '../brand';
 import { formatEventWhen } from '../datetime';
 import { escapeHtml, oneLine } from '../escapeHtml';
 import { checkInStepsHtml } from './eventEmails';
+import { contactLink } from '../contactEmail';
 
 // Inline styles only — email clients ignore <style>. Same values as
 // welcomeEmail.ts so the two read as one family.
@@ -35,6 +36,8 @@ export function friendWelcomeEmail(opts: {
   setPasswordUrl: string;
   /** Null for an event with no check-in or matches: no check-in steps, and no "speed dating". */
   checkInUrl: string | null;
+  /** Who to write to: the franchisee's address in their location (src/lib/eventContact.ts), Gil's otherwise. */
+  contactEmail?: string;
 }) {
   const html = emailLayout(`
     <h1 style="${EMAIL_HEADING}">You're booked in, ${escapeHtml(opts.friendName)}!</h1>
@@ -46,7 +49,7 @@ export function friendWelcomeEmail(opts: {
     <p style="${PARA_BUTTON}"><a href="${opts.setPasswordUrl}" style="${BUTTON}">Set your password</a></p>
     ${checkInStepsHtml(opts.checkInUrl)}
     <p style="${PARA}">Can't make it, or not expecting this? Let us know at
-      <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a> and we'll cancel it.</p>
+      ${contactLink(opts.contactEmail)} and we'll cancel it.</p>
     <p style="${PARA}">See you there!<br>The FastMatch Team</p>
   `);
   return { subject: `${oneLine(opts.bookedByName)} has booked you into ${opts.checkInUrl ? 'FastMatch speed dating' : 'a FastMatch event'}`, html };

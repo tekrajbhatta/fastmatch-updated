@@ -35,7 +35,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const member = await getCurrentMember();
 
   return (
-    <html lang="en" className={`${figtree.variable} ${bricolage.variable} ${siteHeaderLayout(member !== null, member?.isAdmin ?? false).headerH}`}>
+    <html lang="en" className={`${figtree.variable} ${bricolage.variable} ${siteHeaderLayout(member !== null, (member?.isAdmin || member?.isFranchisee) ?? false).headerH}`}>
       {/*
         suppressHydrationWarning: browser extensions (Grammarly, password
         managers, some ad blockers) inject attributes onto <body> before React
@@ -64,7 +64,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           the admin nav, and nesting admin's own max-w-[1400px] container
           inside a 1024px one. SiteChrome renders them only on member routes.
         */}
-        <SiteChrome isLoggedIn={member !== null} isAdmin={member?.isAdmin ?? false}>
+        <SiteChrome isLoggedIn={member !== null} isAdmin={member?.isAdmin ?? false} isFranchisee={member?.isFranchisee ?? false}>
           {children}
         </SiteChrome>
       </body>

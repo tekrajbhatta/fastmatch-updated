@@ -13,6 +13,9 @@ export interface MemberFilter {
   mobileMatchIds?: string[];
   gender?: 'MALE' | 'FEMALE';
   cityId?: string;
+  // A franchisee's Members search: only members in their locations
+  // (src/lib/staff.ts). Set by the server, never saved with a blast.
+  cityIds?: string[];
   ageMin?: number;
   ageMax?: number;
   marketingOptInOnly?: boolean; // Campaign sends should always set this true
@@ -36,7 +39,9 @@ export interface MemberFilter {
 }
 
 export function buildMemberWhere(filter: MemberFilter): Prisma.MemberWhereInput {
-  const where: Prisma.MemberWhereInput = {};
+  // Never a franchisee's login: staff, not a member (src/lib/franchise.ts).
+  // Not on the Members screen, in an export or in any blast.
+  const where: Prisma.MemberWhereInput = { isFranchisee: false };
 
   if (filter.search) {
     where.OR = [
@@ -48,6 +53,10 @@ export function buildMemberWhere(filter: MemberFilter): Prisma.MemberWhereInput 
   }
   if (filter.gender) where.gender = filter.gender;
   if (filter.cityId) where.cityId = filter.cityId;
+  if (filter.cityIds) {
+    // A city outside theirs finds nobody.
+    where.cityId = filter.cityId ? (filter.cityIds.includes(filter.cityId) ? filter.cityId : { in: [] }) : { in: filter.cityIds };
+  }
   if (filter.marketingOptInOnly) where.marketingOptIn = true;
   if (filter.contactMethods?.length) where.contactMethod = { in: filter.contactMethods };
   if (filter.excludeBounced) where.emailBounced = false;

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff, eventInScope, notAuthorized, notFound } from '@/lib/staff';
 import { createAdminBooking, notifyBooked } from '@/lib/adminBooking';
 import { PAYMENT_METHOD_VALUES } from '@/lib/paymentMethod';
 import {
@@ -43,8 +43,10 @@ class BookingRefused extends Error {}
 // their own from a link — in one email (the user, 6 Oct).
 export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
+  // A franchisee: only their locations' events (src/lib/staff.ts).
+  if (!(await eventInScope(staff, params.id))) return notFound('Event not found');
 
   // First: nobody is added to a cancelled event, whatever the form says.
   const event = await prisma.event.findUniqueOrThrow({ where: { id: params.id } });

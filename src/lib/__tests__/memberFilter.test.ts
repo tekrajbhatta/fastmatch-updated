@@ -2,8 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { buildMemberWhere } from '../memberFilter';
 
 describe('buildMemberWhere', () => {
-  it('returns an empty filter for no criteria', () => {
-    expect(buildMemberWhere({})).toEqual({});
+  it('returns no criteria but "not a franchise login" for no criteria', () => {
+    expect(buildMemberWhere({})).toEqual({ isFranchisee: false });
+  });
+
+  it("keeps a franchisee's search to their locations", () => {
+    expect(buildMemberWhere({ cityIds: ['mel', 'gee'] }).cityId).toEqual({ in: ['mel', 'gee'] });
+    expect(buildMemberWhere({ cityIds: ['mel', 'gee'], cityId: 'gee' }).cityId).toBe('gee');
+    expect(buildMemberWhere({ cityIds: ['mel'], cityId: 'syd' }).cityId).toEqual({ in: [] });
   });
 
   it('builds a case-matching OR clause for search across name/email/mobile', () => {

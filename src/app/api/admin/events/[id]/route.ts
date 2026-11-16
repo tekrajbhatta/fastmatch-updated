@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff, canSeeCity, eventPlaceProblem, notAuthorized, notFound } from '@/lib/staff';
 import { sendEmail } from '@/lib/emails/send';
 import { sendSms } from '@/lib/sms/send';
 import { eventChangeEmail, eventChangeSms } from '@/lib/emails/eventEmails';
@@ -10,16 +10,18 @@ import { eventTimeFor } from '@/lib/timezone';
 import { eventLabel } from '@/lib/eventLabel';
 import { checkEventEdit, CHECK_FIELDS, CLOSED_EVENT_DATE_MESSAGE, movesClosedEvent, NO_MATCHES_SWITCH_MESSAGE, switchesNoMatchesTooLate } from '@/lib/eventInput';
 import { adminEvent } from '@/lib/adminEvents';
+import { eventContactEmail } from '@/lib/eventContact';
 
 // GET /api/admin/events/:id — one event for the admin's screens (its page,
 // Edit event, the add screens, the check-in QR), as the list gives it. They
 // used to load every event to show one.
 export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
   const event = await adminEvent(params.id);
-  if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  // Outside a franchisee's locations: as if it didn't exist.
+  if (!event || !canSeeCity(staff, event.cityId)) return notFound('Event not found');
   return NextResponse.json(event);
 });
 
@@ -31,18 +33,22 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
 // (/api/admin/events/:id/cancel), which also refunds.
 export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const before = await prisma.event.findUniqueOrThrow({
     where: { id: params.id },
     include: { venue: true, theme: true, city: true },
   });
+  if (!canSeeCity(staff, before.cityId)) return notFound('Event not found');
   // The same rules as "New event", each problem against its field
   // (src/lib/eventInput.ts). Only the event's own details can be changed
   // here; this used to pass whatever it was sent straight to the database.
   const checked = checkEventEdit(await req.json().catch(() => ({})), before);
   if (!checked.ok) return NextResponse.json({ error: CHECK_FIELDS, fieldErrors: checked.fieldErrors }, { status: 400 });
+  // A franchisee keeps it in their locations, at a venue there.
+  const outside = await eventPlaceProblem(staff, checked.data.cityId ?? before.cityId, checked.data.venueId ?? before.venueId);
+  if (outside) return NextResponse.json({ error: CHECK_FIELDS, fieldErrors: outside }, { status: 400 });
   if (movesClosedEvent(before, checked.data.startsAt)) {
     return NextResponse.json({ error: CLOSED_EVENT_DATE_MESSAGE, fieldErrors: { startsAt: CLOSED_EVENT_DATE_MESSAGE } }, { status: 400 });
   }
@@ -95,6 +101,8 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
       venueChanged,
       timeChanged,
       cancelled: false,
+      // The franchisee's address in their location, Gil's otherwise.
+      contactEmail: await eventContactEmail(event),
     };
 
     const bookings = await prisma.booking.findMany({
@@ -143,13 +151,14 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
 // blasts and discount codes that mention it cope with it being gone.)
 export const DELETE = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const event = await prisma.event.findUniqueOrThrow({
     where: { id: params.id },
     include: { _count: { select: { bookings: true } } },
   });
+  if (!canSeeCity(staff, event.cityId)) return notFound('Event not found');
 
   if (event._count.bookings > 0) {
     return NextResponse.json({ error: 'This event has bookings, so it can\'t be deleted.' }, { status: 409 });

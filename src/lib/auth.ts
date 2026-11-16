@@ -3,6 +3,7 @@ import type { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { prisma } from './prisma';
+import { franchiseLockedReason } from './franchise';
 import { readSessionToken, sessionStillValid, signSessionToken, signValue, signatureMatches, SESSION_DAYS } from './tokens';
 
 // Admin accounts are just Members with isAdmin = true (kept simple; a
@@ -100,6 +101,9 @@ async function memberForSessionToken(token: string | null | undefined) {
   if (!claims) return null; // expired/invalid/not a session — treat as logged out, not an error
   const member = await prisma.member.findUnique({ where: { id: claims.memberId } });
   if (!member || !sessionStillValid(claims, member)) return null;
+  // A franchisee outside their agreement's dates (Gil, 15 Nov) is logged out
+  // everywhere, even mid-session: from the day after it ends.
+  if (franchiseLockedReason(member)) return null;
   return member;
 }
 

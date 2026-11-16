@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff, eventScope, notAuthorized } from '@/lib/staff';
+import { alertFranchiseCancelled } from '@/lib/franchiseAlerts';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { whyCantCancel, cancelEvent, type CancelOutcome } from '@/lib/cancelEvent';
 
@@ -10,14 +11,15 @@ const actionSchema = z.object({
   eventIds: z.array(z.string()).optional(), // checked rows from the series screen; omitted/empty falls back to the whole series
 });
 
-// GET /api/admin/events/series/:seriesId — all events in the series
+// GET /api/admin/events/series/:seriesId — all events in the series (a
+// franchisee's: those in their locations, src/lib/staff.ts)
 export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ seriesId: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const events = await prisma.event.findMany({
-    where: { seriesId: params.seriesId },
+    where: { seriesId: params.seriesId, ...eventScope(staff) },
     orderBy: { startsAt: 'asc' },
     // The city, to show each start on its clock.
     include: { _count: { select: { bookings: true } }, city: { select: { name: true } } },
@@ -32,18 +34,19 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
 // backward compatibility with any caller that doesn't pass a selection.
 export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ seriesId: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const parsed = actionSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 
+  // A franchisee's actions only reach events in their locations.
   const where =
     parsed.data.eventIds && parsed.data.eventIds.length > 0
-      ? { id: { in: parsed.data.eventIds }, seriesId: params.seriesId } // still scoped to this series, can't bulk-act on events outside it
-      : { seriesId: params.seriesId };
+      ? { id: { in: parsed.data.eventIds }, seriesId: params.seriesId, ...eventScope(staff) } // still scoped to this series, can't bulk-act on events outside it
+      : { seriesId: params.seriesId, ...eventScope(staff) };
 
-  const events = await prisma.event.findMany({ where, include: { _count: { select: { bookings: true } }, city: true }, orderBy: { startsAt: 'asc' } });
+  const events = await prisma.event.findMany({ where, include: { _count: { select: { bookings: true } }, city: true, theme: true, venue: true }, orderBy: { startsAt: 'asc' } });
 
   if (parsed.data.action === 'SET_NOT_PUBLIC') {
     await prisma.event.updateMany({ where, data: { visibility: 'NOT_PUBLIC' } });
@@ -67,6 +70,11 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
       const blocked = await whyCantCancel(e);
       if (blocked) { total.skipped.push({ number: e.number, reason: blocked }); continue; }
       const o = await cancelEvent(e.id);
+      // A franchisee's cancellation: Gil is told, as from the event's page.
+      if (!staff.isAdmin) {
+        const franchisee = { name: staff.member.name, email: staff.member.email };
+        after(() => alertFranchiseCancelled({ franchisee, event: e, outcome: o }));
+      }
       total.cancelled++;
       total.notified += o.notified;
       total.notifyFailures.push(...o.notifyFailures);

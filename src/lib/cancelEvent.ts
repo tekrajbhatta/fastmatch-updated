@@ -12,6 +12,7 @@ import { refundCheckoutSession } from './refunds';
 import { alertRefundNeeded, notifyAutoRefund } from './paymentAlerts';
 import { endOfEventNight } from './eventNight';
 import { paymentMethodLabel } from './paymentMethod';
+import { eventContactEmail } from './eventContact';
 
 /*
  * "Cancel event" (Gil, Q2-Q4): separate from hiding an event, which now only
@@ -233,6 +234,8 @@ async function tellCancelled(event: FullEvent, b: Attendee, refunded: number | n
     venueChanged: false, timeChanged: false, cancelled: true,
     // Times are the event's local time; someone registered elsewhere is told whose.
     ...eventTimeFor(event.startsAt, event.city.name, b.member.city?.name),
+    // The franchisee's address in their location, Gil's otherwise.
+    contactEmail: await eventContactEmail(event),
   };
   if (outcome) outcome.notified++;
   try {

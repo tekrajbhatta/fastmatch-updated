@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff, eventInScope, notAuthorized, notFound } from '@/lib/staff';
 import { createAdminBooking, notifyBooked } from '@/lib/adminBooking';
 import { PAYMENT_METHOD_VALUES } from '@/lib/paymentMethod';
 import { withErrorHandling } from '@/lib/withErrorHandling';
@@ -18,8 +18,10 @@ import { BOOKING_MEMBER_SELECT } from '@/lib/memberFields';
 // Event Bookings screen (badge, name, email/mobile, paid status).
 export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
+  // A franchisee: only their locations' events (src/lib/staff.ts).
+  if (!(await eventInScope(staff, params.id))) return notFound('Event not found');
 
   const bookings = await prisma.booking.findMany({
     where: { eventId: params.id },
@@ -55,8 +57,10 @@ const addSchema = z.object({
 // and who wasn't, and why.
 export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
+  // A franchisee: only their locations' events (src/lib/staff.ts).
+  if (!(await eventInScope(staff, params.id))) return notFound('Event not found');
 
   // First: nobody is added to a cancelled event.
   const event = await prisma.event.findUniqueOrThrow({ where: { id: params.id } });
@@ -69,7 +73,8 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   const { memberIds, paymentMethod, paidAmount, checkedIn } = parsed.data;
 
   const uniqueIds = [...new Set(memberIds)];
-  const members = await prisma.member.findMany({ where: { id: { in: uniqueIds } } });
+  // Never a franchise login: it isn't a member (src/lib/franchise.ts).
+  const members = await prisma.member.findMany({ where: { id: { in: uniqueIds }, isFranchisee: false } });
 
   const added: { memberId: string; name: string; badge: number; notified: boolean }[] = [];
   const skipped: { memberId: string; name: string | null; reason: string }[] = [];

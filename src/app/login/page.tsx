@@ -46,9 +46,10 @@ function LoginInner() {
     // explicit ?next= (e.g. bounced off /admin, or off a member page) still
     // wins, so they end up wherever they were actually headed.
     // Only a page on this site (src/lib/safeNext.ts), and an admin page only
-    // for an admin: a member would just be told it's for staff.
-    let dest = safeNext(nextParam, data.isAdmin ? '/admin' : '/events', window.location.origin);
-    if (!data.isAdmin && isAdminPath(dest)) dest = '/events';
+    // for staff (Gil, or a franchisee): a member would just be told it's for staff.
+    const isStaff = !!(data.isStaff ?? data.isAdmin);
+    let dest = safeNext(nextParam, isStaff ? '/admin' : '/events', window.location.origin);
+    if (!isStaff && isAdminPath(dest)) dest = '/events';
     // Something still to do before booking: say what, then carry on there.
     router.push(data.unfinished ? finishSetupHref(dest) : dest);
     router.refresh();

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff, canSeeCity, notAuthorized, notFound } from '@/lib/staff';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 
 // POST /api/admin/venues/:id/duplicate — "Duplicate". Same value in every
@@ -9,10 +9,12 @@ import { withErrorHandling } from '@/lib/withErrorHandling';
 // matches how duplicated blasts are named. The admin renames it straight away.
 export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const v = await prisma.venue.findUniqueOrThrow({ where: { id: params.id } });
+  // A franchisee: only a venue in their locations (the copy stays in its city).
+  if (!canSeeCity(staff, v.cityId)) return notFound();
 
   // "GG Bar (copy)", then "GG Bar (copy 2)"… if that's taken too.
   let name = `${v.name} (copy)`;

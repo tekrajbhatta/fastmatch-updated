@@ -7,6 +7,7 @@ import { signSession, SESSION_COOKIE_OPTIONS, DEVICE_COOKIE, deviceKnowsMember, 
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { clientIp, clearLoginLock, hitRateLimit, isRateLimited, LIMITS, loginKeys, rateKey } from '@/lib/rateLimit';
 import { unfinishedSteps } from '@/lib/accountSetup';
+import { franchiseLockedReason } from '@/lib/franchise';
 import { emailWelcomeLinkOnLogin } from '@/lib/welcomeLink';
 import { passwordToCheck, TYPED_PASSWORD_MAX } from '@/lib/tokens';
 
@@ -92,12 +93,19 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
   await clearLoginLock(parsed.data.email, ip);
 
+  // A franchisee outside their agreement's dates (Gil, 15 Nov): told why,
+  // only once the password was right, and not logged in.
+  const locked = franchiseLockedReason(member);
+  if (locked) return NextResponse.json({ error: locked }, { status: 403 });
+
   const token = signSession(member);
   // Something still to do before they can book (email or mobile unconfirmed,
   // terms not accepted), or a password the admin set that they haven't yet
   // kept or replaced: the page takes them to "Finish setting up your account".
-  const unfinished = !member.isAdmin && (unfinishedSteps(member).length > 0 || member.passwordSetByAdmin);
-  const res = NextResponse.json({ id: member.id, name: member.name, isAdmin: member.isAdmin, unfinished });
+  // Not for staff: Gil, or a franchisee (whose login Gil set up).
+  const isStaff = member.isAdmin || member.isFranchisee;
+  const unfinished = !isStaff && (unfinishedSteps(member).length > 0 || member.passwordSetByAdmin);
+  const res = NextResponse.json({ id: member.id, name: member.name, isAdmin: member.isAdmin, isStaff, unfinished });
   res.cookies.set('fm_session', token, SESSION_COOKIE_OPTIONS);
   rememberDevice(res, req, member.id);
   return res;

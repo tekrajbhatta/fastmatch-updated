@@ -11,6 +11,7 @@ import { countOf } from '@/lib/plural';
 import { checkInState } from '@/lib/eventNight';
 import { NETWORK_ERROR } from '@/lib/networkError';
 import { useIsPhone } from '@/lib/useMediaQuery';
+import { useStaff } from '@/components/StaffContext';
 
 interface Booking {
   id: string; badge: number; status: string; paidAmount: string; checkedIn: boolean;
@@ -46,6 +47,7 @@ export default function EventBookingsPage() {
   // The booking a "Check in" button is saving.
   const [checkingIn, setCheckingIn] = useState<string | null>(null);
   const phone = useIsPhone();
+  const { isAdmin } = useStaff();
   // "Find a name or number": narrows the list as the host types, at the door.
   const [find, setFind] = useState('');
   // Redraws once a minute, so "Check in" appears when check-in opens without a reload.
@@ -74,7 +76,8 @@ export default function EventBookingsPage() {
     setEdit({ status: b.status, paidAmount: String(b.paidAmount), checkedIn: b.checkedIn, paymentMethod: b.paymentMethod ?? '' });
     setEditFrom(b.status);
     setStripePayment(null);
-    if (hasStripePayment(b)) {
+    // Stripe is Gil's account: a franchisee has no use for its links.
+    if (isAdmin && hasStripePayment(b)) {
       setStripePayment({ state: 'loading' });
       fetch(`/api/admin/bookings/${b.id}/stripe`)
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
@@ -173,7 +176,7 @@ export default function EventBookingsPage() {
       <span className="ml-1 text-xs text-ink/50">· {paymentMethodLabel(b.paymentMethod)}</span>
       {showCheckedIn && b.checkedIn && <span className="ml-2 text-xs font-bold text-green-dark">checked in</span>}
       {/* The card payment in Stripe (a friend's is the member's who brought them). */}
-      {hasStripePayment(b) && (
+      {isAdmin && hasStripePayment(b) && (
         <a href={`/api/admin/bookings/${b.id}/stripe?open=1`} target="_blank" rel="noopener noreferrer" className="ml-2 whitespace-nowrap text-xs font-bold text-plum hover:underline">
           View in Stripe
         </a>

@@ -10,9 +10,13 @@ describe('timeZoneForCity', () => {
   it('maps every city the site offers', () => {
     // The fixed list from prisma/seed.ts — a city missing here would silently
     // fall back to Sydney time.
-    for (const city of ['Sydney', 'Melbourne', 'Brisbane', 'Adelaide', 'Perth', 'Gold Coast', 'Newcastle', 'Central Coast', 'Wollongong']) {
-      expect(timeZoneForCity(city), city).toMatch(/^Australia\//);
+    // Gil's franchise locations (15 Nov) included. Sydney is also the
+    // fallback, so a Sydney-time city is checked against a list of its own.
+    const sydneyTime = ['Sydney', 'Newcastle', 'Central Coast', 'Wollongong', 'Canberra', 'North Coast (NSW)'];
+    for (const city of ['Melbourne', 'Brisbane', 'Adelaide', 'Perth', 'Gold Coast', 'Hobart', 'Sunshine Coast', 'Townsville', 'Cairns', 'Rockhampton', 'Fremantle', 'Geelong']) {
+      expect(timeZoneForCity(city), city).toMatch(/^Australia\/(?!Sydney)/);
     }
+    for (const city of sydneyTime) expect(timeZoneForCity(city), city).toBe('Australia/Sydney');
   });
 
   it('falls back to Sydney for anything unknown', () => {

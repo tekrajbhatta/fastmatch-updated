@@ -2,7 +2,7 @@
 // component) so the root layout — a server component — can put the
 // --header-h variable on <html> for the first paint.
 //
-// The admin (ten items) and member (five) navs won't fit beside the logo
+// The admin (twelve items) and member (five) navs won't fit beside the logo
 // on a tablet, so they collapse into the menu button later than the
 // two-item public nav does — the admin one latest of all. The header's own
 // height switches at the same point, so the compact header is always the one
@@ -18,7 +18,9 @@
 // `content` paths; src/lib is not).
 export function siteHeaderLayout(isLoggedIn: boolean, isAdmin: boolean) {
   return isAdmin
-    ? { headerH: '[--header-h:69px] xl:[--header-h:89px]', nav: 'hidden xl:flex', burger: 'xl:hidden', logo: 'w-[150px] xl:w-[200px]', links: 'gap-5 text-[15px]' }
+    // Gil's twelve items only fit beside the logo at 1280px with the logo
+    // and the links a little smaller; from 1536px they're full size.
+    ? { headerH: '[--header-h:69px] xl:[--header-h:89px]', nav: 'hidden xl:flex', burger: 'xl:hidden', logo: 'w-[150px] xl:w-[160px] 2xl:w-[200px]', links: 'gap-4 text-[14px] 2xl:gap-5 2xl:text-[15px]' }
     : isLoggedIn
       ? { headerH: '[--header-h:69px] lg:[--header-h:89px]', nav: 'hidden lg:flex', burger: 'lg:hidden', logo: 'w-[150px] lg:w-[200px]', links: 'gap-8 text-base' }
       : { headerH: '[--header-h:69px] md:[--header-h:89px]', nav: 'hidden md:flex', burger: 'md:hidden', logo: 'w-[150px] md:w-[200px]', links: 'gap-8 text-base' };

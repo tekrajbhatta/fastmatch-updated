@@ -60,6 +60,8 @@ vi.mock('../refunds', () => ({
 }));
 vi.mock('../emails/send', () => ({ sendEmail: vi.fn(async (m: any) => { h.emails.push(m); }) }));
 vi.mock('../sms/send', () => ({ sendSms: vi.fn(async (m: any) => { h.sms.push(m); }) }));
+// Member emails' contact address: Gil's, as for any event outside a franchisee's location.
+vi.mock('../eventContact', () => ({ eventContactEmail: async () => 'gil@fastmatch.com.au' }));
 vi.mock('../paymentAlerts', () => ({
   alertRefundNeeded: vi.fn(async (a: any) => { h.alerts.push(a); }),
   notifyAutoRefund: vi.fn(async (a: any) => { h.notices.push(a); }),

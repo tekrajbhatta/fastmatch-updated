@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff, canSeeCity, notAuthorized } from '@/lib/staff';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { pictureUrlProblem, websiteProblem } from '@/lib/eventInput';
 
@@ -38,15 +38,20 @@ const venueSchema = z.object({
 
 // GET /api/admin/venues?cityId= — the venue directory, and the source for the
 // dropdowns on the event and blast forms. cityId filters it, which is how the
-// event form narrows venues to the city already chosen on the event.
+// event form narrows venues to the city already chosen on the event. A
+// franchisee's: only their locations' (src/lib/staff.ts).
 export const GET = withErrorHandling(async (req: NextRequest) => {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const cityId = req.nextUrl.searchParams.get('cityId') ?? undefined;
 
+  const mine = staff.cityIds;
   const venues = await prisma.venue.findMany({
-    where: cityId ? { cityId } : undefined,
+    where: {
+      ...(cityId ? { cityId } : {}),
+      ...(mine ? { AND: [{ cityId: { in: mine } }] } : {}),
+    },
     include: {
       city: { select: { id: true, name: true } },
       // Drives the "used by N events" note and the delete guard in the UI.
@@ -60,8 +65,8 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 
 // POST /api/admin/venues — "Create venue".
 export const POST = withErrorHandling(async (req: NextRequest) => {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const parsed = venueSchema.safeParse(await req.json());
   // A web address's own message says what to fix; anything else, the general one.
@@ -73,6 +78,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const city = await prisma.city.findUnique({ where: { id: data.cityId } });
   if (!city) return NextResponse.json({ error: 'Please select a valid city.' }, { status: 400 });
+  if (!canSeeCity(staff, city.id)) return NextResponse.json({ error: 'Please choose one of your locations.' }, { status: 400 });
 
   // (name, cityId) is @unique — check first so a duplicate reads as a clear
   // message rather than a raw constraint violation.

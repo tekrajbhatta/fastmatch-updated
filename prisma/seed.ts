@@ -28,6 +28,16 @@ const CITIES = [
   'Newcastle',
   'Central Coast',
   'Wollongong',
+  // Gil's franchise locations (15 Nov; migration 20261115120000_franchises).
+  'Hobart',
+  'Canberra',
+  'Sunshine Coast',
+  'Townsville',
+  'Cairns',
+  'Rockhampton',
+  'North Coast (NSW)',
+  'Fremantle',
+  'Geelong',
 ];
 
 // Spec 2.1a — final confirmed list (23 themes). Admin can add more later.

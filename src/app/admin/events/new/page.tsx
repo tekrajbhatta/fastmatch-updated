@@ -12,6 +12,7 @@ import { timeZoneForCity } from '@/lib/timezone';
 import type { RatingAudience } from '@/lib/ratingAudience';
 import { OFFERING_OPTIONS, type EventOffering } from '@/lib/eventOffering';
 import { checkNewEvent, eventNumbers, EVENT_NUMBER_FIELDS, CHECK_FIELDS, type EventFieldErrors } from '@/lib/eventInput';
+import { useStaff, onlyMine } from '@/components/StaffContext';
 
 interface City { id: string; name: string; }
 interface Theme { id: string; name: string; }
@@ -19,6 +20,8 @@ interface Venue { id: string; name: string; logoUrl: string | null; imageUrl: st
 
 export default function NewEventPage() {
   const router = useRouter();
+  // A franchisee's events are in their own locations (src/lib/staff.ts).
+  const { cities: myCities } = useStaff();
   const [cities, setCities] = useState<City[]>([]);
   const [themes, setThemes] = useState<Theme[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -38,7 +41,8 @@ export default function NewEventPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch('/api/cities').then((r) => r.json()).then((data) => {
+    fetch('/api/cities').then((r) => r.json()).then((all: City[]) => {
+      const data = onlyMine(all, myCities);
       setCities(data);
       if (data.length) setForm((f) => ({ ...f, cityId: data[0].id }));
     });
@@ -47,6 +51,7 @@ export default function NewEventPage() {
       if (data.length) setForm((f) => ({ ...f, themeId: data[0].id }));
     });
     fetch('/api/admin/venues').then((r) => r.json()).then(setVenues);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Venues belong to a city, so the dropdown only offers venues in the city
@@ -95,7 +100,9 @@ export default function NewEventPage() {
       setError(typeof data.error === 'string' ? data.error : 'Please check your details.');
       return;
     }
-    router.push('/admin/events');
+    // The events list then offers the Ad Maker for it (the first, for a series).
+    const first = Array.isArray(data.events) ? data.events[0]?.id : null;
+    router.push(first ? `/admin/events?made=${encodeURIComponent(first)}` : '/admin/events');
   }
   const err = (k: string) => fieldErrors[k];
 

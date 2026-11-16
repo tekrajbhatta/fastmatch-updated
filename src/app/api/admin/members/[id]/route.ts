@@ -13,6 +13,8 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
   const params = await ctx.params;
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  // A franchisee's login isn't a member: it's changed on the Franchises page.
+  if (await isFranchiseLogin(params.id)) return NextResponse.json({ error: ON_FRANCHISES_PAGE }, { status: 404 });
 
   const member = await prisma.member.findUniqueOrThrow({
     where: { id: params.id },
@@ -39,6 +41,9 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
 
   return NextResponse.json({ ...safeMember, matches });
 });
+
+const ON_FRANCHISES_PAGE = 'This is a franchisee’s login, not a member: change it on the Franchises page.';
+const isFranchiseLogin = async (id: string) => !!(await prisma.member.findUnique({ where: { id }, select: { isFranchisee: true } }))?.isFranchisee;
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -72,6 +77,8 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   const params = await ctx.params;
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  // A franchisee's login isn't a member: it's changed on the Franchises page.
+  if (await isFranchiseLogin(params.id)) return NextResponse.json({ error: ON_FRANCHISES_PAGE }, { status: 404 });
 
   const parsed = patchSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: 'Please check the details.' }, { status: 400 });
@@ -151,6 +158,7 @@ export const DELETE = withErrorHandling(async (req: NextRequest, ctx: { params: 
   if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
   const member = await prisma.member.findUniqueOrThrow({ where: { id: params.id } });
+  if (member.isFranchisee) return NextResponse.json({ error: ON_FRANCHISES_PAGE }, { status: 404 });
 
   // Guard against an admin deleting their own login, or another admin's —
   // there is no UI to recreate one, so this would lock people out for good.

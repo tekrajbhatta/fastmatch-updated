@@ -22,6 +22,7 @@ import { eventAvailability, NOT_BOOKABLE } from '@/lib/eventAvailability';
 import { CHECKOUT_MINUTES, holdCutoff } from '@/lib/capacity';
 import { hitRateLimit, rateKey, LIMITS } from '@/lib/rateLimit';
 import { unfinishedSteps, bookingRefusal } from '@/lib/accountSetup';
+import { FRANCHISE_CANT_BOOK } from '@/lib/franchise';
 
 /** Two presses of Book at the same moment (two tabs, a double tap): one goes ahead. */
 const BOOKED_TWICE = 'Your booking for this event changed while it was being made (it may be open in another tab). Please try again.';
@@ -32,6 +33,8 @@ export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Pr
   const params = await ctx.params;
   const member = await getSessionMember(req);
   if (!member) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  // Staff, not a member (src/lib/franchise.ts).
+  if (member.isFranchisee) return NextResponse.json({ error: FRANCHISE_CANT_BOOK }, { status: 403 });
 
   // Every press of Book counts, before any check: the friend checks say
   // whether an email belongs to a member (and roughly who), and they used to

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff, notAuthorized, notFound } from '@/lib/staff';
+import { managesCode, checkCodeLocations, codeEventAllowed } from '@/lib/discountLocations';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { Prisma } from '@prisma/client';
 import { discountDay } from '@/lib/discountDates';
@@ -13,11 +14,12 @@ import { EDIT_ON_AFFILIATES_PAGE } from '@/lib/affiliates';
 // whatever it was sent. A field not sent keeps its saved value.
 export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const current = await prisma.discountCode.findUnique({ where: { id: params.id } });
-  if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  // A franchisee: only the codes for their locations (src/lib/discountLocations.ts).
+  if (!current || !(await managesCode(staff, current.id))) return notFound();
   // An affiliate's promotion is changed on the Affiliates page, with its commission.
   if (current.affiliateId) return NextResponse.json({ error: EDIT_ON_AFFILIATES_PAGE }, { status: 409 });
   const body = (await req.json().catch(() => null)) ?? {};
@@ -35,11 +37,14 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   const checked = checkDiscountInput(parsed.data);
   if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
   const data = checked.data;
+  // "Locations": kept as they are unless sent; a franchisee's own.
+  const locations = await checkCodeLocations(staff, parsed.data.cityIds, current.id);
+  if (!locations.ok) return NextResponse.json({ error: locations.error }, { status: 400 });
 
-  // "Event": a newly chosen event must exist. (One chosen earlier and since
-  // deleted can stay, so the rest still saves.)
+  // "Event": a newly chosen event must exist (and be a franchisee's own).
+  // (One chosen earlier and since deleted can stay, so the rest still saves.)
   if (data.scopeEventId && data.scopeEventId !== current.scopeEventId
-    && !(await prisma.event.findUnique({ where: { id: data.scopeEventId }, select: { id: true } }))) {
+    && (!(await prisma.event.findUnique({ where: { id: data.scopeEventId }, select: { id: true } })) || !(await codeEventAllowed(staff, data.scopeEventId)))) {
     return NextResponse.json({ error: 'Please choose a valid event.' }, { status: 400 });
   }
   // "Event type": the same, for a newly chosen type.
@@ -55,7 +60,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
   try {
     const updated = await prisma.discountCode.update({
       where: { id: params.id },
-      data,
+      data: { ...data, ...(locations.cityIds ? { scopeCities: { set: locations.cityIds.map((id) => ({ id })) } } : {}) },
     });
     return NextResponse.json(updated);
   } catch (err) {
@@ -66,11 +71,11 @@ export const PATCH = withErrorHandling(async (req: NextRequest, ctx: { params: P
 
 export const DELETE = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const current = await prisma.discountCode.findUnique({ where: { id: params.id }, select: { affiliateId: true } });
-  if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!current || !(await managesCode(staff, params.id))) return notFound();
   // Deleted (only if never used) on the Affiliates page, so it can't leave the commission report.
   if (current.affiliateId) return NextResponse.json({ error: EDIT_ON_AFFILIATES_PAGE }, { status: 409 });
   await prisma.discountCode.delete({ where: { id: params.id } });

@@ -150,6 +150,8 @@ vi.mock('../friendShareRefund', () => ({
 }));
 vi.mock('../paymentAlerts', () => ({ alertDiscountReused: vi.fn(), alertRefundNeeded: vi.fn(), notifyAutoRefund: vi.fn() }));
 vi.mock('../auth', () => ({ getSessionMember: vi.fn(async () => h.me) }));
+// Member emails' contact address: Gil's, as for any event outside a franchisee's location.
+vi.mock('../eventContact', () => ({ eventContactEmail: async () => 'gil@fastmatch.com.au' }));
 vi.mock('../rateLimit', async (orig) => ({
   ...(await orig<typeof import('../rateLimit')>()),
   hitRateLimit: vi.fn(async () => ({ allowed: true, count: 1, retryAfterSeconds: 60 })),

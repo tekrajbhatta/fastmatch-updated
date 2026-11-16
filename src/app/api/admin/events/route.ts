@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff, eventScope, eventPlaceProblem, notAuthorized } from '@/lib/staff';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { buildOccurrenceDates } from '@/lib/eventSeries';
 import { timeZoneForCity } from '@/lib/timezone';
 import { checkNewEvent, CHECK_FIELDS } from '@/lib/eventInput';
 import { ADMIN_EVENT_INCLUDE, placesByEvent } from '@/lib/adminEvents';
 
-// GET /api/admin/events — list, newest first
+// GET /api/admin/events — list, newest first. A franchisee's: their
+// locations' (src/lib/staff.ts).
 export const GET = withErrorHandling(async (req: NextRequest) => {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const [events, places] = await Promise.all([
-    prisma.event.findMany({ orderBy: { startsAt: 'asc' }, include: ADMIN_EVENT_INCLUDE }),
+    prisma.event.findMany({ where: eventScope(staff), orderBy: { startsAt: 'asc' }, include: ADMIN_EVENT_INCLUDE }),
     placesByEvent(),
   ]);
 
@@ -22,15 +23,18 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   return NextResponse.json(events.map((e) => ({ ...e, menBooked: places.get(e.id)?.men ?? 0, womenBooked: places.get(e.id)?.women ?? 0 })));
 });
 
-// POST /api/admin/events — create one event, or a whole repeat series
+// POST /api/admin/events — create one event, or a whole repeat series. A
+// franchisee's are in their locations, at a venue there.
 export const POST = withErrorHandling(async (req: NextRequest) => {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   // The same rules as the form shows under each box (src/lib/eventInput.ts).
   const checked = checkNewEvent(await req.json().catch(() => ({})));
   if (!checked.ok) return NextResponse.json({ error: CHECK_FIELDS, fieldErrors: checked.fieldErrors }, { status: 400 });
   const data = checked.data;
+  const outside = await eventPlaceProblem(staff, data.cityId, data.venueId);
+  if (outside) return NextResponse.json({ error: CHECK_FIELDS, fieldErrors: outside }, { status: 400 });
 
   const first = new Date(data.startsAt);
   const city = await prisma.city.findUnique({ where: { id: data.cityId } });

@@ -20,9 +20,15 @@ const CITY_TIME_ZONES: Record<string, string> = {
   'Central Coast': 'Australia/Sydney',
   Wollongong: 'Australia/Sydney',
   Canberra: 'Australia/Sydney',
+  'North Coast (NSW)': 'Australia/Sydney',
   Melbourne: 'Australia/Melbourne',
+  Geelong: 'Australia/Melbourne',
   Brisbane: 'Australia/Brisbane', // no daylight saving
   'Gold Coast': 'Australia/Brisbane', // follows Queensland, not NSW
+  'Sunshine Coast': 'Australia/Brisbane',
+  Townsville: 'Australia/Brisbane',
+  Cairns: 'Australia/Brisbane',
+  Rockhampton: 'Australia/Brisbane',
   Adelaide: 'Australia/Adelaide',
   Perth: 'Australia/Perth',
   Fremantle: 'Australia/Perth',

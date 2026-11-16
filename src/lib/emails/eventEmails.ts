@@ -4,6 +4,7 @@ import { formatEventShort, EVENT_TIME_ZONE } from '../datetime';
 import { escapeHtml, oneLine } from '../escapeHtml';
 import { registeredAccountHtml, type RegisteredLinks } from './signupEmails';
 import { formatPrice } from '../price';
+import { contactLink, FASTMATCH_CONTACT_EMAIL } from '../contactEmail';
 
 // Names (member, event, venue, city) are typed by members and admins, so each
 // is escaped where it goes into the HTML, and kept to one line in a subject.
@@ -59,6 +60,8 @@ export function bookingConfirmationEmail(opts: {
   zoneNote?: string | null;
   registered?: RegisteredLinks;
   bookedByName?: string | null;
+  /** Who to write to about the event: the franchisee's address in their location (src/lib/eventContact.ts), Gil's otherwise. */
+  contactEmail?: string;
 }) {
   const dateStr = opts.startsAt.toLocaleDateString('en-AU', {
     weekday: 'long',
@@ -75,11 +78,11 @@ export function bookingConfirmationEmail(opts: {
     <p>Hi ${escapeHtml(opts.memberName)},</p>
     <p>You're confirmed for <strong>${escapeHtml(opts.eventName)}</strong> at ${escapeHtml(opts.venue)}.</p>
     <p><strong>${dateStr}</strong><br>${timeStr}</p>
-    ${opts.bookedByName ? `<p>${escapeHtml(opts.bookedByName)} booked this place for you. Not expecting this? Email <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a> and we'll cancel it.</p>` : ''}
+    ${opts.bookedByName ? `<p>${escapeHtml(opts.bookedByName)} booked this place for you. Not expecting this? Email ${contactLink(opts.contactEmail)} and we'll cancel it.</p>` : ''}
     ${opts.registered ? `<h2 style="${EMAIL_SUBHEADING}color:${BRAND_COLORS.plum};">Your FastMatch account</h2>${registeredAccountHtml(opts.registered)}` : ''}
     ${checkInStepsHtml(opts.checkInUrl)}
     <p>If for whatever reason you can't make it, please let us know as soon as you can at
-      <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>
+      ${contactLink(opts.contactEmail)}.</p>
     <p>See you there!</p>
     <p>The FastMatch Team</p>
   `);
@@ -92,7 +95,7 @@ export function bookingConfirmationEmail(opts: {
 // With no check-in URL (an event with no check-in or matches, such as a day at
 // the races) it says "your event" rather than speed dating, and nothing about
 // checking in.
-export function eventReminderEmail(opts: { memberName: string; eventName: string; startsAt: Date; venue: string; timeZone: string; zoneNote?: string | null; checkInUrl: string | null }) {
+export function eventReminderEmail(opts: { memberName: string; eventName: string; startsAt: Date; venue: string; timeZone: string; zoneNote?: string | null; checkInUrl: string | null; contactEmail?: string }) {
   const dateStr = opts.startsAt.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: opts.timeZone });
   const timeStr =
     opts.startsAt.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: opts.timeZone }) +
@@ -107,7 +110,7 @@ export function eventReminderEmail(opts: { memberName: string; eventName: string
     <p>${opts.checkInUrl ? "Remember to arrive at least 10 minutes early so you're checked in and ready to go." : 'Remember to arrive at least 10 minutes early.'}</p>
     <p><strong>${escapeHtml(opts.eventName)}</strong><br>${escapeHtml(opts.venue)}<br>${dateStr}, ${timeStr}</p>
     ${checkInStepsHtml(opts.checkInUrl)}
-    <p>Can't make it? Let us know at <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>
+    <p>Can't make it? Let us know at ${contactLink(opts.contactEmail)}.</p>
     <p>See you there!</p>
     <p>The FastMatch Team</p>
   `);
@@ -138,6 +141,8 @@ export interface EventChange {
   timeZone?: string;
   /** "Perth time" when the recipient's own clock reads differently. */
   zoneNote?: string | null;
+  /** Who to write to: the franchisee's address in their location (src/lib/eventContact.ts), Gil's otherwise. */
+  contactEmail?: string;
 }
 
 
@@ -164,8 +169,9 @@ export function eventChangeSms(c: EventChange): string {
   // contact you shortly by email" when this was added: with the address
   // right there it was redundant, and keeping it pushed the message to 162
   // characters — two over the single-SMS limit, doubling the cost of exactly
-  // the message you least want to skimp on.
-  const contact = 'gil@fastmatch.com.au';
+  // the message you least want to skimp on. In a franchisee's location it's
+  // their address (a longer one can make it two messages).
+  const contact = c.contactEmail || FASTMATCH_CONTACT_EMAIL;
 
   if (c.cancelled) {
     return `${from} has been cancelled. Sorry for the inconvenience. ${contact}`;
@@ -206,7 +212,7 @@ export function eventChangeEmail(c: EventChange & { memberName: string; refunded
           on <strong>${fmt(c.oldStartsAt)}</strong>, which you were booked into, has been cancelled.</p>
         ${c.refunded ? `<p style="${P}">Your payment of <strong>${formatPrice(c.refunded)}</strong> has been refunded to your card. Depending on your bank, it can take 5 to 10 business days to show.</p>` : ''}
         <p style="${P}">If any issues please contact
-          <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>
+          ${contactLink(c.contactEmail)}.</p>
         <p style="${P}">The FastMatch Team</p>
       `),
     };
@@ -223,7 +229,7 @@ export function eventChangeEmail(c: EventChange & { memberName: string; refunded
       which you're booked into:</p>
     ${changes.join('')}
     <p style="${P}">Sorry for the inconvenience. If this doesn't work for you, please email
-      <a href="mailto:gil@fastmatch.com.au">gil@fastmatch.com.au</a>.</p>
+      ${contactLink(c.contactEmail)}.</p>
     <p style="${P}">See you there!</p>
     <p style="${P}">The FastMatch Team</p>
   `);

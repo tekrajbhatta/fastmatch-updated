@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/prisma';
-import { getCurrentAdmin } from '@/lib/auth';
+import { getCurrentStaff, eventScope, type Staff } from '@/lib/staff';
 import { eventLabel } from '@/lib/eventLabel';
 import { formatEventWhen, EVENT_TIME_ZONE } from '@/lib/datetime';
 import { timeZoneForCity, zoneNote } from '@/lib/timezone';
@@ -16,13 +16,20 @@ export default async function AdminDashboard() {
   // The admin layout shows anyone who isn't an admin the staff card instead,
   // but this page still runs for them, so it checks for itself before reading
   // anything (the rule in src/app/admin/layout.tsx). Not requireAdminPage:
-  // that would turn their staff card into "not found".
-  const comingUp = (await getCurrentAdmin()) ? await comingUpEvents() : [];
+  // that would turn their staff card into "not found". A franchisee sees
+  // their own locations' events.
+  const staff = await getCurrentStaff();
+  const comingUp = staff ? await comingUpEvents(staff) : [];
+  const franchisee = !!staff && !staff.isAdmin;
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-extrabold text-ink">Admin dashboard</h1>
-      <p className="mb-6 text-sm text-ink/60">Manage events, blasts, members, venues, discounts, event types, and reports.</p>
+      <h1 className="mb-1 text-2xl font-extrabold text-ink">{franchisee ? 'Franchise dashboard' : 'Admin dashboard'}</h1>
+      <p className="mb-6 text-sm text-ink/60">
+        {franchisee
+          ? 'Manage your locations’ events, bookings, venues, discount codes and reports.'
+          : 'Manage events, blasts, members, venues, discounts, affiliates, franchises, event types, and reports.'}
+      </p>
 
       {/* At the venue, on a phone: tonight's bookings in one tap, not three. */}
       {comingUp.length > 0 && (
@@ -64,19 +71,32 @@ export default async function AdminDashboard() {
         </section>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        {/* Same order as the admin menu. */}
-        <DashCard href="/admin/events" title="Events" desc="Create and manage events" />
-        <DashCard href="/admin/blasts" title="Blasts" desc="Newsletters and SMS campaigns" />
-        <DashCard href="/admin/members" title="Members" desc="Search, add, and export members" />
-        <DashCard href="/admin/venues" title="Venues" desc="The venue directory used by events and blasts" />
-        <DashCard href="/admin/discounts" title="Discount codes" desc="Create and edit promo codes" />
-        <DashCard href="/admin/affiliates" title="Affiliates" desc="Partners' promotion codes and their commission" />
-        <DashCard href="/admin/event-types" title="Event Types" desc="The event types offered when creating an event" />
-        <DashCard href="/admin/feedback" title="Member Feedback" desc="Everything members have sent from the Feedback page" />
-        <DashCard href="/admin/reports" title="Reports" desc="Attendance, revenue, and matches" />
-        <DashCard href="/account" title="My Account" desc="Your profile and password" />
-      </div>
+      {franchisee ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Same order as their menu (src/components/SiteChrome.tsx). */}
+          <DashCard href="/admin/events" title="Events" desc="Create and manage your events, and their bookings" />
+          <DashCard href="/admin/members" title="Members" desc="Search the members in your locations" />
+          <DashCard href="/admin/venues" title="Venues" desc="The venues in your locations" />
+          <DashCard href="/admin/discounts" title="Discount codes" desc="Promo codes for your locations’ events" />
+          <DashCard href="/admin/reports" title="Reports" desc="Attendance, revenue, and matches for your locations" />
+          <DashCard href="/account" title="My Account" desc="Your password" />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Same order as the admin menu. */}
+          <DashCard href="/admin/events" title="Events" desc="Create and manage events" />
+          <DashCard href="/admin/blasts" title="Blasts" desc="Newsletters and SMS campaigns" />
+          <DashCard href="/admin/members" title="Members" desc="Search, add, and export members" />
+          <DashCard href="/admin/venues" title="Venues" desc="The venue directory used by events and blasts" />
+          <DashCard href="/admin/discounts" title="Discount codes" desc="Create and edit promo codes" />
+          <DashCard href="/admin/affiliates" title="Affiliates" desc="Partners' promotion codes and their commission" />
+          <DashCard href="/admin/franchises" title="Franchises" desc="Franchisees' logins, locations and agreement dates" />
+          <DashCard href="/admin/event-types" title="Event Types" desc="The event types offered when creating an event" />
+          <DashCard href="/admin/feedback" title="Member Feedback" desc="Everything members have sent from the Feedback page" />
+          <DashCard href="/admin/reports" title="Reports" desc="Attendance, revenue, and matches" />
+          <DashCard href="/account" title="My Account" desc="Your profile and password" />
+        </div>
+      )}
     </div>
   );
 }
@@ -86,10 +106,11 @@ export default async function AdminDashboard() {
  * city) and that start within the next two days, soonest first. Cancelled
  * ones are left out; hidden ones are in (they still go ahead).
  */
-async function comingUpEvents() {
+async function comingUpEvents(staff: Staff) {
   const now = new Date();
   const events = await prisma.event.findMany({
     where: {
+      ...eventScope(staff),
       status: { not: 'CANCELLED' },
       startsAt: { gte: new Date(now.getTime() - 24 * 3600e3), lte: new Date(now.getTime() + 48 * 3600e3) },
     },

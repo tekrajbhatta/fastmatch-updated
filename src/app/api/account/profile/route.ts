@@ -14,6 +14,7 @@ import { calculateAge } from '@/lib/age';
 import { sendMobileVerification } from '@/lib/memberVerification';
 import { isAustralianMobile, sameMobile, AU_MOBILE_MESSAGE } from '@/lib/mobile';
 import { ownDetails } from '../ownDetails';
+import { FRANCHISE_DETAILS_BY_GIL } from '@/lib/franchise';
 
 const schema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -49,6 +50,8 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 export const PATCH = withErrorHandling(async (req: NextRequest) => {
   const member = await getSessionMember(req);
   if (!member) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  // A franchisee's details are Gil's to change, on the Franchises page.
+  if (member.isFranchisee) return NextResponse.json({ error: FRANCHISE_DETAILS_BY_GIL }, { status: 403 });
 
   const parsed = schema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: 'Please check your details.' }, { status: 400 });

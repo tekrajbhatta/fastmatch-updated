@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { getSessionMember } from '@/lib/auth';
+import { requireStaff, canSeeCity } from '@/lib/staff';
 import { toPublicEvent } from '@/lib/publicEvent';
 import { placesTaken } from '@/lib/capacity';
 
@@ -14,9 +15,13 @@ export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Pro
     include: { theme: true, city: true, venue: true },
   });
 
-  // A copy made by "Duplicate event" isn't public until the admin saves it.
+  // A copy made by "Duplicate event" isn't public until the admin saves it:
+  // only staff who may see it (Gil, or the location's franchisee) can preview it.
   const member = await getSessionMember(req);
-  if (event.draft && !member?.isAdmin) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (event.draft && !member?.isAdmin) {
+    const staff = member?.isFranchisee ? await requireStaff(req) : null;
+    if (!staff || !canSeeCity(staff, event.cityId)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
 
   // Paid places and those held by open payment pages, never counting the
   // viewer's own unpaid attempt against them.

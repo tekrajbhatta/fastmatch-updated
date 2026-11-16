@@ -3,6 +3,10 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { getCurrentMember } from '@/lib/auth';
+import { getCurrentStaff } from '@/lib/staff';
+import { prisma } from '@/lib/prisma';
+import { StaffProvider } from '@/components/StaffContext';
+import { formatDiscountDay } from '@/lib/discountDates';
 import { PATH_HEADER } from '@/lib/pathHeader';
 import { isAdminPath } from '@/lib/accountSetup';
 import { adminTitle } from '@/lib/pageTitles';
@@ -29,9 +33,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // side by side, so a page's own server code runs (and anything it fetches
   // can reach the browser) whoever asks. Any admin server page or
   // generateMetadata that reads data must check for itself, with
-  // getCurrentAdmin() or requireAdminPage() (src/lib/auth.ts). Client pages
-  // are covered by their API routes' requireAdmin.
-  if (!member.isAdmin) {
+  // getCurrentAdmin() or requireAdminPage() (src/lib/auth.ts), or
+  // getCurrentStaff() and its location rules (src/lib/staff.ts) on a page a
+  // franchisee uses too. Client pages are covered by their API routes'
+  // requireAdmin or requireStaff.
+  // Gil, or a franchisee (src/lib/staff.ts): anyone else gets this card.
+  const staff = await getCurrentStaff();
+  if (!staff) {
     return (
       <div className="flex flex-1 items-start justify-center px-4 py-[clamp(40px,7.2vw,104px)]">
         <FormCard className="text-center">
@@ -50,5 +58,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // sits in the site header beside the logo (see SiteChrome), which both
   // puts it on one row and carries it onto non-admin pages — an admin no
   // longer loses their menu by clicking through to the public site.
-  return <div className="mx-auto max-w-[1400px] px-6 py-8 md:px-10">{children}</div>;
+  //
+  // A franchisee's pages offer only their own locations (StaffContext); the
+  // API keeps to them as well.
+  const cities = staff.cityIds
+    ? await prisma.city.findMany({ where: { id: { in: staff.cityIds } }, select: { id: true, name: true }, orderBy: { name: 'asc' } })
+    : null;
+  return (
+    <StaffProvider value={{
+      isAdmin: staff.isAdmin,
+      cities,
+      agreement: staff.agreement ? { from: formatDiscountDay(staff.agreement.from), till: formatDiscountDay(staff.agreement.till) } : null,
+    }}>
+      <div className="mx-auto max-w-[1400px] px-6 py-8 md:px-10">{children}</div>
+    </StaffProvider>
+  );
 }

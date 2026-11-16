@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff, scopeReportFilters, notAuthorized } from '@/lib/staff';
 import { withErrorHandling } from '@/lib/withErrorHandling';
 import { buildReport, reportProblem, showsSignups } from '@/lib/reports/breakdown';
 import { reportFiltersSchema, loadReportFacts, hasMemberFilters, hasEventOnlyFilters, queryValues } from '@/lib/reports/facts';
@@ -24,18 +24,19 @@ const querySchema = reportFiltersSchema.extend({
 //   Revenue  — what those bookings paid
 //   Expenses — each event's expenses, once per event; Profit = Revenue − Expenses
 export const GET = withErrorHandling(async (req: NextRequest) => {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
 
   const parsed = querySchema.safeParse(queryValues(req.nextUrl.searchParams));
   if (!parsed.success) return NextResponse.json({ error: 'Please check the report options.' }, { status: 400 });
-  const q = parsed.data;
+  // A franchisee's: their locations, within their agreement's dates.
+  const { q, cityIds } = scopeReportFilters(staff, parsed.data);
 
   const problem = reportProblem({ category: q.category, group: q.group, type: q.type, memberFilters: hasMemberFilters(q) });
   if (problem) return NextResponse.json({ error: problem }, { status: 400 });
 
   const withSignups = showsSignups({ category: q.category, group: q.group, type: q.type, eventOnlyFilters: hasEventOnlyFilters(q) });
-  const facts = await loadReportFacts(q, { signups: withSignups });
+  const facts = await loadReportFacts(q, { signups: withSignups, cityIds });
 
   const report = buildReport({ category: q.category, group: q.group, type: q.type, ...facts });
   return NextResponse.json({ ...report, signupsHidden: q.type === 'all' && facts.signups === null });

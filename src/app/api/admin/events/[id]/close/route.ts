@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff, eventInScope, notAuthorized, notFound } from '@/lib/staff';
 import { calculateMatchesForEvent } from '@/lib/calculateMatches';
 import { sendMatchEmails } from '@/lib/sendMatchEmails';
 import { withErrorHandling } from '@/lib/withErrorHandling';
@@ -14,8 +14,10 @@ import { checkInWindow } from '@/lib/eventNight';
  */
 export const GET = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
+  // A franchisee: only their locations' events (src/lib/staff.ts).
+  if (!(await eventInScope(staff, params.id))) return notFound('Event not found');
 
   const event = await prisma.event.findUniqueOrThrow({ where: { id: params.id }, include: { city: true } });
   const [checkedIn, notEmailed, raters, emailedMatches, emailedBookings] = await Promise.all([
@@ -65,8 +67,10 @@ function closeBlocked(event: { status: string; startsAt: Date; city: { name: str
 // Once worked out, it sends any results that haven't gone yet instead.
 export const POST = withErrorHandling(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const params = await ctx.params;
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const staff = await requireStaff(req);
+  if (!staff) return notAuthorized();
+  // A franchisee: only their locations' events (src/lib/staff.ts).
+  if (!(await eventInScope(staff, params.id))) return notFound('Event not found');
 
   const event = await prisma.event.findUniqueOrThrow({ where: { id: params.id }, include: { city: true } });
   if (event.matchesCalculated) {

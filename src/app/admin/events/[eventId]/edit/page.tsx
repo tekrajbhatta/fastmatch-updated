@@ -12,6 +12,7 @@ import { checkInWindow } from '@/lib/eventNight';
 import { OFFERING_OPTIONS, type EventOffering } from '@/lib/eventOffering';
 import { timeZoneForCity } from '@/lib/timezone';
 import { checkEventFields, eventNumbers, EVENT_NUMBER_FIELDS, CHECK_FIELDS, CLOSED_EVENT_DATE_MESSAGE, type EventFieldErrors } from '@/lib/eventInput';
+import { useCityChoices } from '@/components/StaffContext';
 
 interface City { id: string; name: string; }
 interface Theme { id: string; name: string; }
@@ -21,6 +22,8 @@ export default function EditEventPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const router = useRouter();
   const [cities, setCities] = useState<City[]>([]);
+  // A franchisee's events stay in their own locations (src/lib/staff.ts).
+  const cityChoices = useCityChoices(cities);
   const [themes, setThemes] = useState<Theme[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [form, setForm] = useState<any>(null);
@@ -190,7 +193,7 @@ export default function EditEventPage() {
             </Field>
             <Field label="City" error={err('cityId')}>
               <Select value={form.cityId} onChange={(e) => setForm({ ...form, cityId: e.target.value })}>
-                {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {cityChoices.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </Select>
             </Field>
           </div>

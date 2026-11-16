@@ -8,6 +8,7 @@ import { memberFilterFromParams, memberFilterToParams, describeMemberFilter } fr
 import { calculateAge } from '@/lib/age';
 import { countOf } from '@/lib/plural';
 import { useIsPhone } from '@/lib/useMediaQuery';
+import { useStaff, useCityChoices } from '@/components/StaffContext';
 
 interface Member { id: string; name: string; email: string; mobile: string; city: { name: string }; gender: string; dateOfBirth: string; _count: { bookings: number }; }
 interface Totals { count: number; male: number; female: number; totalMatches: number; }
@@ -16,6 +17,9 @@ interface City { id: string; name: string; }
 export default function AdminMembersPage() {
   const router = useRouter();
   const phone = useIsPhone();
+  // A franchisee searches their locations' members (Gil's answer 3): no
+  // member pages, adding, export or blasts, which stay Gil's.
+  const { isAdmin } = useStaff();
   // On a phone the four extra filters fold away under "More filters", so the
   // list isn't a whole screen down; Search is always there.
   const [moreFilters, setMoreFilters] = useState(false);
@@ -23,6 +27,7 @@ export default function AdminMembersPage() {
   // True while a page of members is being fetched (first load and every re-filter).
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [cities, setCities] = useState<City[]>([]);
+  const cityChoices = useCityChoices(cities);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -85,10 +90,10 @@ export default function AdminMembersPage() {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="mb-1 text-2xl font-extrabold text-ink">Members</h1>
-          <p className="text-sm text-ink/60">{totals ? `${countOf(totals.count, 'member currently matches', 'members currently match')} this filter.` : 'Loading…'}</p>
+          <p className="text-sm text-ink/60">{totals ? `${countOf(totals.count, 'member currently matches', 'members currently match')} this filter${isAdmin ? '' : ', in your locations'}.` : 'Loading…'}</p>
         </div>
         {/* Registers someone without an event (Gil). */}
-        <Link href="/admin/members/new"><Button>+ Add member</Button></Link>
+        {isAdmin && <Link href="/admin/members/new"><Button>+ Add member</Button></Link>}
       </div>
 
       <Card className="mb-6">
@@ -103,7 +108,7 @@ export default function AdminMembersPage() {
           <Field label="City">
             <Select value={filters.cityId} onChange={(e) => setFilters({ ...filters, cityId: e.target.value })}>
               <option value="">Any</option>
-              {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {cityChoices.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           </Field>
           <Field label="Age from"><Input type="number" inputMode="numeric" value={filters.ageMin} onChange={(e) => setFilters({ ...filters, ageMin: e.target.value })} /></Field>
@@ -117,7 +122,7 @@ export default function AdminMembersPage() {
         )}
         <div className="mt-2 flex flex-wrap gap-2">
           <Button onClick={() => loadMembers(1, filterParams().toString())}>Apply filters</Button>
-          <Button variant="ghost" onClick={handleExport}>Export CSV</Button>
+          {isAdmin && <Button variant="ghost" onClick={handleExport}>Export CSV</Button>}
         </div>
       </Card>
 
@@ -126,11 +131,13 @@ export default function AdminMembersPage() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-plum/20 bg-white p-3">
           <div className="text-sm">
             <span className="font-bold text-ink">Filter currently applied: </span>
-            <span className="text-ink/70">{appliedSummary.length ? appliedSummary.join(' · ') : 'none (every member)'}</span>
+            <span className="text-ink/70">{appliedSummary.length ? appliedSummary.join(' · ') : isAdmin ? 'none (every member)' : 'none (every member in your locations)'}</span>
           </div>
-          <Button onClick={() => router.push(`/admin/members/blast?${applied}`)} disabled={totals.count === 0}>
-            Click here to blast these filtered members
-          </Button>
+          {isAdmin && (
+            <Button onClick={() => router.push(`/admin/members/blast?${applied}`)} disabled={totals.count === 0}>
+              Click here to blast these filtered members
+            </Button>
+          )}
         </div>
       )}
 
@@ -147,29 +154,34 @@ export default function AdminMembersPage() {
         <div className="space-y-2">
           {loadingMembers ? <Loader label="Loading members…" /> : members.length === 0 ? (
             <p className="text-sm text-ink/50">No members match this filter.</p>
-          ) : members.map((m) => (
-            <Link key={m.id} href={`/admin/members/${m.id}`} className="block rounded-xl border border-ink/10 bg-white p-4 hover:bg-cream/30">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 font-bold text-ink">{m.name}</div>
-                <span className="shrink-0 text-xs text-ink/50">{countOf(m._count.bookings, 'event', 'events')} attended</span>
-              </div>
-              <div className="break-all text-sm text-ink/60">{m.email}</div>
-              <div className="text-sm text-ink/60">{m.mobile} · {m.gender === 'MALE' ? 'Male' : 'Female'} · {calculateAge(new Date(m.dateOfBirth))} · {m.city?.name}</div>
-            </Link>
-          ))}
+          ) : members.map((m) => {
+            const card = (
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 font-bold text-ink">{m.name}</div>
+                  <span className="shrink-0 text-xs text-ink/50">{countOf(m._count.bookings, 'event', 'events')} attended</span>
+                </div>
+                <div className="break-all text-sm text-ink/60">{m.email}</div>
+                <div className="text-sm text-ink/60">{m.mobile} · {m.gender === 'MALE' ? 'Male' : 'Female'} · {calculateAge(new Date(m.dateOfBirth))} · {m.city?.name}</div>
+              </>
+            );
+            return isAdmin
+              ? <Link key={m.id} href={`/admin/members/${m.id}`} className="block rounded-xl border border-ink/10 bg-white p-4 hover:bg-cream/30">{card}</Link>
+              : <div key={m.id} className="rounded-xl border border-ink/10 bg-white p-4">{card}</div>;
+          })}
         </div>
       ) : (
       // A computer: the table (it scrolls sideways if the window is narrow).
       <div className="overflow-x-auto rounded-xl border border-ink/10 bg-white">
         <table className="w-full whitespace-nowrap text-sm">
           <thead className="bg-cream/50 text-left text-xs font-bold uppercase text-ink/50">
-            <tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Mobile</th><th className="px-4 py-3">Gender</th><th className="px-4 py-3">Age</th><th className="px-4 py-3">City</th><th className="px-4 py-3">Events attended</th><th className="px-4 py-3 text-right">Action</th></tr>
+            <tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Mobile</th><th className="px-4 py-3">Gender</th><th className="px-4 py-3">Age</th><th className="px-4 py-3">City</th><th className="px-4 py-3">Events attended</th>{isAdmin && <th className="px-4 py-3 text-right">Action</th>}</tr>
           </thead>
           <tbody>
             {loadingMembers ? (
               <tr><td colSpan={8}><Loader label="Loading members…" /></td></tr>
             ) : members.map((m) => (
-              <tr key={m.id} className="cursor-pointer border-t border-ink/5 hover:bg-cream/30" onClick={() => router.push(`/admin/members/${m.id}`)}>
+              <tr key={m.id} className={`border-t border-ink/5 ${isAdmin ? 'cursor-pointer hover:bg-cream/30' : ''}`} onClick={isAdmin ? () => router.push(`/admin/members/${m.id}`) : undefined}>
                 <td className="px-4 py-3 font-bold text-ink">{m.name}</td>
                 <td className="px-4 py-3 text-ink/60">{m.email}</td>
                 <td className="px-4 py-3 text-ink/60">{m.mobile}</td>
@@ -177,7 +189,7 @@ export default function AdminMembersPage() {
                 <td className="px-4 py-3 text-ink/60">{calculateAge(new Date(m.dateOfBirth))}</td>
                 <td className="px-4 py-3 text-ink/60">{m.city?.name}</td>
                 <td className="px-4 py-3"><Badge tone="green">{m._count.bookings}</Badge></td>
-                <td className="px-4 py-3 text-right">
+                {isAdmin && <td className="px-4 py-3 text-right">
                   {/* Same destination as clicking the row: a visible target,
                       as on the events list. */}
                   <Link
@@ -187,7 +199,7 @@ export default function AdminMembersPage() {
                   >
                     Manage
                   </Link>
-                </td>
+                </td>}
               </tr>
             ))}
           </tbody>

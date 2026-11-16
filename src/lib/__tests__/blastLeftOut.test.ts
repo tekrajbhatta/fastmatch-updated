@@ -95,6 +95,7 @@ function meets(where: Record<string, unknown>, m: LeftOutMember): boolean {
     if (field === 'AND') return (rule as Record<string, unknown>[]).every((w) => meets(w, m));
     if (field === 'OR') return (rule as Record<string, unknown>[]).some((w) => meets(w, m));
     if (field === 'NOT') return !meets(rule as Record<string, unknown>, m);
+    if (field === 'isFranchisee') return rule === false; // nobody here is a franchise login
     if (field === 'id') return ((rule as { in: string[] }).in.length > 0);
     if (field === 'bookings') return 'none' in (rule as object) ? !m.booked : m.booked;
     if (rule && typeof rule === 'object' && 'in' in rule) return (rule as { in: unknown[] }).in.includes(m[field as keyof LeftOutMember]);

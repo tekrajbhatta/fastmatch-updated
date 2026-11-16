@@ -6,6 +6,7 @@ import { venueLine } from './venue';
 import { eventTimeFor } from './timezone';
 import { eventLabel } from './eventLabel';
 import { noMatches } from './ratingAudience';
+import { eventContactEmail } from './eventContact';
 
 /**
  * The "You're booked in!" email. `registered`: the admin has just added them
@@ -42,6 +43,7 @@ export async function sendBookingConfirmation(bookingId: string, opts: { registe
     checkInUrl,
     ...(opts.registered ? { registered: registeredLinks(booking.member) } : {}),
     ...(bookedBy ? { bookedByName: bookedBy } : {}),
+    contactEmail: await eventContactEmail(booking.event),
   });
 
   await sendEmail({ to: booking.member.email, subject, html });

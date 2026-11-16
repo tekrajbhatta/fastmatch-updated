@@ -19,6 +19,9 @@ export const discountInputSchema = z.object({
   // "YYYY-MM-DD": whole days in Sydney (src/lib/discountDates.ts).
   validFrom: z.string(),
   validTo: z.string(),
+  // "Locations": none = every location; checked against who's saving it by
+  // src/lib/discountLocations.ts. Not sent: an existing code keeps its own.
+  cityIds: z.array(z.string().min(1).max(100)).max(100).optional(),
 });
 
 export type DiscountInput = z.infer<typeof discountInputSchema>;

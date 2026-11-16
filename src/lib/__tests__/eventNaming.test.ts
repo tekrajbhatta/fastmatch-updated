@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock('@/lib/emails/send', () => ({ sendEmail: async (m: { to: string; subject: string; html: string }) => { h.sent.push(m); } }));
 vi.mock('@/lib/prisma', () => ({ prisma: { booking: { findUniqueOrThrow: async () => h.booking } } }));
+// Member emails' contact address: Gil's, as for any event outside a franchisee's location.
+vi.mock('@/lib/eventContact', () => ({ eventContactEmail: async () => 'gil@fastmatch.com.au' }));
 
 beforeAll(() => {
   process.env.JWT_SECRET = 'test-secret-for-gil2-batch4';
