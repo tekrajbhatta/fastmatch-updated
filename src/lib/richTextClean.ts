@@ -35,7 +35,9 @@ const STYLES: sanitizeHtml.IOptions['allowedStyles'] = {
 const OPTIONS: sanitizeHtml.IOptions = {
   allowedTags: ['b', 'strong', 'i', 'em', 'u', 's', 'br', 'p', 'div', 'span', 'a', 'font'],
   allowedAttributes: {
-    a: ['href'],
+    // A link's own style: colour, highlight, bold or size given to the whole
+    // link sits on the link itself (the browsers put it there), and was lost.
+    a: ['href', 'style'],
     span: ['style'],
     p: ['style'],
     div: ['style'],

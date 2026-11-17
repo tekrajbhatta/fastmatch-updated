@@ -64,7 +64,8 @@ describe('the blast editor', () => {
     });
     expect(html).toContain('<span style="color:red">BY POPULAR DEMAND</span></div><div>WE ARE BACK</div></h1>');
     expect(html).toContain('<p style="margin:0 0 14px;"><b>HOWEVER.....</b></p>');
-    expect(html).toContain('<p style="margin:0 0 14px;text-align:center">Then <a href="https://x.test/register">register</a></p>');
+    // Links in plum and underlined, as the editor shows them (src/lib/__tests__/blastEditorLinks.test.ts).
+    expect(html).toContain('<p style="margin:0 0 14px;text-align:center">Then <a href="https://x.test/register" style="color:#3D1E6D;text-decoration:underline;">register</a></p>');
     const plain = renderCampaignEmailHtml({ heading: 'A & B\nC', freeText: 'One\nTwo', unsubscribeUrl: 'u' });
     expect(plain).toContain('A &amp; B<br/>C</h1>');
     expect(plain).toContain('<p style="margin:0 0 14px;">One</p><p style="margin:0 0 14px;">Two</p>');

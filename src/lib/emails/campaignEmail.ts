@@ -1,7 +1,7 @@
 import { BRAND_COLORS } from '../brand';
 import { escapeHtml, safeHref, safeSrc } from '../escapeHtml';
 import { EMAIL_HEADING, EMAIL_FRAME } from './layout';
-import { isRich, richBody, wrapLooseLines } from '../richText';
+import { isRich, richBody, wrapLooseLines, withLinkStyles } from '../richText';
 
 /** Cleans editor HTML (src/lib/richTextClean.ts). Server code passes it in; the
  * blast form's own preview, in a sandboxed frame, renders without it. */
@@ -116,9 +116,10 @@ export function renderCampaignEmailHtml(fields: {
   // Plain text (typed before the editor, or copied in from a venue or an
   // event) is escaped, its line breaks kept: here as paragraphs, in the
   // heading as <br/>, in the details by pre-line. Written in the editor: its
-  // HTML, cleaned, with the same spacing between paragraphs.
+  // HTML, cleaned, with the same spacing between paragraphs, and its links in
+  // the colour the editor shows them in (their own, or plum).
   const paragraphs = isRich(fields.freeText)
-    ? `<div>${wrapLooseLines(clean(richBody(fields.freeText))).replace(/<p( style="([^"]*)")?>/g, '<p style="margin:0 0 14px;$2">')}</div>`
+    ? `<div>${withLinkStyles(wrapLooseLines(clean(richBody(fields.freeText))), BRAND_COLORS.plum).replace(/<p( style="([^"]*)")?>/g, '<p style="margin:0 0 14px;$2">')}</div>`
     : (fields.freeText || '')
         .split('\n')
         .filter((line) => line.trim())
@@ -126,7 +127,7 @@ export function renderCampaignEmailHtml(fields: {
         .join('');
   // Lines of a heading written in the editor are <div>s: a <p> can't sit in an <h1>.
   const headingHtml = isRich(fields.heading)
-    ? clean(richBody(fields.heading)).replace(/<p(\s|>)/g, '<div$1').replace(/<\/p>/g, '</div>')
+    ? withLinkStyles(clean(richBody(fields.heading)), BRAND_COLORS.plum).replace(/<p(\s|>)/g, '<div$1').replace(/<\/p>/g, '</div>')
     : (fields.heading ?? '').split('\n').filter((l) => l.trim()).map(escapeHtml).join('<br/>');
 
   // Light background with dark text, NOT the plum block this briefly used.

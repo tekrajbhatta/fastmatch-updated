@@ -64,6 +64,54 @@ export function wrapLooseLines(html: string): string {
   return out.join('');
 }
 
+/**
+ * The address for a link, from what was typed in the editor's "Link to" box
+ * (Gil): an email address becomes a mailto: link, and a web address typed
+ * without http:// gets https://. Null for anything that isn't a web page or
+ * an email address ("click here", a javascript: link), so the box can say so.
+ */
+export function linkHref(typed: string): string | null {
+  const t = typed.trim();
+  if (!t || /\s/.test(t)) return null;
+  const email = /^mailto:/i.test(t) ? t.slice(7) : t;
+  if (EMAIL_ADDRESS.test(email)) return `mailto:${email}`;
+  if (/^mailto:/i.test(t)) return null;
+  const address = /^https?:\/\//i.test(t) ? t : `https://${t.replace(/^\/+/, '')}`;
+  try {
+    // A site's name has a dot in it (fastmatch.com.au), and "javascript:…"
+    // read as a site's name doesn't parse.
+    const url = new URL(address);
+    return /^https?:$/.test(url.protocol) && url.hostname.includes('.') ? address : null;
+  } catch {
+    return null;
+  }
+}
+
+const EMAIL_ADDRESS = /^[^\s@/:]+@[^\s@/]+\.[^\s@/]+$/;
+
+/** A link's address as the "Link to" box shows it: an email address without its mailto:. */
+export function linkHrefForDisplay(href: string | null | undefined): string {
+  return (href ?? '').replace(/^mailto:/i, '');
+}
+
+/**
+ * Links in an email in the colour the editor shows them in: the colour
+ * chosen for them with Colour, or plum, and underlined. Without a colour of
+ * their own, mail programs show links in their own blue (Gil's coloured
+ * links came out blue in the preview). `html` is the editor's cleaned HTML.
+ */
+export function withLinkStyles(html: string, colour: string): string {
+  return html.replace(/<a\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi, (tag, attrs: string) => {
+    const found = /\sstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs);
+    const style = found ? (found[1] ?? found[2] ?? '') : '';
+    const has = (property: string) => new RegExp(`(^|;)\\s*${property}\\s*:`, 'i').test(style);
+    const missing = `${has('color') ? '' : `color:${colour};`}${has('text-decoration') || has('text-decoration-line') ? '' : 'text-decoration:underline;'}`;
+    if (!missing) return tag;
+    const rest = found ? attrs.replace(found[0], '') : attrs;
+    return `<a${rest} style="${(missing + style).replace(/"/g, '&quot;')}">`;
+  });
+}
+
 /** The words only, for anywhere that needs plain text (a heading used as a label, say). */
 export function richToPlainText(value: string | null | undefined): string {
   if (!value) return '';
