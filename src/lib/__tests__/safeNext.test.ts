@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { safeNext } from '@/lib/safeNext';
+import { safeNext, alreadyLoggedInHref } from '@/lib/safeNext';
 
 const O = 'https://fastmatch.test';
 
@@ -32,5 +32,31 @@ describe('safeNext (after logging in)', () => {
   it('falls back when there is nothing to follow', () => {
     expect(safeNext(null, '/admin', O)).toBe('/admin');
     expect(safeNext('', '/admin', O)).toBe('/admin');
+  });
+});
+
+describe('alreadyLoggedInHref (Log in or Sign up while logged in)', () => {
+  it('sends a member to My account, and staff to the admin', () => {
+    expect(alreadyLoggedInHref('/login', false)).toBe('/account');
+    expect(alreadyLoggedInHref('/register', false)).toBe('/account');
+    expect(alreadyLoggedInHref('/login', true)).toBe('/admin');
+    expect(alreadyLoggedInHref('', false)).toBe('/account');
+  });
+
+  it('follows the ?next= they came with, as after logging in', () => {
+    expect(alreadyLoggedInHref('/login?next=%2Fevents%2Fabc', false)).toBe('/events/abc');
+    expect(alreadyLoggedInHref('/register?next=%2Fevents%2Fabc%3Fx%3D1', false)).toBe('/events/abc?x=1');
+    expect(alreadyLoggedInHref('/login?next=%2Fadmin%2Fevents', true)).toBe('/admin/events');
+  });
+
+  it('never another site, an admin page for a member, or back to Log in or Sign up', () => {
+    expect(alreadyLoggedInHref('/login?next=%2F%2Fevil.example', false)).toBe('/account');
+    expect(alreadyLoggedInHref('/login?next=https%3A%2F%2Fevil.example', false)).toBe('/account');
+    expect(alreadyLoggedInHref('/login?next=%2F%5Cevil.example', false)).toBe('/account');
+    expect(alreadyLoggedInHref('/login?next=%2Fadmin', false)).toBe('/account');
+    expect(alreadyLoggedInHref('/login?next=%2Fadmin%2Fmembers', false)).toBe('/account');
+    expect(alreadyLoggedInHref('/login?next=%2Flogin', false)).toBe('/account');
+    expect(alreadyLoggedInHref('/login?next=%2Fregister%3Fnext%3D%2Fx', true)).toBe('/admin');
+    expect(alreadyLoggedInHref('/login?next=%2Flogin%2F', false)).toBe('/account');
   });
 });

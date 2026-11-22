@@ -37,15 +37,23 @@ function isProtected(pathname: string): boolean {
   return PROTECTED_EVENT_SUBPAGES.test(pathname);
 }
 
+// Log in and Sign up send on someone already logged in, to the ?next= they
+// came with (src/lib/alreadyLoggedIn.ts): their layouts need the address.
+const LOGIN_PAGES = ['/login', '/register'];
+
+/** The request, with the address asked for set for the page (src/lib/pathHeader.ts). */
+function withPath(req: NextRequest) {
+  const headers = new Headers(req.headers);
+  headers.set(PATH_HEADER, req.nextUrl.pathname + req.nextUrl.search);
+  return NextResponse.next({ request: { headers } });
+}
+
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
+  if (LOGIN_PAGES.includes(pathname)) return withPath(req);
   if (!isProtected(pathname)) return NextResponse.next();
-  if (req.cookies.get('fm_session')?.value) {
-    const headers = new Headers(req.headers);
-    headers.set(PATH_HEADER, pathname + search);
-    return NextResponse.next({ request: { headers } });
-  }
+  if (req.cookies.get('fm_session')?.value) return withPath(req);
 
   const login = new URL('/login', req.url);
   // Carry the original destination (including any query string) so login can
