@@ -83,7 +83,7 @@ export default function EditProfilePage() {
       <FormCard>
         {needsLogin ? <SessionExpired next="/account/edit-profile" /> : loadFailed ? <LoadFailed /> : !loaded ? <LoadingNote>Loading your details…</LoadingNote> : (
         <form onSubmit={handleSave} className="flex flex-col gap-5">
-          <Field label="Name"><TextInput required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+          <Field label="Full name"><TextInput required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
           <Field label="Email"><TextInput type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
           {emailChanging && (
             <Field label="Current password" hint="To change your email address, please enter your password.">

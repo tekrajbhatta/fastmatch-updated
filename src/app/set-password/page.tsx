@@ -122,7 +122,7 @@ function SetPasswordInner() {
             </div>
 
             <h2 className="mt-1 border-t border-line pt-6 font-display text-[22px] font-extrabold leading-tight tracking-[-0.02em] text-ink-900">Your details</h2>
-            <Field label="Name"><TextInput required value={form.name} onChange={(e) => set({ name: e.target.value })} /></Field>
+            <Field label="Full name"><TextInput required value={form.name} onChange={(e) => set({ name: e.target.value })} /></Field>
             <div className="flex flex-wrap gap-x-3.5 gap-y-[22px]">
               <Field label="Mobile" className="flex-[1_1_150px]"><TextInput type="tel" required value={form.mobile} onChange={(e) => set({ mobile: e.target.value })} /></Field>
               <Field label="Date of birth" className="flex-[1_1_150px]"><TextInput type="date" required max={maxDob} value={form.dateOfBirth} onChange={(e) => set({ dateOfBirth: e.target.value })} /></Field>

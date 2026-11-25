@@ -160,7 +160,7 @@ export default function MemberDetailPage() {
         <Card className="mb-6">
           <h2 className="mb-3 font-extrabold text-ink">Edit member</h2>
           <form onSubmit={handleSave}>
-            <Field label="Name"><Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+            <Field label="Full name"><Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
             <Field label="Email"><Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
             {/* Required, unless the member has none yet (imported from the old site). */}
             <Field label="Mobile"><Input required={!!member.mobile} title={AU_MOBILE_MESSAGE} value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} /></Field>

@@ -82,8 +82,8 @@ export default function RegisterPage() {
     <SplitLayout title="Create your profile" lead="Register below and we'll email you to confirm your membership." stickyIntro>
       <FormCard>
         <form onSubmit={handleSubmit} className="flex flex-col gap-[22px]">
-          <Field label="Name">
-            <TextInput required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Full name" />
+          <Field label="Full name">
+            <TextInput required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="First and last name" />
           </Field>
           <RadioCards
             legend="Gender"

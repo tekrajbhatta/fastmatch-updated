@@ -37,7 +37,7 @@ export default function NewMemberFields({ form, set, cities, confirmationNote }:
   return (
     <Card className="mb-4">
       <h2 className="mb-3 font-extrabold text-ink">Member details</h2>
-      <Field label="Name"><Input required value={form.name} onChange={(e) => set({ name: e.target.value })} /></Field>
+      <Field label="Full name"><Input required value={form.name} onChange={(e) => set({ name: e.target.value })} /></Field>
       {/* autoComplete off / new-password: otherwise the browser offers the
           ADMIN's own saved login for these two fields. */}
       <Field label="Email"><Input type="email" required autoComplete="off" value={form.email} onChange={(e) => set({ email: e.target.value })} /></Field>

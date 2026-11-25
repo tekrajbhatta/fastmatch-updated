@@ -357,7 +357,7 @@ export default function EventDetailPage() {
                         {/* autoComplete off: otherwise the browser offers the MEMBER's
                             own saved name, email and mobile for their friend. */}
                         <div className="grid gap-4 sm:grid-cols-2">
-                          <Field label="Name" error={fieldError(g, i, 'name')}>
+                          <Field label="Full name" error={fieldError(g, i, 'name')}>
                             <TextInput autoComplete="off" value={f.name} onChange={(e) => editFriend(g, i, { name: e.target.value })} onBlur={() => touch(g, i, 'name')} />
                           </Field>
                           <Field label="Mobile" error={fieldError(g, i, 'mobile')}>

@@ -113,7 +113,7 @@ export default function AdminFranchisesPage() {
           <h2 className="mb-3 font-extrabold text-ink">{editing ? form.name || 'Franchisee' : 'New franchisee'}</h2>
           <form onSubmit={save}>
             <div className="grid gap-x-3 sm:grid-cols-2">
-              <Field label="Name"><Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+              <Field label="Full name"><Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
               <Field label="Mobile"><Input required type="tel" value={form.mobile} placeholder="0412 345 678" onChange={(e) => setForm({ ...form, mobile: e.target.value })} /></Field>
               <Field label="Email (their login)"><Input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
               <Field label={editing ? 'New password (leave empty to keep theirs)' : 'Password'}>
