@@ -50,7 +50,9 @@ describe('the Privacy Policy', () => {
     expect(page).not.toContain('5minutedating');
     expect(page).not.toContain('is our website,');
     expect(page).not.toContain('APP_URL');
-    expect(page).toContain("const LAST_UPDATED = '13 November 2026';");
+    // Updated 28 Nov for DeBounce (checking email addresses) among the service providers.
+    expect(page).toContain("const LAST_UPDATED = '28 November 2026';");
+    expect(page).toContain('DeBounce (checking that email addresses still work)');
   });
 });
 

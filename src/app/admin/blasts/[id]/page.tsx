@@ -21,7 +21,16 @@ interface Campaign {
   // Who the next send goes to (see Campaign.filter).
   filter: unknown;
 }
-interface Send { id: string; status: string; sentCount: number; failedCount?: number; totalRecipients: number; startedAt: string; }
+interface Send {
+  id: string; status: string; sentCount: number; failedCount?: number; totalRecipients: number; startedAt: string;
+  /** Members its email didn't reach because Mailgun kept saying "try again later". */
+  emailFailedIds?: unknown;
+  /** Set on a resend to those who missed out: the send it finishes. */
+  retryOfId?: string | null;
+}
+
+/** How many a send's email missed (Mailgun kept refusing for now), for "Send to the N who missed out". */
+const missedCount = (s: Send) => (Array.isArray(s.emailFailedIds) ? s.emailFailedIds.length : 0);
 interface City { id: string; name: string; }
 // Matches what POST /preview already returns (capped at 200 rows).
 interface PreviewMember { id: string; name: string; email: string; mobile: string; gender: string; contactMethod: string; city: { name: string }; }
@@ -56,6 +65,10 @@ function ViewBlastInner() {
   const [sendError, setSendError] = useState<string | null>(null);
   // Counting the filtered members (the Filter button).
   const [previewing, setPreviewing] = useState(false);
+  // History's "Send to the N who missed out" asks first, then sends.
+  const [confirmingMissed, setConfirmingMissed] = useState<Send | null>(null);
+  const [sendingMissed, setSendingMissed] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   // "Stop re-using blast" asks first: it used to act on the first click.
   const [confirmingRetire, setConfirmingRetire] = useState(false);
   const [retireBusy, setRetireBusy] = useState(false);
@@ -227,6 +240,31 @@ function ViewBlastInner() {
       setConfirmingRetire(false);
     } finally {
       setRetireBusy(false);
+    }
+  }
+
+  // The blast's email again to the members a send missed. The progress shows
+  // on the Send tab, as for any send.
+  async function handleSendMissed() {
+    if (!confirmingMissed) return;
+    setSendingMissed(true);
+    setHistoryError(null);
+    try {
+      const res = await fetch(`/api/admin/campaigns/${id}/sends/${confirmingMissed.id}/missed`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setHistoryError(typeof data.error === 'string' ? data.error : 'It could not be sent. Please try again.');
+        loadHistory();
+        return;
+      }
+      setConfirmingMissed(null);
+      setJustSent(null);
+      setTab('send');
+      await pollSend();
+    } catch {
+      setHistoryError('It could not be sent. Check your connection and try again.');
+    } finally {
+      setSendingMissed(false);
     }
   }
 
@@ -441,18 +479,32 @@ function ViewBlastInner() {
 
       {tab === 'history' && (
         <div className="space-y-2">
-          {sends.map((s) => (
-            <div key={s.id} className="flex items-center justify-between rounded-lg border border-ink/10 bg-white p-3">
-              <div>
-                <div className="text-sm font-bold text-ink">{new Date(s.startedAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
-                {/* Failures used to be counted as sent. */}
-                <div className={`text-xs ${s.failedCount ? 'font-bold text-coral' : 'text-ink/50'}`}>
-                  {s.failedCount ? blastOutcome(s.sentCount - s.failedCount, s.failedCount) : `${s.sentCount} / ${s.totalRecipients} sent`}
+          {historyError && <p role="alert" className="text-sm font-medium text-coral">{historyError}</p>}
+          {sends.map((s) => {
+            const missed = missedCount(s);
+            // Offered once per send, and not while another send is going.
+            const canResend = missed > 0 && !sends.some((x) => x.retryOfId === s.id) && s.status !== 'SENDING' && s.status !== 'PAUSED' && !activeSend;
+            return (
+              <div key={s.id} className="rounded-lg border border-ink/10 bg-white p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-bold text-ink">{new Date(s.startedAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+                    {s.retryOfId && <div className="text-xs text-ink/60">Email to those who missed out on an earlier send</div>}
+                    {/* Failures used to be counted as sent. */}
+                    <div className={`text-xs ${s.failedCount ? 'font-bold text-coral' : 'text-ink/50'}`}>
+                      {s.failedCount ? blastOutcome(s.sentCount - s.failedCount, s.failedCount) : `${s.sentCount} / ${s.totalRecipients} sent`}
+                    </div>
+                  </div>
+                  <Badge tone={s.status === 'SENT' ? 'green' : 'muted'}>{s.status}</Badge>
                 </div>
+                {canResend && (
+                  <Button variant="ghost" onClick={() => { setHistoryError(null); setConfirmingMissed(s); }} className="mt-2 w-full">
+                    Send to the {countOf(missed, 'member', 'members')} who missed out
+                  </Button>
+                )}
               </div>
-              <Badge tone={s.status === 'SENT' ? 'green' : 'muted'}>{s.status}</Badge>
-            </div>
-          ))}
+            );
+          })}
           {sends.length === 0 && <p className="text-sm text-ink/50">No sends yet.</p>}
         </div>
       )}
@@ -477,6 +529,20 @@ function ViewBlastInner() {
               <Button variant="ghost" onClick={() => setConfirmingSend(false)} className="flex-1">Cancel</Button>
               <Button onClick={handleConfirmSend} className="flex-1">Confirm &amp; Send Now</Button>
             </div>
+        </Modal>
+      )}
+      {confirmingMissed && (
+        <Modal title="Send to those who missed out?" onClose={() => setConfirmingMissed(null)} busy={sendingMissed}>
+          <p className="mb-4 text-sm text-ink/70">
+            This sends the blast&apos;s email, as it is now, to the {countOf(missedCount(confirmingMissed), 'member', 'members')} it
+            didn&apos;t reach on {new Date(confirmingMissed.startedAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} because
+            the mail server was busy. No text message goes. Anyone who has unsubscribed or bounced since is left out.
+          </p>
+          {historyError && <p role="alert" className="mb-3 text-sm font-medium text-coral">{historyError}</p>}
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => setConfirmingMissed(null)} disabled={sendingMissed} className="flex-1">Cancel</Button>
+            <Button onClick={handleSendMissed} disabled={sendingMissed} loading={sendingMissed} className="flex-1">Send now</Button>
+          </div>
         </Modal>
       )}
       {confirmingCancel && (

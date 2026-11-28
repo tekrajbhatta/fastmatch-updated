@@ -17,10 +17,24 @@ const db = vi.hoisted(() => ({
   // Attendees: paid, checked-in bookings (sendMatchEmails emails every one).
   bookings: [] as any[],
   bookingUpdates: [] as any[],
+  // Raw statements run (the missed-out list is added to in one).
+  raw: [] as { sql: string; values: unknown[] }[],
+  // Other sends of the blast (for startMissedSend), and those it creates.
+  otherSends: [] as any[],
+  created: [] as any[],
 }));
 
 vi.mock('../prisma', () => ({
   prisma: {
+    $executeRaw: vi.fn(async (strings: TemplateStringsArray, ...values: unknown[]) => { db.raw.push({ sql: strings.join('?'), values }); return 1; }),
+    $transaction: vi.fn(async (fn: (tx: any) => any) => fn({
+      $queryRaw: async () => [],
+      campaignSend: {
+        findFirst: async ({ where }: any) => db.otherSends.find((x) =>
+          (where.retryOfId ? x.retryOfId === where.retryOfId : true) && (where.status ? where.status.in.includes(x.status) : true)) ?? null,
+        create: async ({ data }: any) => { const row = { id: `new${db.created.length + 1}`, ...data }; db.created.push(row); return row; },
+      },
+    })),
     member: {
       findUnique: vi.fn(async ({ where }: any) => db.members.get(where.id) ?? null),
       findMany: vi.fn(async ({ where }: any) => (where.id.in as string[]).map((id) => db.members.get(id)).filter(Boolean)),
@@ -28,6 +42,7 @@ vi.mock('../prisma', () => ({
     },
     campaignSend: {
       findUniqueOrThrow: vi.fn(async () => ({ ...db.send })),
+      findUnique: vi.fn(async ({ where }: any) => (db.send?.id === where.id ? { ...db.send } : null)),
       // The claim: only while the send is still in the state asked for.
       updateMany: vi.fn(async ({ where, data }: any) => {
         const s = db.send;
@@ -67,6 +82,9 @@ vi.mock('../prisma', () => ({
 const sendEmail = vi.hoisted(() => vi.fn());
 const sendSmsBulk = vi.hoisted(() => vi.fn());
 vi.mock('../emails/send', () => ({ sendEmail }));
+// Pacing waits for a turn in the database; here every turn is now.
+const waitForBlastSlot = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock('../campaigns/pacing', () => ({ waitForBlastSlot }));
 vi.mock('../sms/send', () => ({ sendSmsBulk, withOptOut: (b: string) => b }));
 
 const member = (id: string, over: Record<string, unknown> = {}) => ({
@@ -85,6 +103,10 @@ beforeEach(() => {
   db.bookingUpdates.length = 0;
   sendEmail.mockReset();
   sendSmsBulk.mockReset();
+  waitForBlastSlot.mockClear();
+  db.raw.length = 0;
+  db.otherSends = [];
+  db.created.length = 0;
   process.env.JWT_SECRET = 'test-secret';
 });
 
@@ -194,6 +216,87 @@ describe('blast batch: claimed one recipient at a time', () => {
     await processCampaignSendBatch('s1');
     expect(sendEmail.mock.calls.map((c) => c[0].to)).toEqual(['m01@example.test', 'm02@example.test', 'm03@example.test']);
     expect(db.send.status).toBe('SENT');
+  });
+});
+
+/**
+ * 28 Nov 2026: Mailgun refused 77 blast emails ("421 … try again after …")
+ * and they were simply counted as failed. Now each blast email waits for its
+ * turn, sendEmail tries several times, and anyone still refused is kept as
+ * "missed out" for History's "Send to the N who missed out".
+ */
+describe('blast batch: pacing and members who missed out', () => {
+  const MAILGUN_421 = () => Object.assign(new Error('Email send failed: 421 … try again after …'), { code: 'EMESSAGE', responseCode: 421, command: 'DATA' });
+  const blast = (ids: string[], over: Record<string, unknown> = {}, sendOver: Record<string, unknown> = {}) => ({
+    id: 's1', campaignId: 'c1', status: 'SENDING', sentCount: 0, failedCount: 0, recipientIds: ids, filterSnapshot: { cityId: 'syd' },
+    campaign: { sendEmail: true, sendSms: false, ignorePreference: false, subject: 'Hi', smsBody: 'Hi', emailBody: null, heading: 'Hi', freeText: 'x', ...over },
+    ...sendOver,
+  });
+
+  it('waits for a turn before each email, asks for several tries, and keeps who was still refused', async () => {
+    for (const id of ['m01', 'm02', 'm03', 'm04']) db.members.set(id, member(id));
+    db.members.set('m05', member('m05', { contactMethod: 'SMS' })); // no email: no turn taken
+    db.send = blast(['m01', 'm02', 'm03', 'm04', 'm05']);
+    sendEmail.mockImplementation(async ({ to }: { to: string }) => {
+      if (to === 'm02@example.test') throw MAILGUN_421(); // still refused after its tries
+      if (to === 'm03@example.test') throw Object.assign(new Error('550'), { code: 'EENVELOPE', responseCode: 550, command: 'RCPT TO' }); // dead
+    });
+
+    const { processCampaignSendBatch, BLAST_EMAIL_ATTEMPTS } = await import('../campaigns/runSend');
+    const result = await processCampaignSendBatch('s1');
+
+    expect(waitForBlastSlot).toHaveBeenCalledTimes(4);
+    expect(sendEmail.mock.calls.every((c) => c[0].attempts === BLAST_EMAIL_ATTEMPTS)).toBe(true);
+    expect(BLAST_EMAIL_ATTEMPTS).toBeGreaterThan(1);
+    // The dead address is marked bounced; the refused one isn't, and is kept.
+    expect(db.memberUpdates.map((u) => u.where.id)).toEqual(['m03']);
+    expect(db.raw).toHaveLength(1);
+    expect(db.raw[0].sql).toContain('emailFailedIds');
+    expect(db.raw[0].values).toEqual([JSON.stringify(['m02']), 's1']);
+    expect(result).toMatchObject({ failedCount: 2, status: 'SENT' });
+  });
+
+  it('nothing refused: nothing kept', async () => {
+    db.members.set('m01', member('m01'));
+    db.send = blast(['m01']);
+    sendEmail.mockImplementation(async () => {});
+    const { processCampaignSendBatch } = await import('../campaigns/runSend');
+    await processCampaignSendBatch('s1');
+    expect(db.raw).toHaveLength(0);
+  });
+
+  it('a resend to those who missed out is email only, even for an email-and-text blast', async () => {
+    db.members.set('m01', member('m01'));
+    db.send = blast(['m01'], { sendSms: true }, { retryOfId: 's0' });
+    sendEmail.mockImplementation(async () => {});
+    sendSmsBulk.mockImplementation(async ({ to }: { to: string[] }) => ({ sent: to.length, failed: [] }));
+    const { processCampaignSendBatch } = await import('../campaigns/runSend');
+    await processCampaignSendBatch('s1');
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(sendSmsBulk).not.toHaveBeenCalled();
+  });
+
+  it('"Send to the N who missed out" starts a resend of exactly those, once', async () => {
+    db.send = blast(['m01', 'm02', 'm03'], {}, { status: 'SENT', emailFailedIds: ['m02', 'm03'] });
+    const { startMissedSend, NOBODY_MISSED_ERROR, ALREADY_RESENT_ERROR, SEND_IN_FLIGHT_ERROR } = await import('../campaigns/runSend');
+
+    const started = await startMissedSend('c1', 's1');
+    expect(started).toEqual({ ok: true, sendId: 'new1', totalRecipients: 2 });
+    expect(db.created[0]).toMatchObject({ campaignId: 'c1', recipientIds: ['m02', 'm03'], totalRecipients: 2, status: 'SENDING', retryOfId: 's1', filterSnapshot: { cityId: 'syd' } });
+
+    // Once per send.
+    db.otherSends = [db.created[0]];
+    db.created[0].status = 'SENT';
+    expect(await startMissedSend('c1', 's1')).toEqual({ ok: false, error: ALREADY_RESENT_ERROR });
+    // Not while the blast is being sent.
+    db.otherSends = [{ id: 'x', status: 'SENDING' }];
+    expect(await startMissedSend('c1', 's1')).toEqual({ ok: false, error: SEND_IN_FLIGHT_ERROR });
+    // Nobody missed, or another blast's send.
+    db.otherSends = [];
+    db.send.emailFailedIds = null;
+    expect(await startMissedSend('c1', 's1')).toEqual({ ok: false, error: NOBODY_MISSED_ERROR });
+    expect(await startMissedSend('other-blast', 's1')).toMatchObject({ ok: false, notFound: true });
+    expect(db.created).toHaveLength(1);
   });
 });
 

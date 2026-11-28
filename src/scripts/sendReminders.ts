@@ -13,6 +13,7 @@
  */
 
 import { prisma } from '../lib/prisma';
+import { closeEmailTransport } from '../lib/emails/send';
 import { sendEmail } from '../lib/emails/send';
 import { eventReminderEmail } from '../lib/emails/eventEmails';
 import { venueLine } from '../lib/venue';
@@ -77,4 +78,8 @@ run()
     console.error(err);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => {
+    // Open mail connections would keep the job running for minutes.
+    closeEmailTransport();
+    return prisma.$disconnect();
+  });

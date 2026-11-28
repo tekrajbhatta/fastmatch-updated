@@ -17,6 +17,7 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 vi.mock('@/lib/rateLimit', () => ({
+  HOUR: 60 * 60 * 1000,
   rateKey: (prefix: string, value: string) => `${prefix}:${value}`,
   hitRateLimit: async (key: string, limit: number) => {
     const n = h.keys.get(key) ?? 0;
@@ -53,7 +54,7 @@ describe('permanentFailure', () => {
       'delivery-status': { description: 'No such user', message: '550 5.1.1 user unknown' }, ...over },
   });
   it('reads the address and reason from a permanent failure', () => {
-    expect(permanentFailure(report({}))).toEqual({ email: 'olivia@example.com', reason: 'No such user' });
+    expect(permanentFailure(report({}))).toEqual({ email: 'olivia@example.com', reason: 'No such user', detail: 'No such user 550 5.1.1 user unknown' });
   });
   it('ignores temporary failures and every other event', () => {
     expect(permanentFailure(report({ severity: 'temporary' }))).toBeNull();
@@ -118,6 +119,27 @@ describe('the bounce webhook acts on each signed report once', () => {
     expect(h.updates).toHaveLength(0);
     expect((await post(body)).status).toBe(200);
     expect(h.updates).toHaveLength(1);
+  });
+
+  it('leaves the member alone when the provider blames our sending, not the address (28 Nov: no MX record)', async () => {
+    const senderSide = (token: string, status: Record<string, string>) => ({
+      signature: sign(String(Math.floor(Date.now() / 1000)), token),
+      'event-data': { event: 'failed', severity: 'permanent', recipient: 'vikki@bigpond.example', 'delivery-status': status },
+    });
+    const statuses: Record<string, string>[] = [
+      { message: '5.7.1 Sender rejected bounce+f8f9c3.3cf2927-vikki=bigpond.example@mg.fastmatch.com.au.\n5.7.1 IB300 i{0e5b2278}' },
+      { description: '', message: 'sorry, refused mailfrom because return MX does not exist' },
+      // Only the second part blames us: everything the provider said counts.
+      { description: 'Not delivered', message: '550 5.7.26 Unauthenticated email from fastmatch.com.au is not accepted due to its DMARC policy' },
+    ];
+    for (const [i, status] of statuses.entries()) {
+      const res = await post(senderSide(`sender-${i}`, status));
+      expect(res.status).toBe(200);
+    }
+    expect(h.updates).toHaveLength(0);
+    // Gil is told once an hour, not once per refusal.
+    expect([...h.keys.keys()].filter((k) => k === 'mg-sending-problem-alert')).toHaveLength(1);
+    expect(h.keys.get('mg-sending-problem-alert')).toBe(1);
   });
 
   it('still refuses an unsigned report before looking at its token', async () => {

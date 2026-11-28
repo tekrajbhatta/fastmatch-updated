@@ -12,6 +12,8 @@ import jwt from 'jsonwebtoken';
 import { withMobileMatches } from '../memberSearch';
 import { maskMobile } from '../logMask';
 import { blastFilterSchema, BAD_FILTER } from './fields';
+import { waitForBlastSlot } from './pacing';
+import type { Prisma } from '@prisma/client';
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
@@ -25,6 +27,20 @@ const BATCH_SIZE = 100;
 
 export const SEND_IN_FLIGHT_ERROR =
   'This blast is already being sent. Wait for it to finish, or pause or cancel it on the blast’s Send tab, before sending it again.';
+
+/**
+ * Tries per blast email when Mailgun says "try again later" (its limit of 26
+ * recipients in 30 seconds): each waits until the moment it gives. Blasts
+ * run in the background, so they can wait longer than an email a person is
+ * waiting on. Still refused after that, the member is kept as "missed out"
+ * (emailFailedIds), for History's "Send to the N who missed out".
+ */
+export const BLAST_EMAIL_ATTEMPTS = 4;
+
+/** Member ids kept in a send's JSON column (recipientIds, emailFailedIds). */
+export function idList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+}
 
 /**
  * Starts a new send for a (reusable) campaign: snapshots its current filter
@@ -53,20 +69,60 @@ export async function startCampaignSend(
   const recipients = await prisma.member.findMany({ where, select: { id: true } });
   const recipientIds = recipients.map((r) => r.id);
 
+  return createSend(campaignId, { filterSnapshot: campaign.filter as Prisma.InputJsonValue, recipientIds });
+}
+
+/**
+ * A new send of this blast, unless it already has one going (or paused).
+ * Checked with the blast locked, so two presses at once can't both start one.
+ */
+async function createSend(
+  campaignId: string,
+  data: { filterSnapshot: Prisma.InputJsonValue; recipientIds: string[]; retryOfId?: string },
+): Promise<{ ok: true; sendId: string; totalRecipients: number } | { ok: false; error: string }> {
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM \`Campaign\` WHERE id = ${campaignId} FOR UPDATE`;
     const inFlight = await tx.campaignSend.findFirst({ where: { campaignId, status: { in: ['SENDING', 'PAUSED'] } } });
     if (inFlight) return { ok: false as const, error: SEND_IN_FLIGHT_ERROR };
+    if (data.retryOfId && (await tx.campaignSend.findFirst({ where: { retryOfId: data.retryOfId } }))) {
+      return { ok: false as const, error: ALREADY_RESENT_ERROR };
+    }
     const send = await tx.campaignSend.create({
       data: {
         campaignId,
-        filterSnapshot: campaign.filter as any,
-        recipientIds,
-        totalRecipients: recipientIds.length,
+        filterSnapshot: data.filterSnapshot,
+        recipientIds: data.recipientIds,
+        totalRecipients: data.recipientIds.length,
         status: 'SENDING',
+        ...(data.retryOfId ? { retryOfId: data.retryOfId } : {}),
       },
     });
-    return { ok: true as const, sendId: send.id, totalRecipients: recipientIds.length };
+    return { ok: true as const, sendId: send.id, totalRecipients: data.recipientIds.length };
+  });
+}
+
+export const ALREADY_RESENT_ERROR = 'This send has already been sent again to the members who missed out.';
+export const NOBODY_MISSED_ERROR = 'Nobody missed out on this send.';
+
+/**
+ * "Send to the N who missed out" (History): the blast's email again, to the
+ * members a send's email didn't reach because Mailgun kept saying "try again
+ * later". Email only: they had any text already. Once per send; the resend
+ * can have its own. Each member is checked again as it reaches them, as in
+ * any send (unsubscribed or bounced since: nothing).
+ */
+export async function startMissedSend(
+  campaignId: string,
+  sendId: string,
+): Promise<{ ok: true; sendId: string; totalRecipients: number } | { ok: false; error: string; notFound?: boolean }> {
+  const original = await prisma.campaignSend.findUnique({ where: { id: sendId } });
+  if (!original || original.campaignId !== campaignId) return { ok: false, error: 'That send wasn’t found.', notFound: true };
+  const missed = idList(original.emailFailedIds);
+  if (missed.length === 0) return { ok: false, error: NOBODY_MISSED_ERROR };
+  return createSend(campaignId, {
+    filterSnapshot: (original.filterSnapshot ?? {}) as Prisma.InputJsonValue,
+    recipientIds: missed,
+    retryOfId: sendId,
   });
 }
 
@@ -90,7 +146,9 @@ export async function processCampaignSendBatch(sendId: string) {
   }
 
   const campaign = send.campaign;
-  const recipientIds = (send.recipientIds as string[]) ?? [];
+  const recipientIds = idList(send.recipientIds);
+  // A resend to those who missed out is email only (they had any text already).
+  const sendSms = campaign.sendSms && !send.retryOfId;
   const batchEnd = Math.min(send.sentCount + BATCH_SIZE, recipientIds.length);
 
   // SMS recipients are collected here and sent in a SINGLE bulk request after
@@ -100,11 +158,14 @@ export async function processCampaignSendBatch(sendId: string) {
   // message carries its own personalised unsubscribe link.)
   const smsRecipients: string[] = [];
   // Members may share a mobile (Gil, Q21): each number gets the text once.
-  const owners = campaign.sendSms ? await textOwners(recipientIds, campaign.ignorePreference) : null;
+  const owners = sendSms ? await textOwners(recipientIds, campaign.ignorePreference) : null;
   // Which recipients each number belongs to, to put failed texts against them.
   const byMobile = new Map<string, string[]>();
   // Recipients something failed for in this batch (counted once each).
   const failedIds = new Set<string>();
+  // Of those, the ones whose email Mailgun kept refusing for now (not a dead
+  // address), kept on the send for "Send to the N who missed out".
+  const emailMissedIds: string[] = [];
 
   try {
     for (let i = send.sentCount; i < batchEnd; i++) {
@@ -146,11 +207,15 @@ export async function processCampaignSendBatch(sendId: string) {
             // Cleaned again as it goes out (it was when saved).
             cleanRichHtml,
           );
+          // This sender's turn (src/lib/campaigns/pacing.ts): one blast email
+          // every 1.5 seconds across the site, under Mailgun's limit.
+          await waitForBlastSlot();
           // One line even for a blast saved before subjects were kept to one.
           // The one-click unsubscribe (the mail program's own button) uses the same token.
           await sendEmail({
             to: recipient.email, subject: oneLine(campaign.subject ?? ''), html,
             listUnsubscribe: `${process.env.APP_URL}/api/unsubscribe/one-click?token=${unsubscribeToken}`,
+            attempts: BLAST_EMAIL_ATTEMPTS,
           });
         } catch (err) {
           failedIds.add(recipient.id);
@@ -161,11 +226,13 @@ export async function processCampaignSendBatch(sendId: string) {
               where: { id: recipient.id },
               data: { emailBounced: true, bounceReason: 'Rejected on send' },
             });
+          } else {
+            emailMissedIds.push(recipient.id);
           }
         }
       }
       if (
-        campaign.sendSms &&
+        sendSms &&
         // Only to a mobile they've confirmed: a mistyped number belongs to a stranger.
         recipient.mobileVerified &&
         (recipient.contactMethod === 'EMAIL_AND_SMS' || recipient.contactMethod === 'SMS' || campaign.ignorePreference)
@@ -201,6 +268,11 @@ export async function processCampaignSendBatch(sendId: string) {
     // they're no longer counted as sent.
     if (failedIds.size > 0) {
       await prisma.campaignSend.update({ where: { id: sendId }, data: { failedCount: { increment: failedIds.size } } });
+    }
+    // Added to the list in one statement: another run of this send (the
+    // scheduled job taking over) may be adding its own at the same moment.
+    if (emailMissedIds.length > 0) {
+      await prisma.$executeRaw`UPDATE \`CampaignSend\` SET \`emailFailedIds\` = JSON_MERGE_PRESERVE(COALESCE(\`emailFailedIds\`, JSON_ARRAY()), CAST(${JSON.stringify(emailMissedIds)} AS JSON)) WHERE \`id\` = ${sendId}`;
     }
   }
 

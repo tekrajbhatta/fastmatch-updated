@@ -72,7 +72,16 @@ patterns as the FastmatchLive codebase.
   in-progress send forward until complete. `/send` and `/resume` process one
   batch immediately for responsiveness, then the scheduled job takes over.
   Pause/cancel take effect at the next batch boundary, not instantly
-  mid-batch. `GET /api/admin/sms-credits` is a placeholder for the provider
+  mid-batch.
+
+  **Paced under Mailgun's limit** (28 Nov 2026): Mailgun refuses more than 26
+  recipients in 30 seconds from our domain, so each blast email waits for its
+  turn (`src/lib/campaigns/pacing.ts`, one every 1.5 s across the site,
+  `BLAST_EMAILS_PER_30S`), and a "try again later" (4xx) answer is tried again
+  at the time Mailgun gives (`src/lib/emails/retry.ts`; every email gets one
+  retry, blasts several). Members still refused are kept on the send
+  (`emailFailedIds`), and History offers "Send to the N who missed out" (an
+  email-only resend, `/sends/:sendId/missed`). `GET /api/admin/sms-credits` is a placeholder for the provider
   balance banner ("194.250 credits remaining"). Email sending is real
   (Mailgun over SMTP); SMS is a real Cellcast implementation. Both fall back
   to `console.log` when credentials are absent.

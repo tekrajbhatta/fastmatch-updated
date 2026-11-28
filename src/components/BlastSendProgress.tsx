@@ -36,7 +36,7 @@ export default function BlastSendProgress({
         <div className="text-xl font-extrabold text-green-dark">{failedCount > 0 ? blastOutcome(delivered, failedCount) : `${sentCount} / ${total} sent`}</div>
         <div className="mb-2 text-ink/60">
           {failedCount > 0
-            ? 'Done. Some messages couldn’t be sent (the server log has the details); everyone else has theirs.'
+            ? 'Done. Some messages couldn’t be sent; everyone else has theirs. An email the mail server was too busy for can be sent again from History.'
             : 'Blast delivered to everyone in the filtered list.'}
         </div>
         <ProgressBar value={sentCount ?? total} max={Math.max(total, 1)} label="Blast sending progress" trackClassName="bg-green/20" barClassName="bg-green-dark" />

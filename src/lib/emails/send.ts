@@ -13,6 +13,7 @@
 import type { Transporter } from 'nodemailer';
 import { EMAIL_RE } from '../friendBooking';
 import { maskEmail } from '../logMask';
+import { withTemporaryRetry } from './retry';
 
 interface SendEmailArgs {
   to: string;
@@ -31,6 +32,14 @@ interface SendEmailArgs {
    * from them. Optional: every other caller is unchanged.
    */
   listUnsubscribe?: string;
+  /**
+   * Tries in all when the mail server answers "try again later" (a 4xx, such
+   * as Mailgun's limit of 26 recipients in 30 seconds), waiting each time
+   * until the moment it gives (src/lib/emails/retry.ts). Default 2: one
+   * retry, so a person waiting on a page waits at most about 35 seconds more.
+   * Blasts, sent in the background, try more times.
+   */
+  attempts?: number;
 }
 
 // Cached transport. Built on first use and reused for the life of the process.
@@ -68,7 +77,7 @@ async function getTransport(): Promise<Transporter> {
   return transporter;
 }
 
-export async function sendEmail({ to: rawTo, subject, html, replyTo, listUnsubscribe }: SendEmailArgs) {
+export async function sendEmail({ to: rawTo, subject, html, replyTo, listUnsubscribe, attempts = 2 }: SendEmailArgs) {
   // Exactly one address, of the shape every form on the site accepts (the
   // same rule as zod's .email()). nodemailer would otherwise take "a@x.com,
   // b@y.com" or "Name <a@x.com>" and send to all of them: a safety net in case
@@ -100,10 +109,17 @@ export async function sendEmail({ to: rawTo, subject, html, replyTo, listUnsubsc
 
   try {
     const transport = await getTransport();
-    await transport.sendMail({
+    const message = {
       from: fromAddress, to, subject, html,
       ...(reply ? { replyTo: reply } : {}),
       ...(unsubscribeUrl ? { headers: { 'List-Unsubscribe': `<${unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } } : {}),
+    };
+    await withTemporaryRetry(() => transport.sendMail(message), {
+      attempts,
+      onRetry: (err, waitMs) => {
+        const e = err as { responseCode?: number } | null;
+        console.warn(`Email to ${maskEmail(to)}: the mail server said try again later (${e?.responseCode ?? '4xx'}); trying again in ${Math.round(waitMs / 1000)} s.`);
+      },
     });
   } catch (err) {
     // Log it clearly so it's visible in journalctl, then rethrow so the
@@ -131,6 +147,15 @@ export async function sendEmail({ to: rawTo, subject, html, replyTo, listUnsubsc
     Object.defineProperty(failure, 'providerMessage', { value: original, enumerable: false });
     throw failure;
   }
+}
+
+/**
+ * Closes the open mail connections, so a scheduled job ends as soon as it's
+ * done instead of waiting for the mail server to drop them (several minutes).
+ */
+export function closeEmailTransport(): void {
+  transporter?.close();
+  transporter = null;
 }
 
 /** The mail server's own answer to a failed send, unmasked (see above), or null. */

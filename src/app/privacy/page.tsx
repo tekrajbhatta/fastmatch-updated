@@ -7,7 +7,7 @@ import { linkClass } from '@/components/site/button';
 export const metadata: Metadata = { title: 'Privacy policy' };
 
 /** When this policy last changed, shown at the top (update it with the wording). */
-const LAST_UPDATED = '13 November 2026';
+const LAST_UPDATED = '28 November 2026';
 
 export default function PrivacyPage() {
   return (
@@ -45,7 +45,7 @@ export default function PrivacyPage() {
             <li><b>Your matches.</b> When you and another member choose each other (a Date or Friend match), you each receive the other&apos;s name, email address and mobile number, by email and on My Match History. People you don&apos;t match with never see your contact details.</li>
             <li><b>People at your event.</b> On the night, the other people checked in who can choose you see your name and your number for the night.</li>
             <li><b>Fast Match.</b> Our staff can see your details, bookings, choices and matches, to run our events and answer your questions.</li>
-            <li><b>Our service providers,</b> who handle information for us to run the website: Stripe (card payments), Mailgun (our emails), Cellcast (our text messages), YouTube (the video on our home page, which YouTube provides under its own privacy policy) and our website hosting provider. Some of them may store or process information outside Australia.</li>
+            <li><b>Our service providers,</b> who handle information for us to run the website: Stripe (card payments), Mailgun (our emails), DeBounce (checking that email addresses still work), Cellcast (our text messages), YouTube (the video on our home page, which YouTube provides under its own privacy policy) and our website hosting provider. Some of them may store or process information outside Australia.</li>
           </Ul>
           <P>We don&apos;t sell your information. We may also disclose it where the law requires or allows us to.</P>
 

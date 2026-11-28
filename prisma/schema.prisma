@@ -520,6 +520,12 @@ model CampaignSend {
   // the progress box and History can say "N sent, M failed".
   failedCount     Int                @default(0)
   recipientIds    Json?              // locked in once sending starts — pause/resume continue against this exact list
+  // Members an email didn't reach because the mail server kept saying "try
+  // again later" (not a dead address: those are marked bounced), so the
+  // History tab can offer "Send to the N who missed out".
+  emailFailedIds  Json?
+  // Set on that resend: the send it finishes. A resend is email only.
+  retryOfId       String?
   startedAt       DateTime           @default(now())
   completedAt     DateTime?
 }
